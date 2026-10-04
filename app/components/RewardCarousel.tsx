@@ -10,40 +10,59 @@ const SLIDE_LABELS = [
   'Recognition medal illustration'
 ];
 
-/** Feed-ready image record. Pass only approved/published artwork; never include winner details. */
+/** Feed-ready recognition record. Pass only approved/published artwork and consent-checked names. */
 export type RecognitionGalleryItem = {
   id: string;
   altText: string;
   imageUrl?: string | null;
   artworkIndex?: number;
   isPublished?: boolean;
+  /** Caption details. Optional, so a privacy-restricted tenant can show artwork only. */
+  employeeName?: string | null;
+  designation?: string | null;
+  rewardFor?: string | null;
 };
 
-const DEMO_RECOGNITIONS: RecognitionGalleryItem[] = SLIDE_LABELS.map((altText, artworkIndex) => ({
+/** Synthetic awardees for the demo build; real names only after consent is recorded. */
+const DEMO_AWARDEES = [
+  { employeeName: 'Aman Kumar', designation: 'Safety Helper', rewardFor: 'Near-Miss Reporting' },
+  { employeeName: 'Priya Das', designation: 'Technician', rewardFor: 'Hazard Identification' },
+  { employeeName: 'Ravi Singh', designation: 'Rigger', rewardFor: 'Safe Lifting Practice' }
+];
+
+const DEMO_RECOGNITION_CARDS: RecognitionGalleryItem[] = SLIDE_LABELS.map((altText, artworkIndex) => ({
   id: `demo-recognition-${artworkIndex + 1}`,
   altText,
   artworkIndex,
-  isPublished: true
+  isPublished: true,
+  ...DEMO_AWARDEES[artworkIndex]
 }));
 
 type Props = { items?: readonly RecognitionGalleryItem[] };
 
-export default function RewardCarousel({ items = DEMO_RECOGNITIONS }: Props) {
+export default function RewardCarousel({ items = DEMO_RECOGNITION_CARDS }: Props) {
   const { T } = useI18n();
   const [paused, setPaused] = useState(false);
   const publishedItems = items.filter((item) => item.isPublished !== false);
 
   if (!publishedItems.length) return null;
 
-  return <div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery images')}>
-    <span className="sr-only">{T('Image-only recognition gallery. Names and winner details are intentionally not displayed.')}</span>
+  return <div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery')}>
+    <span className="sr-only">{T('Recognition gallery. Each card shows the rewardee, designation and the reward received.')}</span>
     <div className="reward-gallery-viewport">
       <div className="reward-gallery-track" style={{ animationDuration: `${Math.max(18, publishedItems.length * 6)}s` }}>
         {[0, 1].map((copy) => <div className="reward-gallery-group" key={`gallery-copy-${copy}`} aria-hidden={copy === 1 ? true : undefined}>
-          {publishedItems.map((item, index) => <div className="reward-gallery-card" key={`${copy}-${item.id}`}>
-            {item.imageUrl
-              ? <img className="reward-gallery-image" src={item.imageUrl} alt={item.altText} loading="lazy" decoding="async" />
-              : <RewardArtwork slide={item.artworkIndex ?? index % SLIDE_LABELS.length} />}
+          {publishedItems.map((item, index) => <div className="reward-gallery-item" key={`${copy}-${item.id}`}>
+            <div className="reward-gallery-card">
+              {item.imageUrl
+                ? <img className="reward-gallery-image" src={item.imageUrl} alt={item.altText} loading="lazy" decoding="async" />
+                : <RewardArtwork slide={item.artworkIndex ?? index % SLIDE_LABELS.length} />}
+            </div>
+            {(item.employeeName || item.rewardFor) && <div className="reward-gallery-caption">
+              {item.employeeName && <b className="reward-gallery-name">{item.employeeName}</b>}
+              {item.designation && <span className="reward-gallery-designation">{T('Designation')}: {item.designation}</span>}
+              {item.rewardFor && <span className="reward-gallery-reward"><span className="reward-gallery-reward-label">{T('Reward For')}</span>{item.rewardFor}</span>}
+            </div>}
           </div>)}
         </div>)}
       </div>

@@ -4,7 +4,7 @@ A fresh Next.js + TypeScript PWA-oriented scaffold for the Safex flow. It remain
 
 ## Included now
 
-- Responsive safety home inspired by the latest mobile reference: compact tenant/site header, six-language chip strip, stacked report/training/circular shortcuts, a Document Vault / Library grid for SOP/SWP, Risk Assessments, Legal & Statutory Compliance, Policy & Procedures and MoM, a visual-only Wall of Fame / Reward Wall carousel, plus the nearest upcoming event in Explore & Learn. Circular and notice archives remain accessible without latest-item cards on Home. The Report chooser retains all nine types: Near Miss, UC, UA, Hazard, Grievance, Speak Up, Suggestion, Feedback and Safety Observation.
+- Responsive safety home inspired by the latest mobile reference: compact tenant/site header, six-language chip strip, stacked report/training/circular shortcuts, a Document Vault / Library grid for SOP/SWP, Risk Assessments, Legal & Statutory Compliance, Policy & Procedures and MoM, a Wall of Fame / Reward Wall carousel whose cards carry the awardee name, designation and the reward received, plus the nearest upcoming event in Explore & Learn. Circular and notice archives remain accessible without latest-item cards on Home. The Report chooser retains all nine types: Near Miss, UC, UA, Hazard, Grievance, Speak Up, Suggestion, Feedback and Safety Observation.
 - Multi-site first-open selector; session site context; Change Site in the header. Single-site tenant logic is represented in code (one site auto-selects).
 - Site-filtered My Site Reports (no Employee No. filter) and an All Site Reports OTP entry screen.
 - Reference-inspired reporting flows: direct UC (Unsafe Condition) and UA (Unsafe Act) forms, plus Safety Observation safe-practice options; Hazard accident/property-damage/red-risk choices; Feedback, Grievance and Suggestion category pickers; tailored fields for Near Miss, Hazard, observations, Speak Up and other concerns.
@@ -78,5 +78,6 @@ The migration deliberately denies direct anonymous access to employee/report tab
 - All Site Reports must verify the registered phone by OTP and stay within the same vendor tenant.
 - Worker summaries mask reporter IDs. Full employee IDs and original attachments belong behind authorized access; reviewed previews only after moderation.
 - Anonymous reports have no reporter Employee No. The server also rejects anonymous submissions outside Speak Up.
+- Recognition cards show the awardee name, designation and reward. Those three fields are optional in `RecognitionGalleryItem`, so a tenant that has not recorded employee consent can still publish artwork-only cards by leaving them unset. Use synthetic names in demo builds; obtain documented consent before displaying real employee names or photographs.
 - Unsent reports and optional photos are held in the browser's IndexedDB outbox until the server confirms receipt; employee name/designation are not queued, only the selected Employee No. needed for server-side site validation. Avoid shared devices. The service worker never caches report/API responses.
 - No real emergency phone numbers or real employee PII are included.
