@@ -54,9 +54,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .safex-app { min-height: 100vh; padding-bottom: calc(124px + env(safe-area-inset-bottom)); }
 .demo-ribbon { min-height: 28px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #fff2d8; color: #744c00; padding: 5px 12px; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .015em; }
 .sync-status-banner { width: min(100% - 32px, 1180px); min-height: 68px; display: flex; align-items: center; gap: 11px; margin: 10px auto 0; border: 1px solid #c7d8ef; border-radius: 15px; background: #f3f8ff; color: #173654; padding: 10px 13px; box-shadow: 0 3px 10px rgba(15,37,64,.04); }
-.sync-status-banner.offline, .sync-status-banner.backend-unconfigured { border-color: #efd49c; background: #fff8e8; color: #725000; }
-.sync-status-banner.needs-attention, .sync-status-banner.storage-error { border-color: #efb6b6; background: #fff3f2; color: #8a2828; }
-.sync-status-banner.syncing { border-color: #a9cfbf; background: #effbf5; color: #165a43; }
+.sync-status-banner.offline, .sync-status-banner.backend-unconfigured, .sync-status-banner.attention { border-color: #efd49c; background: #fff8e8; color: #725000; }
+.sync-status-banner.needs-attention, .sync-status-banner.storage-error, .sync-status-banner.error { border-color: #efb6b6; background: #fff3f2; color: #8a2828; }
+.sync-status-banner.syncing, .sync-status-banner.synced { border-color: #a9cfbf; background: #effbf5; color: #165a43; }
+/* A single quiet appearance so the banner does not jump into view; motion is optional. */
+.sync-status-banner { animation: sync-status-enter .22s ease-out; }
+@keyframes sync-status-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes sync-status-spin { to { transform: rotate(360deg); } }
+.sync-status-spin { animation: sync-status-spin 1.1s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sync-status-banner { animation: none; }
+  .sync-status-spin { animation: none; }
+}
 .sync-status-icon { width: 39px; height: 39px; display: grid; place-items: center; flex: none; border-radius: 12px; background: rgba(255,255,255,.78); color: var(--focus); }
 .sync-status-copy { min-width: 0; display: grid; flex: 1; gap: 3px; }
 .sync-status-copy b { font-size: 11px; line-height: 1.25; }
@@ -923,11 +932,23 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 
 .rewards-gallery-title { display: flex; align-items: center; gap: 8px; }
 .rewards-gallery-title > span { font-size: 1em; line-height: 1; }
+/* Compact heading for the recognition block only (higher specificity than the shared
+   .section-heading / .eyebrow rules, so other sections keep their original sizing). */
+.reward-wall-section .section-heading { margin-bottom: 10px; }
+.reward-wall-section .section-heading h2 { font-size: 17px; }
+.reward-wall-section .section-heading .eyebrow { font-size: 10px; }
 .reward-gallery { position: relative; width: 100%; }
 .reward-gallery-viewport { width: 100%; overflow: hidden; border-radius: 19px; }
-.reward-gallery-track { width: max-content; display: flex; align-items: stretch; will-change: transform; animation: rewards-gallery-loop 24s linear infinite; }
-.reward-gallery-group { display: flex; flex: none; align-items: stretch; gap: 12px; padding-right: 12px; }
-.reward-gallery-card { position: relative; flex: 0 0 min(419px, calc(50vw - 22px)); aspect-ratio: 1.42 / 1; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 19px; background: #102f4b; box-shadow: var(--shadow); }
+.reward-gallery-track { width: max-content; display: flex; align-items: flex-start; will-change: transform; animation: rewards-gallery-loop 24s linear infinite; }
+.reward-gallery-group { display: flex; flex: none; align-items: flex-start; gap: 12px; padding-right: 12px; }
+.reward-gallery-item { display: flex; flex-direction: column; flex: 0 0 min(236px, calc(50vw - 22px)); gap: 8px; }
+.reward-gallery-card { position: relative; width: 100%; aspect-ratio: 1.8 / 1; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 19px; background: #102f4b; box-shadow: var(--shadow); }
+/* Awardee caption shown directly under each card. */
+.reward-gallery-caption { display: grid; gap: 2px; padding: 0 3px; }
+.reward-gallery-name { color: var(--text); font-size: 13px; line-height: 1.3; font-weight: 800; overflow-wrap: anywhere; }
+.reward-gallery-designation { color: var(--muted); font-size: 10.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.reward-gallery-reward { max-width: 100%; display: inline-flex; align-items: center; gap: 6px; justify-self: start; margin-top: 4px; border-radius: 999px; background: var(--accent-soft); color: var(--text); padding: 4px 9px; font-size: 10px; line-height: 1.3; font-weight: 750; }
+.reward-gallery-reward-label { flex: none; font-size: 8px; font-weight: 900; letter-spacing: .085em; text-transform: uppercase; color: var(--muted); }
 .reward-gallery-image, .reward-gallery-card .reward-carousel-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
 .reward-gallery-pause { position: absolute; z-index: 2; top: 10px; right: 10px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.52); border-radius: 50%; background: rgba(9,24,39,.48); color: #fff; padding: 0; cursor: pointer; backdrop-filter: blur(7px); }
 .reward-gallery-pause:hover { background: rgba(9,24,39,.78); }
@@ -936,7 +957,7 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) {
   .reward-gallery-viewport { overflow-x: auto; scroll-snap-type: x mandatory; }
   .reward-gallery-track { animation: none !important; }
-  .reward-gallery-card { scroll-snap-align: start; }
+  .reward-gallery-item { scroll-snap-align: start; }
 }
 
 /* Upcoming Events card inside Explore & Learn */
@@ -1426,7 +1447,7 @@ body {
 .vault-document-status { font-size: 11px; }
 .reward-carousel-stage { border-radius: var(--radius-card); }
 .reward-gallery-viewport, .reward-gallery-card { border-radius: var(--radius-card); }
-.reward-gallery-pause, .reward-carousel-control { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+.reward-gallery-pause, .reward-carousel-control { width: 32px; height: 32px; min-width: 32px; min-height: 32px; }
 .home-feed-feature { min-height: 152px; gap: var(--space-1); border-radius: var(--radius-card); padding: var(--space-2); box-shadow: var(--shadow-card); }
 .home-feed-tag { padding: 6px 10px; font-size: 10px; }
 .home-feed-date, .home-feed-meta, .home-feed-open-details { font-size: 12px; }

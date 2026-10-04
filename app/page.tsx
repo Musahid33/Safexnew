@@ -2,8 +2,8 @@
 
 import {
   AlertTriangle, ArrowLeft, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3,
-  ClipboardList, CloudUpload, Eye, FileText, FolderOpen, Globe2, Home, ImagePlus, Lightbulb, LockKeyhole, MapPin,
-  Monitor, Mic, Moon, MoreHorizontal, Palette, Search, Settings2, Shield, ShieldAlert,
+  ClipboardList, CloudOff, CloudUpload, Eye, FileText, FolderOpen, Globe2, Home, ImagePlus, Lightbulb, LockKeyhole, MapPin,
+  Monitor, Mic, Moon, MoreHorizontal, Palette, RefreshCw, Search, Settings2, Shield, ShieldAlert,
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
@@ -23,6 +23,7 @@ import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedView
 import { AboutAppPage, AccountManagementPage, CompanyAboutPage, InstallAppPage, MoreInfoDialog, MoreMenuPage, type MoreInfoKind } from './components/MorePages';
 import { APP_TIME_ZONE, formatHomeFeedDate, formatHomeFeedTime, getUpcomingEvents, type HomeFeedItem } from '@/lib/home-content';
 import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports, type OutboxSyncResult, type QueuedReport } from '@/lib/report-outbox';
+import { describeSyncStatus, SYNC_BANNER_AUTO_DISMISS_MS } from '@/lib/sync-status';
 import type { Palette as PaletteName, ReportStatus, ReportType, SafetyReport, Site, ThemeMode } from '@/lib/types';
 
 type PageKey = 'home' | 'reports' | 'alerts' | 'events' | 'circulars' | 'updates' | 'training' | 'more' | 'appearance' | 'install' | 'library' | 'company' | 'account' | 'aboutApp' | 'adminDashboard';
@@ -159,6 +160,10 @@ export default function SafexHome() {
   const [feedDetail, setFeedDetail] = useState<HomeFeedItem | null>(null);
   const [reportSyncEnabled, setReportSyncEnabled] = useState(false);
   const [queuedReportCount, setQueuedReportCount] = useState(0);
+  // Starts `true` so the server-rendered markup and the first client render agree; the
+  // effect below corrects it immediately when the device is actually offline.
+  const [isOnline, setIsOnline] = useState(true);
+  const [hideSyncedBanner, setHideSyncedBanner] = useState(false);
   const [outboxSyncState, setOutboxSyncState] = useState<OutboxSyncResult['status'] | 'syncing' | 'storage-error'>('idle');
   const [outboxMessage, setOutboxMessage] = useState('');
   const outboxSyncLock = useRef(false);
@@ -315,6 +320,8 @@ export default function SafexHome() {
     const trySync = () => { if (active) void syncOfflineReports(); };
     const handleVisibility = () => { if (document.visibilityState === 'visible') trySync(); };
     const handleWorkerMessage = (event: MessageEvent) => {
+      // Ignore messages that did not come from this origin's own service worker.
+      if (event.origin && event.origin !== window.location.origin) return;
       if (event.data?.type === 'SAFE_REPORT_OUTBOX_UPDATED') trySync();
     };
 
@@ -331,6 +338,54 @@ export default function SafexHome() {
       navigator.serviceWorker?.removeEventListener('message', handleWorkerMessage);
     };
   }, []);
+
+  // Connection banner. Losing the network is announced immediately - even with an empty queue -
+  // because the worker needs to know a report was stored rather than lost. Coming back online
+  // needs no special handling here: the 'online' listener in the outbox effect above already
+  // starts the sync, which drives the banner to "syncing" and then "synced".
+  useEffect(() => {
+    const updateConnection = () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+      if (!online) {
+        setOutboxSyncState('offline');
+        setOutboxMessage('No internet connection. Reports remain saved on this device and will retry automatically.');
+      }
+    };
+    updateConnection();
+    window.addEventListener('online', updateConnection);
+    window.addEventListener('offline', updateConnection);
+    return () => {
+      window.removeEventListener('online', updateConnection);
+      window.removeEventListener('offline', updateConnection);
+    };
+  }, []);
+
+  // A finished sync is a confirmation, not a permanent panel, so it clears itself.
+  useEffect(() => {
+    if (outboxSyncState !== 'synced' || queuedReportCount > 0) {
+      setHideSyncedBanner(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setHideSyncedBanner(true), SYNC_BANNER_AUTO_DISMISS_MS);
+    return () => window.clearTimeout(timer);
+  }, [outboxSyncState, queuedReportCount]);
+
+  // Exactly one banner can ever render, or none at all (see describeSyncStatus).
+  const syncBanner = useMemo(() => {
+    const banner = describeSyncStatus({
+      isOnline,
+      syncState: outboxSyncState,
+      queuedCount: queuedReportCount,
+      syncEnabled: reportSyncEnabled
+    });
+    if (!banner) return null;
+    if (banner.tone === 'synced' && hideSyncedBanner) return null;
+    // The outbox sets a precise, already-translated message for each retry status; prefer it
+    // over the generic fallback so the banner can never contradict the sync engine.
+    const waiting = banner.tone === 'queued' || banner.tone === 'attention' || banner.tone === 'error';
+    return waiting && outboxMessage ? { ...banner, detailKey: outboxMessage } : banner;
+  }, [isOnline, outboxSyncState, queuedReportCount, reportSyncEnabled, hideSyncedBanner, outboxMessage]);
 
   useEffect(() => {
     document.documentElement.dataset.mode = themeMode;
@@ -614,10 +669,10 @@ export default function SafexHome() {
         </header>
       </div>
       </>}
-      {page !== 'adminDashboard' && queuedReportCount > 0 && <aside className={`sync-status-banner ${outboxSyncState}`} role="status" aria-live="polite">
-        <span className="sync-status-icon"><CloudUpload size={19} /></span>
-        <span className="sync-status-copy"><b>{T('{count} reports saved on this device', { count: queuedReportCount })}</b><small>{outboxMessage ? T(outboxMessage) : T('Waiting for a connection and a configured database endpoint.')}</small></span>
-        <button type="button" className="sync-status-action" onClick={() => void syncOfflineReports(true)} disabled={outboxSyncState === 'syncing' || !reportSyncEnabled}>{T(outboxSyncState === 'syncing' ? 'Syncing…' : 'Sync now')}</button>
+      {page !== 'adminDashboard' && syncBanner && <aside className={`sync-status-banner ${syncBanner.tone}`} role="status" aria-live="polite">
+        <span className="sync-status-icon">{syncBanner.icon === 'offline' ? <CloudOff size={19} /> : syncBanner.icon === 'syncing' ? <RefreshCw size={19} className="sync-status-spin" /> : syncBanner.icon === 'synced' ? <Check size={19} /> : syncBanner.icon === 'attention' ? <AlertTriangle size={19} /> : <CloudUpload size={19} />}</span>
+        <span className="sync-status-copy"><b>{T(syncBanner.titleKey, syncBanner.params)}</b><small>{T(syncBanner.detailKey)}</small></span>
+        {syncBanner.action === 'sync-now' && <button type="button" className="sync-status-action" onClick={() => void syncOfflineReports(true)} disabled={!reportSyncEnabled}>{T('Sync now')}</button>}
       </aside>}
 
       <main className={page === 'adminDashboard' ? 'admin-main-content' : 'main-content'}>

@@ -26,5 +26,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="hi-IN" data-mode="light" data-palette="safex"><body><I18nProvider>{children}</I18nProvider></body></html>;
+  return <html lang="en" data-mode="light" data-palette="safex"><body><I18nProvider>{children}</I18nProvider></body></html>;
 }

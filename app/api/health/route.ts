@@ -27,12 +27,14 @@ export async function GET() {
     && process.env.SUPABASE_SERVICE_ROLE_KEY
     && process.env.SAFEX_REPORT_SUBMISSIONS_ENABLED === 'true'
   );
+  // The browser only needs reportSubmissionEnabled. Backend/connectivity flags describe the
+  // internal deployment, so they are only returned when an operator opts in.
+  const detailed = process.env.SAFEX_HEALTH_DETAIL === 'true';
   return NextResponse.json({
     status: 'ok',
     app: 'safex',
-    backendConfigured,
-    supabaseReachable,
     reportSubmissionEnabled,
-    mode: reportSubmissionEnabled ? 'report-sync-enabled' : backendConfigured ? 'backend-configured-report-sync-disabled' : 'demo-only'
+    mode: reportSubmissionEnabled ? 'report-sync-enabled' : backendConfigured ? 'backend-configured-report-sync-disabled' : 'demo-only',
+    ...(detailed ? { backendConfigured, supabaseReachable } : {})
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
