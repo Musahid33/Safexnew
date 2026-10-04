@@ -61,23 +61,50 @@ function sameOriginRequest(request: NextRequest): boolean {
   const fetchSite = request.headers.get('sec-fetch-site');
   if (fetchSite === 'cross-site') return false;
   if (!origin) return true;
+  let originHost: string;
   try {
-    return new URL(origin).host.toLowerCase() === request.nextUrl.host.toLowerCase();
+    originHost = new URL(origin).host.toLowerCase();
   } catch {
     return false;
   }
+  // A reverse proxy may terminate the public hostname and forward to an internal one, so
+  // accept the proxied host headers as well as the request URL. A cross-site attacker cannot
+  // forge these: they are browser-set (Host) or trigger a CORS preflight this API never
+  // answers (X-Forwarded-Host).
+  const trusted = new Set<string>([request.nextUrl.host.toLowerCase()]);
+  for (const value of [request.headers.get('host'), request.headers.get('x-forwarded-host')]) {
+    const candidate = value?.split(',')[0]?.trim().toLowerCase();
+    if (candidate) trusted.add(candidate);
+  }
+  return trusted.has(originHost);
 }
+
+const HOSTNAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
 function requestHost(request: NextRequest): string {
   const forwardedHost = request.headers.get('x-forwarded-host');
   const rawHost = forwardedHost?.split(',')[0]?.trim() || request.nextUrl.host;
-  return rawHost.split(':')[0].toLowerCase().replace(/\.$/, '');
+  const host = rawHost.split(':')[0].toLowerCase().replace(/\.$/, '');
+  // Reject anything that is not a plain DNS hostname before it reaches a tenant lookup.
+  return HOSTNAME_PATTERN.test(host) ? host : '';
+}
+
+function validIp(value: string): boolean {
+  return /^[0-9a-fA-F.:]{3,45}$/.test(value);
 }
 
 function clientIp(request: NextRequest): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')?.trim()
-    || 'unknown';
+  // X-Forwarded-For is client-appendable, so the FIRST entry can be attacker-chosen - using
+  // it let a report spammer rotate the header and get a fresh rate-limit bucket every time.
+  // Prefer the proxy-set header, then walk the chain right-to-left (closest hop = trustworthy).
+  const realIp = request.headers.get('x-real-ip')?.trim();
+  if (realIp && validIp(realIp)) return realIp;
+  const chain = request.headers.get('x-forwarded-for')?.split(',') ?? [];
+  for (let index = chain.length - 1; index >= 0; index -= 1) {
+    const candidate = chain[index]?.trim();
+    if (candidate && validIp(candidate)) return candidate;
+  }
+  return 'unknown';
 }
 
 async function parsePayload(request: NextRequest): Promise<{ raw: unknown; attachment: File | null }> {
@@ -159,6 +186,12 @@ export async function POST(request: NextRequest) {
 
   const length = Number(request.headers.get('content-length') || 0);
   if (length > MAX_BODY_BYTES) return jsonError(413, 'REPORT_TOO_LARGE', 'Report data or its optional photo exceeds the allowed size.');
+  // Without a declared length a client can stream an unbounded body (chunked encoding) and
+  // make request.formData() buffer it all in memory. Browsers always send Content-Length for
+  // a FormData upload, so requiring it here closes that memory-exhaustion path.
+  if (!Number.isFinite(length) || length <= 0) {
+    return jsonError(411, 'REPORT_LENGTH_REQUIRED', 'Report submissions must declare their content length.');
+  }
 
   if (process.env.SAFEX_REPORT_SUBMISSIONS_ENABLED !== 'true') {
     return jsonError(503, 'REPORT_BACKEND_DISABLED', 'Reports are saved on this device, but database sync is not configured on the Safex server yet.');

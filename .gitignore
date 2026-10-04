@@ -10,3 +10,9 @@ coverage/
 # Never package local workspace snapshots / platform auth into the project or a deploy archive
 workspace-*.zip
 quarantine/
+
+# Deploy credentials and private keys must never be committed.
+# .antideploy/config.json holds a live account token; it leaked once via a workspace archive.
+.antideploy/
+*.pem
+*.key

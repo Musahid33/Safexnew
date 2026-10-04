@@ -8,20 +8,41 @@ const allowFraming =
   process.env.NODE_ENV === 'development' || process.env.SAFEX_ALLOW_FRAME === '1';
 const isDevServer = process.env.NODE_ENV === 'development';
 
+// The only backend this app talks to is its own origin plus the configured Supabase project.
+// Resolving that origin here keeps connect-src/img-src exact instead of the previous
+// `https:` wildcard, which let any injected script exfiltrate data to an arbitrary host.
+const supabaseOrigin = (() => {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+})();
+
+const backendOrigins = supabaseOrigin ? [supabaseOrigin] : [];
+
 const cspDirectives = [
   "default-src 'self'",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
+  // No iframes or embeds are used anywhere in the app.
+  "frame-src 'none'",
   // Only dev/preview instances may be embedded in a frame.
   ...(allowFraming ? [] : ["frame-ancestors 'none'"]),
-  "img-src 'self' data: blob:",
+  // Recognition artwork may be served from the Supabase project storage bucket.
+  `img-src 'self' data: blob: ${backendOrigins.join(' ')}`.trim(),
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   // React's development runtime needs eval() for stack traces; never extend this to production.
   ...(isDevServer ? ["script-src 'self' 'unsafe-inline' 'unsafe-eval'"] : ["script-src 'self' 'unsafe-inline'"]),
   "script-src-attr 'none'",
-  "connect-src 'self' https: wss: ws:",
+  // WebSocket is only needed for the dev/HMR connection; production talks to 'self' + Supabase.
+  `connect-src 'self' ${backendOrigins.join(' ')}${isDevServer ? ' ws: wss:' : ''}`.replace(/\s+/g, ' ').trim(),
+  "worker-src 'self'",
+  "manifest-src 'self'",
   "media-src 'self' blob:",
   'upgrade-insecure-requests'
 ];
@@ -41,6 +62,10 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           ...(allowFraming ? [] : [{ key: 'X-Frame-Options', value: 'DENY' }]),
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          { key: 'X-DNS-Prefetch-Control', value: 'off' },
+          { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
           { key: 'Content-Security-Policy', value: cspDirectives.join('; ') },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' }
         ]

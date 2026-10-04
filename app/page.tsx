@@ -315,6 +315,8 @@ export default function SafexHome() {
     const trySync = () => { if (active) void syncOfflineReports(); };
     const handleVisibility = () => { if (document.visibilityState === 'visible') trySync(); };
     const handleWorkerMessage = (event: MessageEvent) => {
+      // Ignore messages that did not come from this origin's own service worker.
+      if (event.origin && event.origin !== window.location.origin) return;
       if (event.data?.type === 'SAFE_REPORT_OUTBOX_UPDATED') trySync();
     };
 

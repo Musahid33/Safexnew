@@ -22,7 +22,9 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 const ALL_LANGUAGES: Language[] = ['en', 'hi', 'or', 'bn', 'pa', 'mr'];
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('hi');
+  // English opens by default. A language the employee picked earlier is restored from
+  // storage below and overrides this, so the choice they make in the dropdown sticks.
+  const [language, setLanguageState] = useState<Language>('en');
   const [preferencesReady, setPreferencesReady] = useState(false);
 
   useEffect(() => {

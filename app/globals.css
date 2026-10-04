@@ -923,11 +923,16 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 
 .rewards-gallery-title { display: flex; align-items: center; gap: 8px; }
 .rewards-gallery-title > span { font-size: 1em; line-height: 1; }
+/* Compact heading for the recognition block only (higher specificity than the shared
+   .section-heading / .eyebrow rules, so other sections keep their original sizing). */
+.reward-wall-section .section-heading { margin-bottom: 10px; }
+.reward-wall-section .section-heading h2 { font-size: 17px; }
+.reward-wall-section .section-heading .eyebrow { font-size: 10px; }
 .reward-gallery { position: relative; width: 100%; }
 .reward-gallery-viewport { width: 100%; overflow: hidden; border-radius: 19px; }
 .reward-gallery-track { width: max-content; display: flex; align-items: stretch; will-change: transform; animation: rewards-gallery-loop 24s linear infinite; }
 .reward-gallery-group { display: flex; flex: none; align-items: stretch; gap: 12px; padding-right: 12px; }
-.reward-gallery-card { position: relative; flex: 0 0 min(419px, calc(50vw - 22px)); aspect-ratio: 1.42 / 1; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 19px; background: #102f4b; box-shadow: var(--shadow); }
+.reward-gallery-card { position: relative; flex: 0 0 min(236px, calc(50vw - 22px)); aspect-ratio: 1.8 / 1; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 19px; background: #102f4b; box-shadow: var(--shadow); }
 .reward-gallery-image, .reward-gallery-card .reward-carousel-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
 .reward-gallery-pause { position: absolute; z-index: 2; top: 10px; right: 10px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.52); border-radius: 50%; background: rgba(9,24,39,.48); color: #fff; padding: 0; cursor: pointer; backdrop-filter: blur(7px); }
 .reward-gallery-pause:hover { background: rgba(9,24,39,.78); }
@@ -1426,7 +1431,7 @@ body {
 .vault-document-status { font-size: 11px; }
 .reward-carousel-stage { border-radius: var(--radius-card); }
 .reward-gallery-viewport, .reward-gallery-card { border-radius: var(--radius-card); }
-.reward-gallery-pause, .reward-carousel-control { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+.reward-gallery-pause, .reward-carousel-control { width: 32px; height: 32px; min-width: 32px; min-height: 32px; }
 .home-feed-feature { min-height: 152px; gap: var(--space-1); border-radius: var(--radius-card); padding: var(--space-2); box-shadow: var(--shadow-card); }
 .home-feed-tag { padding: 6px 10px; font-size: 10px; }
 .home-feed-date, .home-feed-meta, .home-feed-open-details { font-size: 12px; }
