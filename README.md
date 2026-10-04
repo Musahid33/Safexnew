@@ -1,15 +1,16 @@
 # Safex production starter
 
-A fresh Next.js + TypeScript PWA-oriented scaffold for the Safex flow. It is intentionally in **DEMO MODE** until the real tenant mapping, employee master, Supabase project, OTP/SMS provider, VAPID sender, SOS numbers and policies are configured.
+A fresh Next.js + TypeScript PWA-oriented scaffold for the Safex flow. It remains in **DEMO MODE** until the real tenant mapping, employee master, Supabase schema/data, OTP/SMS provider, VAPID sender, SOS numbers and policies are configured.
 
 ## Included now
 
-- Responsive safety home inspired by the latest mobile reference: compact tenant/site header, six-language chip strip, stacked report/training/circular shortcuts, a Document Vault / Library grid for SOP/SWP, Risk Assessments, Legal & Statutory Compliance, Policy & Procedures and MoM, a visual-only Wall of Fame / Reward Wall carousel, plus one upcoming-event, latest-circular and latest-notice preview with horizontal View All cards. The Report chooser retains all nine types: Near Miss, UC, UA, Hazard, Grievance, Speak Up, Suggestion, Feedback and Safety Observation.
+- Responsive safety home inspired by the latest mobile reference: compact tenant/site header, six-language chip strip, stacked report/training/circular shortcuts, a Document Vault / Library grid for SOP/SWP, Risk Assessments, Legal & Statutory Compliance, Policy & Procedures and MoM, a visual-only Wall of Fame / Reward Wall carousel, plus the nearest upcoming event in Explore & Learn. Circular and notice archives remain accessible without latest-item cards on Home. The Report chooser retains all nine types: Near Miss, UC, UA, Hazard, Grievance, Speak Up, Suggestion, Feedback and Safety Observation.
 - Multi-site first-open selector; session site context; Change Site in the header. Single-site tenant logic is represented in code (one site auto-selects).
 - Site-filtered My Site Reports (no Employee No. filter) and an All Site Reports OTP entry screen.
 - Reference-inspired reporting flows: direct UC (Unsafe Condition) and UA (Unsafe Act) forms, plus Safety Observation safe-practice options; Hazard accident/property-damage/red-risk choices; Feedback, Grievance and Suggestion category pickers; tailored fields for Near Miss, Hazard, observations, Speak Up and other concerns.
 - Report form fields include worker lookup, name/Employee ID/designation autofill, location, department where relevant, incident date/time, severity where relevant, description, immediate action and optional image (12 MB limit). Anonymous reporting is available only for Speak Up; that mode hides identity and stores no employee link. Other report types require a selected employee profile.
 - Demo Employee Code profile search, an account login screen for Employees, Safety Supervisors/Site Supervisors and Admins (Employee ID + registered-mobile OTP preview; staff password login/reset previews), and a Training Management portal with a site-scoped Employee Code training check.
+- A responsive Safety Officer / Manager command-center preview reachable from the Admin login tab with public, client-only demo credentials. Its dark layout follows the uploaded dashboard screenshots: three status KPIs, expandable sample analytics, an activity feed with temporary in-memory status controls, a Direct Data Injection preview, nine review desks, an Employee Profile Editor, an Audit Type picker, and reward/consequence preview forms. All displayed records are synthetic; form actions do not write or persist data. Demo login does not verify a real staff role or authenticate with Supabase. Live modules remain disabled until the project schema, role checks and auth/OTP flow are verified.
 - Site-scoped report outbox for offline use: each report and its optional image are saved in IndexedDB first, then retried on reconnect/focus and with Background Sync where supported. A server-side Supabase endpoint uses a stable submission ID for idempotent retries, validates tenant/site/employee scope, enforces a database-backed request limit, and stores optional evidence in a private bucket. This stays disabled until the server configuration and offline-sync migration are applied.
 - Site-specific SOS screen; emergency contacts are intentionally `null` until you supply verified numbers.
 - Safety Portal hero with a Life Saving Rule location picker and popup; actual company-approved, location-specific rules must be supplied before operational use.
@@ -26,20 +27,20 @@ npm install
 npm run dev
 ```
 
-Open the local preview. This is a demo app; sample reports are in memory and are **not sent to Supabase**. The health route (`/api/health`) reports whether the public Supabase variables exist; it does not verify schema or policies.
+Open the local preview. The ignored `.env.local` in this workspace contains the previously provided public project URL and publishable key. `/api/health` checks Supabase Auth reachability. The project responds, but its Data API currently reports that `public.tenants` is missing (PGRST205); report sync remains disabled and demo reports are **not sent to Supabase** until the schema/data and server-only configuration are completed. The uploaded `officer-dashboard.html` was used as a static UI/feature reference only: its embedded Supabase project differs from this app's configured project and its direct browser-table writes were not imported.
 
 ## Deploy on Antideploy
 
 - The production start command runs Next.js on `0.0.0.0` and uses the platform-provided `PORT`; local development remains on port 3000.
 - Antideploy account authorization is stored outside this project in `~/.antideploy/config.json` with mode `0600`. The project’s `.antideploy.json` will contain only the selected application ID, not an account token.
-- This scaffold still runs in DEMO MODE. Deploying it does not connect the Supabase schema, employee directory, report persistence, SMS/OTP, SOS data, email, or officer authentication. Do not add credentials until those integrations are intentionally configured server-side.
+- The local preview has the public Supabase endpoint configured; Antideploy will need the same public URL/key set in its environment. Public configuration alone does not connect the schema, employee directory or report persistence. Keep report sync disabled until migrations/data are applied and required server-only secrets and tenant controls are configured.
 - Never include account tokens, service-role keys, or the OpenRouter key previously posted in project files or deploy archives.
 
 ## Configure Supabase safely
 
 1. Create a Supabase project and copy `.env.example` to `.env.local`.
-2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or publishable key).
-3. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. Never commit it, send it to the browser, or prefix it with `NEXT_PUBLIC_`.
+2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also accepted).
+3. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only in Antideploy secrets. Never commit it, put it in `.env.local` shared with others, send it in chat, expose it to the browser, or prefix it with `NEXT_PUBLIC_`.
 4. Review `supabase/migrations/202610030001_initial_safex.sql` and `supabase/migrations/202610030002_offline_report_sync.sql` against your real employee/site schema; apply them only to staging first.
 5. Map and verify vendor domains, sites, roles and actual report columns. Test RLS as anonymous, employee, site officer, vendor admin and a different tenant before production.
 

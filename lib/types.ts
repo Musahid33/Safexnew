@@ -51,4 +51,12 @@ export type TenantBranding = {
   mobile: string | null;
   logoPath: string | null;
   features: TenantFeatures;
+  /** Optional admin-managed About Us and support fields; absent in the synthetic demo tenant. */
+  companyIntroduction?: string | null;
+  services?: string[];
+  website?: string | null;
+  supportEmail?: string | null;
+  supportMobile?: string | null;
+  privacyPolicyUrl?: string | null;
+  termsAndConditionsUrl?: string | null;
 };

@@ -1,41 +1,56 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { Pause, Play } from 'lucide-react';
+import { useI18n } from './I18nProvider';
 
 const SLIDE_LABELS = [
-  'Safety award and celebration illustration',
+  'Safety award illustration',
   'Safety helmet and shield illustration',
   'Recognition medal illustration'
 ];
 
-export default function RewardCarousel() {
-  const [active, setActive] = useState(0);
+/** Feed-ready image record. Pass only approved/published artwork; never include winner details. */
+export type RecognitionGalleryItem = {
+  id: string;
+  altText: string;
+  imageUrl?: string | null;
+  artworkIndex?: number;
+  isPublished?: boolean;
+};
 
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % SLIDE_LABELS.length), 6200);
-    return () => window.clearInterval(timer);
-  }, []);
+const DEMO_RECOGNITIONS: RecognitionGalleryItem[] = SLIDE_LABELS.map((altText, artworkIndex) => ({
+  id: `demo-recognition-${artworkIndex + 1}`,
+  altText,
+  artworkIndex,
+  isPublished: true
+}));
 
-  function showPrevious() {
-    setActive((current) => (current - 1 + SLIDE_LABELS.length) % SLIDE_LABELS.length);
-  }
+type Props = { items?: readonly RecognitionGalleryItem[] };
 
-  function showNext() {
-    setActive((current) => (current + 1) % SLIDE_LABELS.length);
-  }
+export default function RewardCarousel({ items = DEMO_RECOGNITIONS }: Props) {
+  const { T } = useI18n();
+  const [paused, setPaused] = useState(false);
+  const publishedItems = items.filter((item) => item.isPublished !== false);
 
-  return <div className="reward-carousel" role="region" aria-roledescription="carousel" aria-label="Wall of Fame image carousel">
-    <div className={`reward-carousel-stage reward-carousel-slide-${active}`}>
-      <span className="sr-only" aria-live="polite">{SLIDE_LABELS[active]}. Decorative demo artwork only; no employee or award data.</span>
-      <RewardArtwork slide={active} />
-      <button className="reward-carousel-control previous" type="button" onClick={showPrevious} aria-label="Previous reward wall image"><ChevronLeft size={23} /></button>
-      <button className="reward-carousel-control next" type="button" onClick={showNext} aria-label="Next reward wall image"><ChevronRight size={23} /></button>
-      <div className="reward-carousel-dots" role="group" aria-label="Choose reward wall image">
-        {SLIDE_LABELS.map((label, index) => <button type="button" key={label} className={`reward-carousel-dot ${active === index ? 'active' : ''}`} onClick={() => setActive(index)} aria-label={`Show image ${index + 1}`} aria-pressed={active === index} />)}
+  if (!publishedItems.length) return null;
+
+  return <div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery images')}>
+    <span className="sr-only">{T('Image-only recognition gallery. Names and winner details are intentionally not displayed.')}</span>
+    <div className="reward-gallery-viewport">
+      <div className="reward-gallery-track" style={{ animationDuration: `${Math.max(18, publishedItems.length * 6)}s` }}>
+        {[0, 1].map((copy) => <div className="reward-gallery-group" key={`gallery-copy-${copy}`} aria-hidden={copy === 1 ? true : undefined}>
+          {publishedItems.map((item, index) => <div className="reward-gallery-card" key={`${copy}-${item.id}`}>
+            {item.imageUrl
+              ? <img className="reward-gallery-image" src={item.imageUrl} alt={item.altText} loading="lazy" decoding="async" />
+              : <RewardArtwork slide={item.artworkIndex ?? index % SLIDE_LABELS.length} />}
+          </div>)}
+        </div>)}
       </div>
     </div>
+    <button className="reward-gallery-pause" type="button" onClick={() => setPaused((value) => !value)} aria-label={T(paused ? 'Resume gallery scrolling' : 'Pause gallery scrolling')} aria-pressed={paused}>
+      {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
+    </button>
   </div>;
 }
 

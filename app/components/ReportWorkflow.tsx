@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { ArrowLeft, Check, ChevronRight, ImagePlus, LockKeyhole, MapPin, Mic, Search, Send, X } from 'lucide-react';
 import type { Employee, Language, ReportType, Site } from '@/lib/types';
 import LanguageStrip from './LanguageStrip';
+import { useI18n } from './I18nProvider';
 
 type CategoryOption = { value: string; label: string; description: string; icon: string };
 type Severity = 'Low' | 'Medium' | 'High';
@@ -129,6 +130,7 @@ function descriptionConfig(type: ReportType, category: string | null): { label: 
 }
 
 export default function ReportWorkflow({ type, site, employees, language, onLanguageChange, voiceEnabled, syncEnabled, onClose, onSubmit }: Props) {
+  const { T } = useI18n();
   const categories = CATEGORY_OPTIONS[type] ?? [];
   const [screen, setScreen] = useState<'category' | 'form'>(categories.length ? 'category' : 'form');
   const [category, setCategory] = useState<string | null>(null);
@@ -168,7 +170,18 @@ export default function ReportWorkflow({ type, site, employees, language, onLang
   const departmentRequired = type === 'Near Miss';
   const showSeverity = type === 'Hazard';
   const descriptionMeta = descriptionConfig(type, category);
-  const displayTitle = type === 'Unsafe Condition' ? 'UC · Unsafe Condition' : type === 'Unsafe Act' ? 'UA · Unsafe Act' : category && type === 'Grievance' ? `Grievance · ${category}` : category && type === 'Hazard' ? `Hazard · ${category}` : category && type === 'Feedback' ? `Feedback · ${category}` : category && type === 'Suggestion' ? `Suggestion · ${category}` : category && type === 'Safety Observation' ? `Safety Observation · ${category}` : type;
+  const descriptionLabel = type === 'Grievance'
+    ? T('Description of {category} Grievance', { category: T(category ?? 'Workplace') })
+    : T(descriptionMeta.label);
+  const descriptionPlaceholder = type === 'Grievance'
+    ? T('Describe your {category} grievance in detail...', { category: T(category ?? 'Workplace') })
+    : T(descriptionMeta.placeholder);
+  const displayTitle = type === 'Unsafe Condition' ? T('UC · Unsafe Condition') : type === 'Unsafe Act' ? T('UA · Unsafe Act')
+    : category && type === 'Grievance' ? T('Grievance · {category}', { category: T(category) })
+      : category && type === 'Hazard' ? T('Hazard · {category}', { category: T(category) })
+        : category && type === 'Feedback' ? T('Feedback · {category}', { category: T(category) })
+          : category && type === 'Suggestion' ? T('Suggestion · {category}', { category: T(category) })
+            : category && type === 'Safety Observation' ? T('Safety Observation · {category}', { category: T(category) }) : T(type);
 
   function selectEmployee(match: Employee) {
     setEmployee(match);
@@ -301,53 +314,53 @@ export default function ReportWorkflow({ type, site, employees, language, onLang
     <div className={`modal report-modal report-workflow ${screen === 'category' ? 'category-screen' : ''}`}>
       <div className="modal-header report-workflow-header">
         <div className="workflow-heading">
-          {screen === 'form' && categories.length > 0 && <button type="button" className="workflow-back" aria-label="Back to categories" onClick={() => { setScreen('category'); setError(''); }}><ArrowLeft size={17} /></button>}
-          <div><span className="eyebrow">{site.name} · SAFETY REPORT</span><h2 id="report-title">{screen === 'category' ? `Select ${type} category` : displayTitle}</h2></div>
+          {screen === 'form' && categories.length > 0 && <button type="button" className="workflow-back" aria-label={T('Back to categories')} onClick={() => { setScreen('category'); setError(''); }}><ArrowLeft size={17} /></button>}
+          <div><span className="eyebrow">{site.name} · {T('SAFETY REPORT')}</span><h2 id="report-title">{screen === 'category' ? T('Select {type} category', { type: T(type) }) : displayTitle}</h2></div>
         </div>
-        <button className="close-button" type="button" onClick={onClose} aria-label="Close report"><X /></button>
+        <button className="close-button" type="button" onClick={onClose} aria-label={T('Close report')}><X /></button>
       </div>
       <LanguageStrip language={language} onChange={onLanguageChange} className="workflow-language-strip" />
       {screen === 'category' ? <div className="report-category-screen">
-        <p className="category-intro">Choose the option that best describes your report. Your selection will tailor the form to the information needed.</p>
+        <p className="category-intro">{T('Choose the option that best describes your report. Your selection will tailor the form to the information needed.')}</p>
         <div className="report-category-options">
           {categories.map((option) => <button type="button" className="report-category-option" key={option.value} onClick={() => { setCategory(option.value); setScreen('form'); setError(''); }}>
-            <span className="report-category-emoji" aria-hidden="true">{option.icon}</span><span className="report-category-copy"><b>{option.label}</b><small>{option.description}</small></span><ChevronRight size={18} />
+            <span className="report-category-emoji" aria-hidden="true">{option.icon}</span><span className="report-category-copy"><b>{T(option.label)}</b><small>{T(option.description)}</small></span><ChevronRight size={18} />
           </button>)}
         </div>
-        <button type="button" className="text-button category-back" onClick={onClose}>Cancel</button>
+        <button type="button" className="text-button category-back" onClick={onClose}>{T('Cancel')}</button>
       </div> : <form className="report-workflow-form" onSubmit={handleSubmit}>
-        <div className="site-context compact"><MapPin size={16} /><span>Filed under <b>{site.name}</b>{category && <> · <b>{category}</b></>}</span></div>
+        <div className="site-context compact"><MapPin size={16} /><span>{T('Filed under')} <b>{site.name}</b>{category && <> · <b>{T(category)}</b></>}</span></div>
 
-        {canReportAnonymously && <div className="anonymous-row report-anonymous-row"><div><b>🤫 Submit anonymously · गुमनाम रूप से सबमिट करें</b><small>Your name and Employee ID will be left blank and not linked to this report.</small></div><button className={`switch ${anonymous ? 'on' : ''}`} type="button" aria-pressed={anonymous} onClick={toggleAnonymous}><span /></button></div>}
+        {canReportAnonymously && <div className="anonymous-row report-anonymous-row"><div><b>🤫 {T('Submit anonymously')}</b><small>{T('Your name and Employee ID will be left blank and not linked to this report.')}</small></div><button className={`switch ${anonymous ? 'on' : ''}`} type="button" aria-pressed={anonymous} onClick={toggleAnonymous}><span /></button></div>}
 
-        {!anonymous && <section className="report-identity-section" aria-label="Reporter identity">
-          <label className="field-label" htmlFor="report-employee-lookup">👤 Your Name / Employee ID <span className="required">*</span></label>
-          <div className="search-box employee-search-box"><Search size={17} /><input id="report-employee-lookup" value={employeeQuery} onChange={(event) => { setEmployeeQuery(event.target.value); setEmployee(null); setError(''); }} placeholder="Type your name or Employee ID" autoComplete="off" aria-autocomplete="list" aria-controls="report-employee-suggestions" /><span className="lookup-hint">Selected site only</span></div>
-          {employeeQuery && !employee && <div className="suggestions" id="report-employee-suggestions" role="listbox">{filteredEmployees.length ? filteredEmployees.map((item) => <button type="button" role="option" aria-selected="false" key={item.id} onClick={() => selectEmployee(item)}><span className="avatar-mini">{item.name.slice(0, 1)}</span><span><b>{item.name}</b><small>{item.empNo} · {item.designation}</small></span><ChevronRight size={16} /></button>) : <div className="no-suggestion">No match at {site.name}. Check the spelling or use your Employee ID.</div>}</div>}
-          {employee && <div className="auto-fields report-identity-fields"><label><small>Your Name</small><input className="identity-readonly" value={employee.name} readOnly /></label><label><small>Employee ID</small><input className="identity-readonly" value={employee.empNo} readOnly /></label><label className="wide"><small>Designation · auto-filled</small><input className="identity-readonly" value={employee.designation} readOnly /></label><button type="button" className="clear-employee" onClick={() => { setEmployee(null); setEmployeeQuery(''); }}>Change profile</button></div>}
-          <small className="field-help">Select a suggestion to fill your name, Employee ID and designation. The lookup is limited to the selected site in this demo.</small>
+        {!anonymous && <section className="report-identity-section" aria-label={T('Reporter identity')}>
+          <label className="field-label" htmlFor="report-employee-lookup">👤 {T('Your Name / Employee ID')} <span className="required">*</span></label>
+          <div className="search-box employee-search-box"><Search size={17} /><input id="report-employee-lookup" value={employeeQuery} onChange={(event) => { setEmployeeQuery(event.target.value); setEmployee(null); setError(''); }} placeholder={T('Type your name or Employee ID')} autoComplete="off" aria-autocomplete="list" aria-controls="report-employee-suggestions" /><span className="lookup-hint">{T('Selected site only')}</span></div>
+          {employeeQuery && !employee && <div className="suggestions" id="report-employee-suggestions" role="listbox">{filteredEmployees.length ? filteredEmployees.map((item) => <button type="button" role="option" aria-selected="false" key={item.id} onClick={() => selectEmployee(item)}><span className="avatar-mini">{item.name.slice(0, 1)}</span><span><b>{item.name}</b><small>{item.empNo} · {item.designation}</small></span><ChevronRight size={16} /></button>) : <div className="no-suggestion">{T('No match at {site}. Check the spelling or use your Employee ID.', { site: site.name })}</div>}</div>}
+          {employee && <div className="auto-fields report-identity-fields"><label><small>{T('Your Name')}</small><input className="identity-readonly" value={employee.name} readOnly /></label><label><small>{T('Employee ID')}</small><input className="identity-readonly" value={employee.empNo} readOnly /></label><label className="wide"><small>{T('Designation · auto-filled')}</small><input className="identity-readonly" value={employee.designation} readOnly /></label><button type="button" className="clear-employee" onClick={() => { setEmployee(null); setEmployeeQuery(''); }}>{T('Change profile')}</button></div>}
+          <small className="field-help">{T('Select a suggestion to fill your name, Employee ID and designation. The lookup is limited to the selected site in this demo.')}</small>
         </section>}
-        {anonymous && <div className="privacy-note report-privacy"><LockKeyhole size={15} /> Identity fields are hidden. The report is submitted without an employee link.</div>}
+        {anonymous && <div className="privacy-note report-privacy"><LockKeyhole size={15} /> {T('Identity fields are hidden. The report is submitted without an employee link.')}</div>}
 
         <div className={`form-two-column ${showLocation && !showDepartment ? 'single-column' : ''}`}>
-          {showLocation && <div><label className="field-label" htmlFor="report-location">📍 Location / area <span className="required">*</span></label><input id="report-location" className="form-control" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="E.g., Blast Furnace Site-4, Sheet Mill A" required /></div>}
-          {showDepartment && <div><label className="field-label" htmlFor="report-department">🏢 Department {departmentRequired && <span className="required">*</span>}{!departmentRequired && <span className="optional">Optional</span>}</label><input id="report-department" className="form-control" value={department} onChange={(event) => setDepartment(event.target.value)} placeholder="E.g., Operations" required={departmentRequired} /></div>}
+          {showLocation && <div><label className="field-label" htmlFor="report-location">📍 {T('Location / area')} <span className="required">*</span></label><input id="report-location" className="form-control" value={location} onChange={(event) => setLocation(event.target.value)} placeholder={T('E.g., Blast Furnace Site-4, Sheet Mill A')} required /></div>}
+          {showDepartment && <div><label className="field-label" htmlFor="report-department">🏢 {T('Department')} {departmentRequired && <span className="required">*</span>}{!departmentRequired && <span className="optional">{T('Optional')}</span>}</label><input id="report-department" className="form-control" value={department} onChange={(event) => setDepartment(event.target.value)} placeholder={T('E.g., Operations')} required={departmentRequired} /></div>}
         </div>
 
-        <label className="field-label" htmlFor="report-datetime">🕐 Date &amp; time of incident <span className="required">*</span></label><input id="report-datetime" className="form-control" type="datetime-local" value={incidentAt} onChange={(event) => setIncidentAt(event.target.value)} required />
+        <label className="field-label" htmlFor="report-datetime">🕐 {T('Date & time of incident')} <span className="required">*</span></label><input id="report-datetime" className="form-control" type="datetime-local" value={incidentAt} onChange={(event) => setIncidentAt(event.target.value)} required />
 
-        <label className="field-label" htmlFor="report-description">{descriptionMeta.label} <span className="required">*</span></label><div className="text-input-wrap"><textarea id="report-description" className="form-control" value={description} onChange={(event) => setDescription(event.target.value)} rows={4} maxLength={1200} placeholder={descriptionMeta.placeholder} required />{voiceEnabled && <button className={`mic-button ${voiceRecording ? 'recording' : ''}`} type="button" onClick={handleVoice} aria-label={voiceRecording ? 'Stop voice input' : 'Speak to fill description'} title={voiceRecording ? 'Stop voice input' : 'Speak to fill'}><Mic size={18} /></button>}</div>
+        <label className="field-label" htmlFor="report-description">{descriptionLabel} <span className="required">*</span></label><div className="text-input-wrap"><textarea id="report-description" className="form-control" value={description} onChange={(event) => setDescription(event.target.value)} rows={4} maxLength={1200} placeholder={descriptionPlaceholder} required />{voiceEnabled && <button className={`mic-button ${voiceRecording ? 'recording' : ''}`} type="button" onClick={handleVoice} aria-label={T(voiceRecording ? 'Stop voice input' : 'Speak to fill description')} title={T(voiceRecording ? 'Stop voice input' : 'Speak to fill')}><Mic size={18} /></button>}</div>
 
-        {showSeverity && <div className="severity-control"><label className="field-label" htmlFor="report-severity">⚠️ Severity rating <span className="required">*</span></label><select id="report-severity" className="form-control" value={severity} onChange={(event) => setSeverity(event.target.value as Severity | '')} required><option value="">Select severity</option><option value="Low">🟢 Low risk</option><option value="Medium">🟡 Medium risk</option><option value="High">🔴 High risk</option></select></div>}
+        {showSeverity && <div className="severity-control"><label className="field-label" htmlFor="report-severity">⚠️ {T('Severity rating')} <span className="required">*</span></label><select id="report-severity" className="form-control" value={severity} onChange={(event) => setSeverity(event.target.value as Severity | '')} required><option value="">{T('Select severity')}</option><option value="Low">🟢 {T('Low risk')}</option><option value="Medium">🟡 {T('Medium risk')}</option><option value="High">🔴 {T('High risk')}</option></select></div>}
 
-        <label className="field-label" htmlFor="report-action">⚡ Immediate action taken <span className="optional">Optional</span></label><textarea id="report-action" className="form-control" value={immediateAction} onChange={(event) => setImmediateAction(event.target.value)} rows={2} maxLength={600} placeholder="Optional — what action was taken immediately?" />
+        <label className="field-label" htmlFor="report-action">⚡ {T('Immediate action taken')} <span className="optional">{T('Optional')}</span></label><textarea id="report-action" className="form-control" value={immediateAction} onChange={(event) => setImmediateAction(event.target.value)} rows={2} maxLength={600} placeholder={T('Optional — what action was taken immediately?')} />
 
-        <label className="upload-button report-upload"><ImagePlus size={17} /><span>{photo?.name ?? 'Attach photo (optional)'}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} /><small>Image only · maximum 12 MB</small></label>
-        {photo && <div className="photo-file-row"><span><ImagePlus size={14} />{photo.name}</span><button type="button" onClick={() => setPhoto(null)} aria-label="Remove photo">Remove</button></div>}
+        <label className="upload-button report-upload"><ImagePlus size={17} /><span>{photo?.name ?? T('Attach photo (optional)')}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} /><small>{T('Image only · maximum 12 MB')}</small></label>
+        {photo && <div className="photo-file-row"><span><ImagePlus size={14} />{photo.name}</span><button type="button" onClick={() => setPhoto(null)} aria-label={T('Remove photo')}>{T('Remove')}</button></div>}
 
-        {error && <div className="inline-notice warning" role="alert">{error}</div>}
-        <div className="form-footer report-submit-footer"><span>{syncEnabled ? 'Saved on this device first · automatic database sync is enabled' : 'Saved on this device · database sync is not configured'}</span><button className="primary-button" type="submit" disabled={submitting}><Send size={16} /> {submitting ? 'Saving report…' : 'Save report'}</button></div>
-        <div className="modal-footnote report-demo-note"><LockKeyhole size={14} /> Pending report details and any photo stay in this browser until sync succeeds. Avoid shared devices. Database delivery requires a configured Safex server.</div>
+        {error && <div className="inline-notice warning" role="alert">{T(error)}</div>}
+        <div className="form-footer report-submit-footer"><span>{T(syncEnabled ? 'Saved on this device first · automatic database sync is enabled' : 'Saved on this device · database sync is not configured')}</span><button className="primary-button" type="submit" disabled={submitting}><Send size={16} /> {T(submitting ? 'Saving report…' : 'Save report')}</button></div>
+        <div className="modal-footnote report-demo-note"><LockKeyhole size={14} /> {T('Pending report details and any photo stay in this browser until sync succeeds. Avoid shared devices. Database delivery requires a configured Safex server.')}</div>
       </form>}
     </div>
   </div>;

@@ -1,3 +1,5 @@
+export const APP_TIME_ZONE = 'Asia/Kolkata';
+
 export type HomeFeedKind = 'events' | 'circulars' | 'notices' | 'updates';
 export type HomeContentType = 'Event' | 'Circular' | 'Notice';
 
@@ -14,13 +16,13 @@ export type HomeFeedItem = {
 /** Synthetic examples only. No live events, circulars, or notices are connected in demo mode. */
 export const DEMO_EVENTS: HomeFeedItem[] = [
   {
-    id: 'emergency-response-drill',
+    id: 'confined-space-rescue-mock-drill',
     type: 'Event',
-    title: 'Emergency Response & Evacuation Drill',
-    date: '2026-10-08T10:00:00+05:30',
-    location: 'Main Assembly Point',
-    summary: 'Practice the site alarm, evacuation route and head-count process.',
-    details: 'Join the scheduled demo drill to review alarm response, nearest safe exit, assembly point reporting and head-count responsibilities. Supervisors should brief their teams before the drill. This is sample event content; confirm dates and instructions with your site EHS team.'
+    title: 'Confined Space Rescue Mock Drill',
+    date: '2026-10-10T10:30:00+05:30',
+    location: 'Blast Furnace – Site 4',
+    summary: 'Practice safe rescue coordination, communication and response for confined-space work.',
+    details: 'This sample demo event covers pre-entry checks, emergency communication, attendant responsibilities and coordination with the rescue team. Follow approved site permits and rescue plans; never enter a confined space without authorization. This is sample content, not a confirmed site drill.'
   },
   {
     id: 'contractor-safety-day',
@@ -136,10 +138,10 @@ export function getUpcomingEvents(now = Date.now()): HomeFeedItem[] {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
-export function formatHomeFeedDate(value: string): string {
-  return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
+export function formatHomeFeedDate(value: string, locale = 'en-IN', timeZone = APP_TIME_ZONE): string {
+  return new Intl.DateTimeFormat(locale, { timeZone, weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
 }
 
-export function formatHomeFeedTime(value: string): string {
-  return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+export function formatHomeFeedTime(value: string, locale = 'en-IN', timeZone = APP_TIME_ZONE): string {
+  return new Intl.DateTimeFormat(locale, { timeZone, hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
