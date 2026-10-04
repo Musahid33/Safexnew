@@ -54,9 +54,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .safex-app { min-height: 100vh; padding-bottom: calc(124px + env(safe-area-inset-bottom)); }
 .demo-ribbon { min-height: 28px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #fff2d8; color: #744c00; padding: 5px 12px; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .015em; }
 .sync-status-banner { width: min(100% - 32px, 1180px); min-height: 68px; display: flex; align-items: center; gap: 11px; margin: 10px auto 0; border: 1px solid #c7d8ef; border-radius: 15px; background: #f3f8ff; color: #173654; padding: 10px 13px; box-shadow: 0 3px 10px rgba(15,37,64,.04); }
-.sync-status-banner.offline, .sync-status-banner.backend-unconfigured { border-color: #efd49c; background: #fff8e8; color: #725000; }
-.sync-status-banner.needs-attention, .sync-status-banner.storage-error { border-color: #efb6b6; background: #fff3f2; color: #8a2828; }
-.sync-status-banner.syncing { border-color: #a9cfbf; background: #effbf5; color: #165a43; }
+.sync-status-banner.offline, .sync-status-banner.backend-unconfigured, .sync-status-banner.attention { border-color: #efd49c; background: #fff8e8; color: #725000; }
+.sync-status-banner.needs-attention, .sync-status-banner.storage-error, .sync-status-banner.error { border-color: #efb6b6; background: #fff3f2; color: #8a2828; }
+.sync-status-banner.syncing, .sync-status-banner.synced { border-color: #a9cfbf; background: #effbf5; color: #165a43; }
+/* A single quiet appearance so the banner does not jump into view; motion is optional. */
+.sync-status-banner { animation: sync-status-enter .22s ease-out; }
+@keyframes sync-status-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes sync-status-spin { to { transform: rotate(360deg); } }
+.sync-status-spin { animation: sync-status-spin 1.1s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sync-status-banner { animation: none; }
+  .sync-status-spin { animation: none; }
+}
 .sync-status-icon { width: 39px; height: 39px; display: grid; place-items: center; flex: none; border-radius: 12px; background: rgba(255,255,255,.78); color: var(--focus); }
 .sync-status-copy { min-width: 0; display: grid; flex: 1; gap: 3px; }
 .sync-status-copy b { font-size: 11px; line-height: 1.25; }
