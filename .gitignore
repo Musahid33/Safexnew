@@ -6,3 +6,7 @@ out/
 .DS_Store
 coverage/
 *.tsbuildinfo
+
+# Never package local workspace snapshots / platform auth into the project or a deploy archive
+workspace-*.zip
+quarantine/
