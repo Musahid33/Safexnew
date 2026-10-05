@@ -1,5 +1,5 @@
 import 'server-only';
-import { getAdminSupabase, getSupabaseAdminKey } from '@/lib/supabase/admin';
+import { getAdminSupabase } from '@/lib/supabase/admin';
 import type { MasterEmployeeRecord } from './parse';
 import type { Site } from '@/lib/types';
 
@@ -9,8 +9,8 @@ import type { Site } from '@/lib/types';
  * This is the destination for the roster: once the sheet has been imported with
  * `npm run employees:import`, lookups read `public.employees` instead of a CSV.
  *
- * Reads go through the server-only Supabase admin key because the browser has no grant on
- * these tables at all (see supabase/sql/02_rls.sql). That means this module is the security boundary: it
+ * Reads go through the service role because the browser has no grant on these tables at
+ * all (see supabase/sql/02_rls.sql). That means this module is the security boundary: it
  * must apply tenant and site scoping itself, because RLS is bypassed here.
  */
 
@@ -77,7 +77,7 @@ export function isDatabaseDirectoryIntended(): boolean {
   if (mode !== 'auto' && mode !== 'supabase') return false;
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL
-    && getSupabaseAdminKey()
+    && process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 }
 
