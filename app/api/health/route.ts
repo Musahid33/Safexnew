@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSupabaseAdminKey } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function GET() {
 
   const reportSubmissionEnabled = Boolean(
     backendConfigured
-    && process.env.SUPABASE_SERVICE_ROLE_KEY
+    && getSupabaseAdminKey()
     && process.env.SAFEX_REPORT_SUBMISSIONS_ENABLED === 'true'
   );
   // The browser only needs reportSubmissionEnabled. Backend/connectivity flags describe the

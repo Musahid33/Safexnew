@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAdminSupabase } from '@/lib/supabase/admin';
+import { getAdminSupabase, getSupabaseAdminKey } from '@/lib/supabase/admin';
 import type { ReportType } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -136,7 +136,7 @@ async function validateAttachment(file: File | null): Promise<ValidatedAttachmen
 async function consumeRateLimit(admin: AdminClient, request: NextRequest, host: string, tenantId: string): Promise<boolean | null> {
   const windowMs = 60 * 60 * 1000;
   const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs);
-  const salt = process.env.SAFEX_REPORT_RATE_LIMIT_SALT || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const salt = process.env.SAFEX_REPORT_RATE_LIMIT_SALT || getSupabaseAdminKey();
   if (!salt) return null;
   const key = createHmac('sha256', salt).update(`${host}|${tenantId}|${clientIp(request)}|${windowStart.toISOString()}`).digest('hex');
   const { data, error } = await admin.rpc('safex_consume_report_limit', {

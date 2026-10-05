@@ -28,7 +28,7 @@ npm install
 npm run dev
 ```
 
-Open the local preview. The ignored `.env.local` in this workspace contains the previously provided public project URL and publishable key. `/api/health` checks Supabase Auth reachability. The project responds, but its Data API currently reports that `public.tenants` is missing (PGRST205); report sync remains disabled and demo reports are **not sent to Supabase** until the schema/data and server-only configuration are completed. The uploaded `officer-dashboard.html` was used as a static UI/feature reference only: its embedded Supabase project differs from this app's configured project and its direct browser-table writes were not imported.
+Copy `.env.example` to the ignored `.env.local` and set the public Supabase URL/publishable key plus the server-only `SUPABASE_SECRET_KEY`. `/api/health` checks Supabase Auth reachability; `/api/bootstrap` and the employee lookup API use the server-side Supabase directory when its schema, tenant, site and employee rows are present. The directory refuses ambiguous multi-tenant reads unless `SAFEX_TENANT_SLUG` is set. Migrations are not applied automatically. Report sync remains disabled until its schema, rate-limit function, private bucket and verified tenant domain are configured.
 
 ## Deploy on Antideploy
 
@@ -41,7 +41,7 @@ Open the local preview. The ignored `.env.local` in this workspace contains the 
 
 1. Create a Supabase project and copy `.env.example` to `.env.local`.
 2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also accepted).
-3. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only in Antideploy secrets. Never commit it, put it in `.env.local` shared with others, send it in chat, expose it to the browser, or prefix it with `NEXT_PUBLIC_`.
+3. Keep `SUPABASE_SECRET_KEY` server-only in deployment secrets. The legacy `SUPABASE_SERVICE_ROLE_KEY` name is also supported. Never commit either value, expose it to the browser, prefix it with `NEXT_PUBLIC_`, or share a real environment file.
 4. Review `supabase/migrations/202610030001_initial_safex.sql`, `supabase/migrations/202610030002_offline_report_sync.sql` and `supabase/migrations/202610050003_employee_master_sync.sql` against your real employee/site schema; apply them only to staging first.
    Then apply `supabase/sql/02_rls.sql` — a re-runnable grants/RLS/policy hardening script split into independently runnable PARTs, with an apply ledger so a run that times out in the SQL editor can be resumed. Finish with `supabase/sql/99_gate_test.sql`, which must report PASS on every row (it raises an exception otherwise, so it can gate a deploy).
 5. Map and verify vendor domains, sites, roles and actual report columns. Test RLS as anonymous, employee, site officer, vendor admin and a different tenant before production.
@@ -62,7 +62,7 @@ The migration deliberately denies direct anonymous access to employee/report tab
 - Supply and approve the location-specific Life Saving Rules before publishing them; the current Life Saving Rule popup is a placeholder.
 - Import and validate the real employee master into Supabase. The sheet-backed loader is a bridge, not the destination: it still needs a Site column, a Department column and one verified mobile per employee. `docs/employee-master.md` lists the specific rows that currently block OTP sign-in (malformed and shared numbers).
 - Implement server-side tenant resolution from verified domain and a site directory scoped to that tenant.
-- The employee search endpoint (`/api/employees`) now applies selected-site scoping, a minimum query length, a result limit and a per-IP rate limit, and returns no contact details. It still needs to move from the sheet/CSV source onto the tenant-scoped Supabase tables, and to be covered by the authenticated session model rather than being open to any same-origin visitor.
+- The employee search endpoint (`/api/employees`) supports the tenant-scoped Supabase tables and applies selected-site scoping, a minimum query length, a result limit and a per-IP rate limit; it returns no contact details. It is still an unauthenticated same-origin lookup, so add the verified employee session model and review rate limits before production.
 - Before enabling offline sync, apply and review `supabase/migrations/202610030002_offline_report_sync.sql` in staging; configure verified tenant domains, active site/employee records, the private storage bucket and server-only secrets. The route validates same-origin submissions, payloads, site/employee scope, private image type/size and database-backed request limits. Malware scanning, moderation and admin-reviewed attachment previews are still required before public production use.
 - Implement OTP by matching Employee ID + submitted phone to the employee master, sending only to the registered phone, and then exposing only redacted summaries for the same vendor tenant. Configure an SMS provider and OTP limits/expiry.
 - Implement Safety Officer sign-in, password reset, account lockout and email OTP with verified server-side authentication. The reference-inspired officer forms are preview-only; they do not send or store credentials.

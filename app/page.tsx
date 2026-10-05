@@ -632,7 +632,7 @@ export default function SafexHome() {
 
   return (
     <div className="safex-app">
-      <div className="demo-ribbon"><span className="demo-dot" /> {T(reportSyncEnabled ? 'Sample feeds only · employee master uses real data · new reports sync when online' : 'Sample feeds only · employee master uses real data · report sync is not configured')}</div>
+      <div className="demo-ribbon"><span className="demo-dot" /> {T(directoryMode === 'unavailable' && !reportSyncEnabled ? 'DEMO MODE · Sample records only · database sync is not configured' : reportSyncEnabled ? 'Sample feeds only · employee master uses real data · new reports sync when online' : 'Sample feeds only · employee master uses real data · report sync is not configured')}</div>
       <div className="site-header-shell">
         <header className="topbar">
           <div className="topbar-inner">

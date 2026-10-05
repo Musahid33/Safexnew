@@ -11,7 +11,7 @@
  *   --limit=N             Only process the first N rows (useful for a first trial).
  *
  * Required environment (server-only; never expose the service-role key to a browser):
- *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SAFEX_TENANT_SLUG
+ *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY), SAFEX_TENANT_SLUG
  *   SAFEX_EMPLOYEE_MASTER_CSV_URL or SAFEX_EMPLOYEE_MASTER_FILE
  *   SAFEX_EMPLOYEE_MASTER_SITE_ID / _SITE_NAME / _SITE_REGION
  *
@@ -167,9 +167,9 @@ async function main() {
   }
 
   const url = env('NEXT_PUBLIC_SUPABASE_URL');
-  const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+  const serviceKey = env('SUPABASE_SECRET_KEY') || env('SUPABASE_SERVICE_ROLE_KEY');
   const tenantSlug = env('SAFEX_TENANT_SLUG');
-  if (!url || !serviceKey) fail('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
+  if (!url || !serviceKey) fail('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY) are required.');
   if (!tenantSlug) fail('SAFEX_TENANT_SLUG is required so the roster lands in exactly one tenant.');
 
   const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
