@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
 
   if (employeeNo) {
     const { mode, record } = await findInDirectory(siteId, employeeNo);
+    if (mode === 'unavailable') return unavailable();
     return NextResponse.json(
       { ok: true, source: mode, employees: record ? [toPublicEmployee(record)] : [] },
       { headers: NO_STORE }
@@ -55,8 +56,13 @@ export async function GET(request: NextRequest) {
   }
 
   const { mode, records } = await searchDirectory(siteId, query, MAX_RESULTS);
+  if (mode === 'unavailable') return unavailable();
   return NextResponse.json(
     { ok: true, source: mode, employees: records.map(toPublicEmployee) },
     { headers: NO_STORE }
   );
+}
+
+function unavailable() {
+  return NextResponse.json({ ok: false, code: 'EMPLOYEE_MASTER_UNAVAILABLE' }, { status: 503, headers: NO_STORE });
 }

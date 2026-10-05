@@ -378,7 +378,7 @@ export default function ReportWorkflow({ type, site, directory, language, onLang
               { site: site.name, count: directory.minQueryLength }
             )}</div>}</div>}
           {employee && <div className="auto-fields report-identity-fields"><label><small>{T('Your Name')}</small><input className="identity-readonly" value={employee.name} readOnly /></label><label><small>{T('Employee ID')}</small><input className="identity-readonly" value={employee.empNo} readOnly /></label><label className="wide"><small>{T('Designation · auto-filled')}</small><input className="identity-readonly" value={employee.designation} readOnly /></label><button type="button" className="clear-employee" onClick={() => { setEmployee(null); setEmployeeQuery(''); }}>{T('Change profile')}</button></div>}
-          <small className="field-help">{T('Select a suggestion to fill your name, Employee ID and designation. The lookup is limited to the selected site in this demo.')}</small>
+          <small className="field-help">{T('Select a suggestion to fill your name, Employee ID and designation. The lookup uses the employee master for the selected site.')}</small>
         </section>}
         {anonymous && <div className="privacy-note report-privacy"><LockKeyhole size={15} /> {T('Identity fields are hidden. The report is submitted without an employee link.')}</div>}
 

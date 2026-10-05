@@ -94,6 +94,10 @@ export async function GET(request: NextRequest) {
 
   const page = await listDirectory(siteId, { query, limit, offset, includePii });
 
+  if (page.mode === 'unavailable') {
+    return NextResponse.json({ ok: false, code: 'EMPLOYEE_MASTER_UNAVAILABLE' }, { status: 503, headers: NO_STORE });
+  }
+
   return NextResponse.json(
     {
       ok: true,

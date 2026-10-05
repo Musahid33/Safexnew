@@ -1,7 +1,6 @@
 # Employee master
 
-The app can run its employee lookup against a real roster instead of the synthetic demo
-records. This document explains how that is wired, what the browser is allowed to see, and
+The app uses real employee-master records only. No demo employee fallback is available. This document explains how that is wired, what the browser is allowed to see, and
 what needs fixing in the source sheet.
 
 ---
@@ -17,11 +16,11 @@ Consequences baked into the design:
 - **No roster file is committed.** The employee master is loaded at runtime from an
   environment-configured source. `.gitignore` additionally blocks `.data/` and any
   `employee-master*.csv`.
-- **The browser never receives the roster.** There is no "download all employees" route.
-  Lookups are query-scoped and the response is projected down to
-  `{ employeeNo, name, designation, siteId }`.
-- **Mobile numbers, addresses and blood groups never leave the server.** They are parsed
-  (so OTP can use them later) but are not part of any API response today.
+- **Worker browsers never receive the full roster.** Worker lookups return only
+  `{ id, empNo, name, designation, siteId }`, with query and rate limits.
+- The full roster is available only through the authenticated admin endpoint. Contact and
+  health fields require the separate `SAFEX_ADMIN_PII_ENABLED=true` setting; the console
+  does not consume those private fields even when enabled.
 - **A "published to the web" Google Sheet is readable by anyone who has the link** — there
   is no authentication on it. Treat the link itself as a secret, and unpublish the sheet
   once the roster has been imported into Supabase.
@@ -33,11 +32,11 @@ Consequences baked into the design:
 ```
 Google Sheet / CSV ──┐
                      ├─► lib/employee-master/directory.ts ─► /api/employees ─► report form
-Supabase employees ──┘        (Supabase → sheet → demo)       (scoped, capped)   profile search
+Supabase employees ──┘        (Supabase → sheet → unavailable)       (scoped, capped)   profile search
                                                                                  training check
 ```
 
-Resolution order is **Supabase → published sheet/CSV → demo**. The sheet is a migration
+Resolution order is **Supabase → published sheet/CSV → unavailable**. The sheet is a migration
 bridge: once the roster is imported, the database wins automatically and the sheet can be
 unpublished. A source that is configured but unreachable degrades to the next one *and
 says so in the UI*, rather than presenting an empty directory as if the site had no
@@ -46,7 +45,7 @@ fast instead of paying a network timeout on every request.
 
 | Variable | Purpose |
 | --- | --- |
-| `SAFEX_EMPLOYEE_DIRECTORY_SOURCE` | `auto` (default), or force `sheet` / `demo`. |
+| `SAFEX_EMPLOYEE_DIRECTORY_SOURCE` | `auto` (default), or force `sheet`. |
 | `SAFEX_TENANT_SLUG` | Which tenant the roster belongs to. Required for Supabase reads and for the importer. |
 | `SAFEX_EMPLOYEE_MASTER_CSV_URL` | Published CSV/TSV endpoint. |
 | `SAFEX_EMPLOYEE_MASTER_FILE` | Local CSV path, for offline dev / no-egress sandboxes. |
@@ -223,3 +222,37 @@ authenticated by OTP, because the code cannot be delivered to one identifiable p
    confirming `/api/bootstrap` reports `"directory":"supabase"`.
 5. Unpublish the Google Sheet and clear `SAFEX_EMPLOYEE_MASTER_CSV_URL`.
 6. Only then enable OTP sign-in, which depends on one verified mobile per employee.
+
+
+## West Bokaro master configuration (October 2026)
+
+The supplied Google CSV URL is configured in the local, git-ignored `.env.local`.
+**Deployment environment variables must be configured separately**; the URL and roster
+are intentionally not committed to this public repository:
+
+```dotenv
+SAFEX_EMPLOYEE_DIRECTORY_SOURCE=sheet
+SAFEX_EMPLOYEE_MASTER_CSV_URL=<the supplied published CSV URL, with literal & separators>
+SAFEX_EMPLOYEE_MASTER_SITE_ID=west-bokaro
+SAFEX_EMPLOYEE_MASTER_SITE_NAME=West Bokaro (WBD)
+SAFEX_EMPLOYEE_MASTER_SITE_REGION=Ghatotand, Ramgarh
+SAFEX_EMPLOYEE_MASTER_TTL_SECONDS=600
+```
+
+Set `SAFEX_ADMIN_PASSCODE` using your deployment secret manager to enable the authorised
+admin roster. No passcode is hard-coded. Restart the server after configuration changes.
+Edit employee details in the source sheet: console edits are session-only and do not
+update Google Sheets. Training, certificates and other activity records are not inferred
+from an employee's presence in the master.
+
+If neither real source can answer, `/api/bootstrap` reports `directory: unavailable`,
+`employeeCount: 0` and `degraded: true`; employee lookup endpoints return HTTP 503 rather
+than a successful empty roster. Authentication is still required for the admin endpoint.
+The sheet is refreshed every ten minutes; a last successful in-memory copy is retained
+on temporary fetch failures. Restarting clears that cache.
+
+The sandbox could not establish a TLS connection to Google Sheets during setup. Live
+column mapping and employee counts remain unverified. In an environment with Google
+access, confirm bootstrap reports `sheet`, check one known employee and an unknown ID,
+and confirm private fields are absent from worker responses. Do not publish real roster
+files or test responses in Git or logs.

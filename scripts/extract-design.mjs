@@ -15,7 +15,7 @@
  * The only edits made to the author's code are seams, all documented below:
  *   1. every CSS selector is scoped under `.sos` so the design cannot collide with the
  *      worker app's globals.css (both define .app, .page, .sidebar, .modal, --line, --green),
- *   2. the demo employee array becomes `window.__SAFEX_EMPLOYEES__ || <demo array>` so the
+ *   2. the demo employee array becomes `window.__SAFEX_EMPLOYEES__ || []` so the
  *      verified operator session can hand the console the real employee master.
  *
  * Run it after editing the design; never hand-edit the generated files.
@@ -139,22 +139,17 @@ let script = src.slice(scriptStart + '<script>'.length, scriptEnd);
 /**
  * EMPLOYEE SEAM — the one deliberate change to the design's own code.
  *
- * The design seeds its directory from a hard-coded array of invented people. The app has a
- * real employee master behind a server-verified session, so that array becomes a fallback:
- * when the host page has already fetched the roster it wins, otherwise the design behaves
- * exactly as shipped. Nothing else about the script is touched.
+ * Only the authenticated host may supply employees. The standalone design stays empty.
  */
 const anchor = 'const employeeDirectory=';
 const seamStart = script.indexOf(anchor);
 if (seamStart === -1) throw new Error('EMPLOYEE SEAM: could not find `const employeeDirectory=`');
 const arrayEnd = script.indexOf('];', seamStart);
 if (arrayEnd === -1) throw new Error('EMPLOYEE SEAM: could not find the end of the demo employee array');
-const arrayLiteral = script.slice(seamStart + anchor.length, arrayEnd + 1); // includes the closing ]
 
 script =
   script.slice(0, seamStart)
-  + `const __safexDemoDirectory=${arrayLiteral};\n`
-  + `      const employeeDirectory=(typeof window!=='undefined'&&Array.isArray(window.__SAFEX_EMPLOYEES__))?window.__SAFEX_EMPLOYEES__:__safexDemoDirectory;`
+  + `      const employeeDirectory=(typeof window!=='undefined'&&Array.isArray(window.__SAFEX_EMPLOYEES__))?window.__SAFEX_EMPLOYEES__:[];`
   + script.slice(arrayEnd + 1); // drop the `;` that closed the original declaration
 
 writeFileSync(

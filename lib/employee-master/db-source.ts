@@ -74,7 +74,7 @@ async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
 /** Credentials exist and the operator has not forced another source. */
 export function isDatabaseDirectoryIntended(): boolean {
   const mode = (process.env.SAFEX_EMPLOYEE_DIRECTORY_SOURCE ?? 'auto').toLowerCase();
-  if (mode === 'sheet' || mode === 'demo') return false;
+  if (mode !== 'auto' && mode !== 'supabase') return false;
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL
     && process.env.SUPABASE_SERVICE_ROLE_KEY

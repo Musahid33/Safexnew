@@ -24,12 +24,7 @@ const TRAINING_MODULES: Material[] = [
   { title: 'Hazard Identification Guide', description: 'Identify unsafe conditions, unsafe acts and controls.', type: 'Module' }
 ];
 
-const COMPLETED_BY_DEMO_EMPLOYEE: Record<string, string[]> = {
-  'demo-e1': ['Safety Fundamentals · Part 1', 'PPE Usage & Care'],
-  'demo-e2': ['Safety Fundamentals · Part 1'],
-  'demo-e3': ['PPE Usage & Care', 'Hazard Identification'],
-  'demo-e4': []
-};
+
 
 const ALL_TOPICS = [...TRAINING_VIDEOS.map((item) => item.title), ...TRAINING_MODULES.map((item) => item.title)];
 
@@ -41,7 +36,6 @@ export default function TrainingPortal({ site, directory }: Props) {
   const [message, setMessage] = useState<UiMessage | null>(null);
   const [material, setMaterial] = useState<Material | null>(null);
   const [checking, setChecking] = useState(false);
-  const isMaster = directory.mode === 'master';
 
   async function checkTraining(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,14 +55,13 @@ export default function TrainingPortal({ site, directory }: Props) {
           : { key: 'No employee profile for {code} was found. Check the code and try again.', params: { code } });
         return;
       }
-      // Completion records only exist for the synthetic roster. Against a real employee
-      // master there is no training source yet, so claiming "0 completed" would be a lie.
-      const completed = isMaster ? [] : COMPLETED_BY_DEMO_EMPLOYEE[found.id] ?? [];
+      // A master profile does not establish training completion. Keep that status unknown.
+      const completed: string[] = [];
       setCheck({
         employee: found,
         completed,
-        pending: isMaster ? [] : ALL_TOPICS.filter((topic) => !completed.includes(topic)),
-        hasRecords: !isMaster
+        pending: [],
+        hasRecords: false
       });
       setMessage(null);
     } catch {
@@ -94,7 +87,7 @@ export default function TrainingPortal({ site, directory }: Props) {
 
     <section className="training-section training-check">
       <div className="training-section-heading"><span className="training-section-icon"><CheckCircle2 size={19} /></span><div><h2>✅ {T('Check My Training')}</h2><small>{T('View applicable, available, pending and completed learning')}</small></div></div>
-      <p className="training-check-help">{T(isMaster ? 'Enter your own Employee Code. The profile is read from the employee master for the selected site.' : 'Enter your own Employee Code. In this demo, results use synthetic records scoped to the selected site.')}</p>
+      <p className="training-check-help">{T('Enter your own Employee Code. The profile is read from the employee master for the selected site.')}</p>
       <form className="training-check-form" onSubmit={checkTraining}><label htmlFor="training-employee-code" className="sr-only">{T('Employee Code')}</label><input id="training-employee-code" autoComplete="off" value={employeeCode} onChange={(event) => { setEmployeeCode(event.target.value.toUpperCase()); setCheck(null); setMessage(null); }} placeholder={T('Enter Employee Code')} required /><button type="submit" className="primary-button" disabled={checking}>{T(checking ? 'Checking…' : 'Check')}</button></form>
       {message && <div className="inline-notice warning training-check-message" role="status">{T(message.key, message.params)}</div>}
       {check && <div className="training-results" aria-live="polite">
@@ -103,7 +96,6 @@ export default function TrainingPortal({ site, directory }: Props) {
         {check.hasRecords && <div className="training-count-grid"><div><small>{T('Applicable')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Available')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Pending')}</small><b>{check.pending.length}</b></div><div><small>{T('Completed')}</small><b>{check.completed.length}</b></div></div>}
         {check.completed.length > 0 && <div className="training-result-list"><h3>✅ {T('Completed Trainings')} ({check.completed.length})</h3>{check.completed.map((topic) => <div className="training-result-row completed" key={topic}><CheckCircle2 size={15} /><span>{topic}</span><small>{T('Demo record')}</small></div>)}</div>}
         {check.pending.length > 0 && <div className="training-result-list"><h3>⏳ {T('Pending Trainings')} ({check.pending.length})</h3>{check.pending.map((topic) => <div className="training-result-row pending" key={topic}><Clock3 size={15} /><span>{topic}</span><small>{T('Not completed')}</small></div>)}</div>}
-        <p className="training-demo-note">{T('Demo training records are synthetic and are not saved or checked against a real employee database.')}</p>
       </div>}
     </section>
 
