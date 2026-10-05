@@ -7,7 +7,7 @@ import {
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
-import { DEMO_EMPLOYEES, DEMO_REPORTS, DEMO_SITES, DEMO_TENANT } from '@/lib/demo-data';
+import { DEMO_REPORTS, DEMO_TENANT } from '@/lib/demo-data';
 import { DEMO_SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
 import LanguageStrip from './components/LanguageStrip';
@@ -16,10 +16,11 @@ import ReportWorkflow, { type ReportSubmission } from './components/ReportWorkfl
 import TrainingPortal from './components/TrainingPortal';
 import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
-import AdminDashboard from './components/AdminDashboard';
+import SafetyOsConsole from './components/safetyos/SafetyOsConsole';
 import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId } from './components/DocumentVault';
 import RewardCarousel from './components/RewardCarousel';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
+import { useSafexBootstrap } from './components/useSafexBootstrap';
 import { AboutAppPage, AccountManagementPage, CompanyAboutPage, InstallAppPage, MoreInfoDialog, MoreMenuPage, type MoreInfoKind } from './components/MorePages';
 import { APP_TIME_ZONE, formatHomeFeedDate, formatHomeFeedTime, getUpcomingEvents, type HomeFeedItem } from '@/lib/home-content';
 import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports, type OutboxSyncResult, type QueuedReport } from '@/lib/report-outbox';
@@ -119,13 +120,16 @@ function queuedReportToSafetyReport(entry: QueuedReport): SafetyReport {
 
 export default function SafexHome() {
   const { language, setLanguage, T } = useI18n();
+  // Site list and employee directory come from the server: the real employee master when
+  // one is configured, the synthetic demo roster otherwise.
+  const { ready: directoryReady, sites, directory, directoryMode, employeeCount, degraded } = useSafexBootstrap();
   const locale = LANGUAGE_LOCALE[language];
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [page, setPage] = useState<PageKey>('home');
   const [siteId, setSiteId] = useState('');
   const [siteReady, setSiteReady] = useState(false);
   const [siteDialog, setSiteDialog] = useState(false);
-  const [siteDraft, setSiteDraft] = useState(DEMO_SITES[0]?.id ?? '');
+  const [siteDraft, setSiteDraft] = useState('');
   const [siteReturnPage, setSiteReturnPage] = useState<PageKey>('home');
   const [lifeRuleLocationOpen, setLifeRuleLocationOpen] = useState(false);
   const [lifeRuleOpen, setLifeRuleOpen] = useState(false);
@@ -176,8 +180,8 @@ export default function SafexHome() {
   const filteredSafetyAlerts = useMemo(() => DEMO_SAFETY_ALERTS
     .filter((alert) => safetyAlertFilter === 'All' || alert.category === safetyAlertFilter)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [safetyAlertFilter]);
-  const currentSite = DEMO_SITES.find((site) => site.id === siteId) ?? null;
-  const isSingleSite = DEMO_SITES.length === 1;
+  const currentSite = sites.find((site) => site.id === siteId) ?? null;
+  const isSingleSite = sites.length === 1;
   const activeSiteReports = useMemo(() => reports.filter((report) => report.siteId === siteId), [reports, siteId]);
   const filteredReports = useMemo(() => activeSiteReports.filter((report) => {
     const textMatches = `${report.id} ${report.type} ${report.category ?? ''} ${report.area} ${report.department ?? ''} ${report.shortDescription}`.toLowerCase().includes(searchText.toLowerCase());
@@ -255,23 +259,9 @@ export default function SafexHome() {
       }
       if ('Notification' in window) setNotificationPermission(Notification.permission);
 
-      if (DEMO_SITES.length === 1) {
-        setSiteId(DEMO_SITES[0].id);
-        setSiteDraft(DEMO_SITES[0].id);
-      } else {
-        const savedSite = sessionStorage.getItem('safex-active-site');
-        if (savedSite && DEMO_SITES.some((site) => site.id === savedSite)) {
-          setSiteId(savedSite);
-          setSiteDraft(savedSite);
-        } else {
-          setSiteDialog(true);
-        }
-      }
     } catch {
-      if (DEMO_SITES.length > 1) setSiteDialog(true);
-      else if (DEMO_SITES[0]) setSiteId(DEMO_SITES[0].id);
+      // Storage can be unavailable (private mode, locked-down device); defaults stand.
     }
-    setSiteReady(true);
 
     const handleInstall = (event: Event) => {
       event.preventDefault();
@@ -288,6 +278,34 @@ export default function SafexHome() {
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+
+  // Waits for /api/bootstrap so a genuinely single-site tenant auto-selects instead of
+  // briefly showing the demo multi-site chooser.
+  useEffect(() => {
+    if (!directoryReady || siteReady) return;
+    try {
+      if (sites.length === 1) {
+        setSiteId(sites[0].id);
+        setSiteDraft(sites[0].id);
+      } else {
+        const savedSite = sessionStorage.getItem('safex-active-site');
+        if (savedSite && sites.some((site) => site.id === savedSite)) {
+          setSiteId(savedSite);
+          setSiteDraft(savedSite);
+        } else {
+          setSiteDialog(true);
+        }
+      }
+    } catch {
+      if (sites.length > 1) setSiteDialog(true);
+      else if (sites[0]) setSiteId(sites[0].id);
+    }
+    setSiteReady(true);
+  }, [directoryReady, siteReady, sites]);
+
+  useEffect(() => {
+    if (degraded) setToast({ key: 'The employee master is configured but could not be read, so demo records are shown.' });
+  }, [degraded]);
 
   useEffect(() => {
     let active = true;
@@ -438,12 +456,12 @@ export default function SafexHome() {
 
   function openSitePicker(returnTo: PageKey = page) {
     setSiteReturnPage(returnTo);
-    setSiteDraft(siteId || DEMO_SITES[0]?.id || '');
+    setSiteDraft(siteId || sites[0]?.id || '');
     setSiteDialog(true);
   }
 
   function chooseSite(id: string) {
-    const valid = DEMO_SITES.find((site) => site.id === id);
+    const valid = sites.find((site) => site.id === id);
     if (!valid) return;
     setSiteId(valid.id);
     setSiteDraft(valid.id);
@@ -676,15 +694,14 @@ export default function SafexHome() {
       </aside>}
 
       <main className={page === 'adminDashboard' ? 'admin-main-content' : 'main-content'}>
-        {page === 'adminDashboard' && <AdminDashboard
-          companyName={DEMO_TENANT.companyName}
+        {page === 'adminDashboard' && <SafetyOsConsole
+          sites={sites}
           selectedSiteId={siteId}
-          sites={DEMO_SITES}
-          reports={DEMO_REPORTS}
-          employees={DEMO_EMPLOYEES}
           onChangeSite={() => openSitePicker('adminDashboard')}
           canChangeSite={!isSingleSite}
           onExit={() => setPage('home')}
+          officerName="Safety Officer"
+          directoryMode={directoryMode}
         />}
         {page === 'home' && <>
           <section className="hero-strip">
@@ -771,7 +788,7 @@ export default function SafexHome() {
           <div className="report-scope-grid"><button className="scope-card selected" onClick={() => setStatusFilter('All')}><span className="scope-icon"><ClipboardList /></span><b>{T('mySiteReports')}</b><small>{currentSite?.name ?? T('Choose a site')} · {T('Site-filtered')}</small></button><button className="scope-card" onClick={() => { setShowAllSitesOtp(true); setOtpMessage(''); setOtpStage('details'); }}><span className="scope-icon locked"><LockKeyhole /></span><b>{T('allSiteReports')}</b><small>{T('Employee ID + registered mobile + OTP')}</small></button></div>
           <div className="stat-row"><div className="stat-card"><b>{activeSiteReports.length}</b><span>{T('Total')}</span></div><div className="stat-card"><b>{statusCounts.Open}</b><span>{T('Open')}</span></div><div className="stat-card"><b>{statusCounts['In Progress']}</b><span>{T('In progress')}</span></div><div className="stat-card"><b>{statusCounts.Closed}</b><span>{T('Closed')}</span></div></div>
           <div className="list-toolbar"><div className="search-box"><Search size={17} /><input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder={T('Search report ID, type or area')} /></div><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'All' | ReportStatus)} aria-label={T('Filter by status')}><option value="All">{T('All statuses')}</option><option value="Open">{T('Open')}</option><option value="In Progress">{T('In Progress')}</option><option value="Closed">{T('Closed')}</option></select></div>
-          <div className="report-list">{filteredReports.map((item) => <ReportCard key={item.id} report={item} site={DEMO_SITES.find((s) => s.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{filteredReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('No reports found')}</b><span>{T('Try another filter or report a safety concern.')}</span></div>}</div>
+          <div className="report-list">{filteredReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((s) => s.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{filteredReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('No reports found')}</b><span>{T('Try another filter or report a safety concern.')}</span></div>}</div>
           <div className="privacy-note"><LockKeyhole size={15} /> {T('Demo summaries mask reporter IDs. Production access and attachments must be enforced server-side.')}</div>
         </section>}
 
@@ -780,7 +797,7 @@ export default function SafexHome() {
         {page === 'circulars' && <FeedArchivePage kind="circulars" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
         {page === 'updates' && <FeedArchivePage kind="updates" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
 
-        {page === 'training' && <TrainingPortal site={currentSite} employees={DEMO_EMPLOYEES} />}
+        {page === 'training' && <TrainingPortal site={currentSite} directory={directory} />}
 
         {page === 'library' && <section className="page-panel document-vault-page">
           <div className="page-heading"><div><span className="eyebrow">{T('DOCUMENTS')} · {currentSite?.name ?? T('SELECTED SITE')}</span><h1>{T('Document Vault / Library')}</h1><p>{T('Browse site safety procedures, risk assessments, compliance indexes, policies and meeting minutes.')}</p></div><FolderOpen size={28} /></div>
@@ -823,9 +840,9 @@ export default function SafexHome() {
         <NavItem active={page === 'more' || page === 'appearance' || page === 'install' || page === 'library' || page === 'company' || page === 'account' || page === 'aboutApp'} icon={<MoreHorizontal />} label={T('more')} onClick={() => setPage('more')} />
       </nav>}
 
-      {siteReady && siteDialog && <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{DEMO_TENANT.companyName.trim().charAt(0) || 'S'}</span><span><b>{DEMO_TENANT.companyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{DEMO_SITES.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button><div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}</div></div></div>}
+      {siteReady && siteDialog && <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{DEMO_TENANT.companyName.trim().charAt(0) || 'S'}</span><span><b>{DEMO_TENANT.companyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button><div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>}
 
-      {lifeRuleLocationOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="life-rule-location-title"><div className="modal life-rule-location-modal"><div className="modal-header"><div><span className="eyebrow">{T('LIFE SAVING RULE')}</span><h2 id="life-rule-location-title">{T('Select a location')}</h2><p>{T('Choose the site whose Life Saving Rules you want to view.')}</p></div><button className="close-button" type="button" onClick={() => setLifeRuleLocationOpen(false)} aria-label={T('Close location selection')}><X /></button></div><div className="life-rule-location-list">{[...(currentSite ? [currentSite] : []), ...DEMO_SITES.filter((site) => site.id !== currentSite?.id)].map((site) => <button key={site.id} className={`life-rule-location-option ${site.id === currentSite?.id ? 'current' : ''}`} type="button" onClick={() => openLifeRuleForSite(site)}><span className="life-location-icon"><MapPin size={18} /></span><span><b>{site.name}</b><small>{site.region}{site.id === currentSite?.id ? ` · ${T('Current site')}` : ''}</small></span><ChevronRight size={18} /></button>)}</div><button className="secondary-button full-button" type="button" onClick={() => setLifeRuleLocationOpen(false)}>{T('Back to Safety Portal')}</button></div></div>}
+      {lifeRuleLocationOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="life-rule-location-title"><div className="modal life-rule-location-modal"><div className="modal-header"><div><span className="eyebrow">{T('LIFE SAVING RULE')}</span><h2 id="life-rule-location-title">{T('Select a location')}</h2><p>{T('Choose the site whose Life Saving Rules you want to view.')}</p></div><button className="close-button" type="button" onClick={() => setLifeRuleLocationOpen(false)} aria-label={T('Close location selection')}><X /></button></div><div className="life-rule-location-list">{[...(currentSite ? [currentSite] : []), ...sites.filter((site) => site.id !== currentSite?.id)].map((site) => <button key={site.id} className={`life-rule-location-option ${site.id === currentSite?.id ? 'current' : ''}`} type="button" onClick={() => openLifeRuleForSite(site)}><span className="life-location-icon"><MapPin size={18} /></span><span><b>{site.name}</b><small>{site.region}{site.id === currentSite?.id ? ` · ${T('Current site')}` : ''}</small></span><ChevronRight size={18} /></button>)}</div><button className="secondary-button full-button" type="button" onClick={() => setLifeRuleLocationOpen(false)}>{T('Back to Safety Portal')}</button></div></div>}
 
       {lifeRuleOpen && lifeRuleSite && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="life-rule-title"><div className="modal life-rule-modal"><div className="modal-header"><div><span className="eyebrow">{lifeRuleSite.name} · {T('LOCATION')}</span><h2 id="life-rule-title">{T('LIFE SAVING RULE')}</h2></div><button className="close-button" type="button" onClick={() => setLifeRuleOpen(false)} aria-label={T('Close Life Saving Rule')}><X /></button></div><div className="life-rule-site-banner"><span className="life-saving-icon"><ShieldAlert size={21} /></span><span><small>{T('SELECTED LOCATION')}</small><b>{lifeRuleSite.name}</b></span></div><div className="life-rule-placeholder"><BookOpen size={28} /><b>{T('Approved rules are not published yet')}</b><p>{T('Company-approved Life Saving Rules for {site} have not been configured in this demo. Confirm your site’s current rules with the Safety team before beginning work.', { site: lifeRuleSite.name })}</p></div><div className="life-rule-actions"><button className="secondary-button" type="button" onClick={changeLifeRuleLocation}><MapPin size={15} /> {T('Change location')}</button><button className="primary-button" type="button" onClick={() => setLifeRuleOpen(false)}>{T('Close')}</button></div></div></div>}
 
@@ -901,8 +918,8 @@ export default function SafexHome() {
         </div>
       </div>}
 
-      {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} employees={DEMO_EMPLOYEES} language={language} onLanguageChange={setLanguage} voiceEnabled={DEMO_TENANT.features.voiceReporting} syncEnabled={reportSyncEnabled} onClose={() => setReportType(null)} onSubmit={submitReport} />}
-      {profileSearchOpen && <ProfileSearchDialog site={currentSite} employees={DEMO_EMPLOYEES} onClose={() => setProfileSearchOpen(false)} />}
+      {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} directory={directory} language={language} onLanguageChange={setLanguage} voiceEnabled={DEMO_TENANT.features.voiceReporting} syncEnabled={reportSyncEnabled} onClose={() => setReportType(null)} onSubmit={submitReport} />}
+      {profileSearchOpen && <ProfileSearchDialog site={currentSite} directory={directory} onClose={() => setProfileSearchOpen(false)} />}
       {officerAccessOpen && <OfficerAccessDialog onClose={() => setOfficerAccessOpen(false)} onDemoLogin={completeDemoAdminLogin} />}
       {moreInfoKind && <MoreInfoDialog kind={moreInfoKind} company={DEMO_TENANT} onClose={() => setMoreInfoKind(null)} onLogin={() => { setMoreInfoKind(null); setOfficerAccessOpen(true); }} />}
 
@@ -912,7 +929,7 @@ export default function SafexHome() {
 
       {sosOpen && currentSite && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="sos-title"><div className="modal sos-modal"><div className="modal-header"><div><span className="eyebrow">{T('CURRENT SITE · EMERGENCY CONTACT')}</span><h2 id="sos-title">SOS · {currentSite.name}</h2></div><button className="close-button" onClick={() => setSosOpen(false)} aria-label={T('Close SOS')}><X /></button></div><p>{T('Safex will use the emergency number configured for {site}.', { site: currentSite.name })}</p>{currentSite.sosNumber ? <a className="sos-call-link" href={`tel:${currentSite.sosNumber}`}>{T('Call site emergency contact · {phone}', { phone: currentSite.sosNumber })}</a> : <div className="inline-notice warning">{T('No SOS number is configured for this demo site. Add and verify the real site contact before launch.')}</div>}<div className="modal-footnote"><AlertTriangle size={14} /> {T('Confirm the displayed site before calling. Emergency numbers must come from site Admin configuration.')}</div></div></div>}
 
-      {reportDetail && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="modal detail-modal"><div className="modal-header"><div><span className="eyebrow">{DEMO_SITES.find((site) => site.id === reportDetail.siteId)?.name}</span><h2 id="detail-title">{reportDetail.id}</h2></div><button className="close-button" onClick={() => setReportDetail(null)} aria-label={T('Close')}><X /></button></div><div className="detail-meta"><span className="type-chip">{T(reportDetail.type)}</span>{reportDetail.category && <span className="type-chip">{T(reportDetail.category)}</span>}<span className={`status-pill ${STATUS_CLASS[reportDetail.status]}`}>{T(reportDetail.status)}</span></div><dl className="detail-grid"><div><dt>{T('Reported by')}</dt><dd>{T(reportDetail.anonymous ? 'Anonymous' : maskEmpNo(reportDetail.reporterEmpNo))}</dd></div><div><dt>{T('Site')}</dt><dd>{DEMO_SITES.find((site) => site.id === reportDetail.siteId)?.name}</dd></div><div><dt>{T('Area')}</dt><dd>{reportDetail.area}</dd></div><div><dt>{T('Department')}</dt><dd>{reportDetail.department ?? T('N/A')}</dd></div><div><dt>{T('Severity')}</dt><dd>{reportDetail.severity ? T(reportDetail.severity) : T('N/A')}</dd></div><div><dt>{T('Incident date & time')}</dt><dd>{formatDate(reportDetail.incidentAt ?? reportDetail.reportedAt, locale)}</dd></div><div><dt>{T('Submitted on')}</dt><dd>{formatDate(reportDetail.reportedAt, locale)}</dd></div></dl><p className="detail-description">{reportDetail.description ?? reportDetail.shortDescription}</p>{reportDetail.immediateAction && <div className="detail-description"><b>{T('Immediate action:')}</b> {reportDetail.immediateAction}</div>}{reportDetail.hasAttachment && <div className="attachment-preview"><ImagePlus /><span>{T('Photo evidence noted')}</span><small>{T('Demo placeholder · original image is not uploaded or stored')}</small></div>}<div className="modal-footnote">{T('Worker view is redacted. Full IDs and unredacted evidence require authorized staff access.')}</div></div></div>}
+      {reportDetail && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="modal detail-modal"><div className="modal-header"><div><span className="eyebrow">{sites.find((site) => site.id === reportDetail.siteId)?.name}</span><h2 id="detail-title">{reportDetail.id}</h2></div><button className="close-button" onClick={() => setReportDetail(null)} aria-label={T('Close')}><X /></button></div><div className="detail-meta"><span className="type-chip">{T(reportDetail.type)}</span>{reportDetail.category && <span className="type-chip">{T(reportDetail.category)}</span>}<span className={`status-pill ${STATUS_CLASS[reportDetail.status]}`}>{T(reportDetail.status)}</span></div><dl className="detail-grid"><div><dt>{T('Reported by')}</dt><dd>{T(reportDetail.anonymous ? 'Anonymous' : maskEmpNo(reportDetail.reporterEmpNo))}</dd></div><div><dt>{T('Site')}</dt><dd>{sites.find((site) => site.id === reportDetail.siteId)?.name}</dd></div><div><dt>{T('Area')}</dt><dd>{reportDetail.area}</dd></div><div><dt>{T('Department')}</dt><dd>{reportDetail.department ?? T('N/A')}</dd></div><div><dt>{T('Severity')}</dt><dd>{reportDetail.severity ? T(reportDetail.severity) : T('N/A')}</dd></div><div><dt>{T('Incident date & time')}</dt><dd>{formatDate(reportDetail.incidentAt ?? reportDetail.reportedAt, locale)}</dd></div><div><dt>{T('Submitted on')}</dt><dd>{formatDate(reportDetail.reportedAt, locale)}</dd></div></dl><p className="detail-description">{reportDetail.description ?? reportDetail.shortDescription}</p>{reportDetail.immediateAction && <div className="detail-description"><b>{T('Immediate action:')}</b> {reportDetail.immediateAction}</div>}{reportDetail.hasAttachment && <div className="attachment-preview"><ImagePlus /><span>{T('Photo evidence noted')}</span><small>{T('Demo placeholder · original image is not uploaded or stored')}</small></div>}<div className="modal-footnote">{T('Worker view is redacted. Full IDs and unredacted evidence require authorized staff access.')}</div></div></div>}
       {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setVaultCategoryId(null)} />}
       {feedDetail && <HomeFeedDetailDialog item={feedDetail} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setFeedDetail(null)} />}
 

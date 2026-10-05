@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { BookOpen, CheckCircle2, Clock3, FileText, PlayCircle, X } from 'lucide-react';
+import type { EmployeeDirectory } from '@/lib/employee-directory';
 import type { Employee, Site } from '@/lib/types';
 import { LANGUAGE_LOCALE } from '@/lib/i18n';
 import { useI18n } from './I18nProvider';
 
-type Props = { site: Site | null; employees: Employee[] };
+type Props = { site: Site | null; directory: EmployeeDirectory };
 type Material = { title: string; description: string; type: 'Video' | 'Module'; durationMinutes?: number };
-type TrainingCheck = { employee: Employee; completed: string[]; pending: string[] };
+type TrainingCheck = { employee: Employee; completed: string[]; pending: string[]; hasRecords: boolean };
 type UiMessage = { key: string; params?: Record<string, string | number> };
 
 const TRAINING_VIDEOS: Material[] = [
@@ -32,16 +33,17 @@ const COMPLETED_BY_DEMO_EMPLOYEE: Record<string, string[]> = {
 
 const ALL_TOPICS = [...TRAINING_VIDEOS.map((item) => item.title), ...TRAINING_MODULES.map((item) => item.title)];
 
-export default function TrainingPortal({ site, employees }: Props) {
+export default function TrainingPortal({ site, directory }: Props) {
   const { language, T } = useI18n();
   const locale = LANGUAGE_LOCALE[language];
   const [employeeCode, setEmployeeCode] = useState('');
   const [check, setCheck] = useState<TrainingCheck | null>(null);
   const [message, setMessage] = useState<UiMessage | null>(null);
   const [material, setMaterial] = useState<Material | null>(null);
-  const siteEmployees = useMemo(() => employees.filter((employee) => !site || employee.siteId === site.id), [employees, site]);
+  const [checking, setChecking] = useState(false);
+  const isMaster = directory.mode === 'master';
 
-  function checkTraining(event: FormEvent<HTMLFormElement>) {
+  async function checkTraining(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = employeeCode.trim().toUpperCase();
     if (!code) {
@@ -49,17 +51,32 @@ export default function TrainingPortal({ site, employees }: Props) {
       setCheck(null);
       return;
     }
-    const found = siteEmployees.find((item) => item.empNo.toUpperCase() === code);
-    if (!found) {
+    setChecking(true);
+    try {
+      const found = await directory.findByEmployeeNo(site?.id ?? '', code);
+      if (!found) {
+        setCheck(null);
+        setMessage(site
+          ? { key: 'No employee profile for {code} was found at {site}. Check the code and try again.', params: { code, site: site.name } }
+          : { key: 'No employee profile for {code} was found. Check the code and try again.', params: { code } });
+        return;
+      }
+      // Completion records only exist for the synthetic roster. Against a real employee
+      // master there is no training source yet, so claiming "0 completed" would be a lie.
+      const completed = isMaster ? [] : COMPLETED_BY_DEMO_EMPLOYEE[found.id] ?? [];
+      setCheck({
+        employee: found,
+        completed,
+        pending: isMaster ? [] : ALL_TOPICS.filter((topic) => !completed.includes(topic)),
+        hasRecords: !isMaster
+      });
+      setMessage(null);
+    } catch {
       setCheck(null);
-      setMessage(site
-        ? { key: 'No demo employee profile for {code} was found at {site}. Check the code and try again.', params: { code, site: site.name } }
-        : { key: 'No demo employee profile for {code} was found. Check the code and try again.', params: { code } });
-      return;
+      setMessage({ key: 'The employee directory is unavailable right now. Try again in a moment.' });
+    } finally {
+      setChecking(false);
     }
-    const completed = COMPLETED_BY_DEMO_EMPLOYEE[found.id] ?? [];
-    setCheck({ employee: found, completed, pending: ALL_TOPICS.filter((topic) => !completed.includes(topic)) });
-    setMessage(null);
   }
 
   return <section className="page-panel training-portal">
@@ -77,12 +94,13 @@ export default function TrainingPortal({ site, employees }: Props) {
 
     <section className="training-section training-check">
       <div className="training-section-heading"><span className="training-section-icon"><CheckCircle2 size={19} /></span><div><h2>✅ {T('Check My Training')}</h2><small>{T('View applicable, available, pending and completed learning')}</small></div></div>
-      <p className="training-check-help">{T('Enter your own Employee Code. In this demo, results use synthetic records scoped to the selected site.')}</p>
-      <form className="training-check-form" onSubmit={checkTraining}><label htmlFor="training-employee-code" className="sr-only">{T('Employee Code')}</label><input id="training-employee-code" autoComplete="off" value={employeeCode} onChange={(event) => { setEmployeeCode(event.target.value.toUpperCase()); setCheck(null); setMessage(null); }} placeholder={T('Enter Employee Code')} required /><button type="submit" className="primary-button">{T('Check')}</button></form>
+      <p className="training-check-help">{T(isMaster ? 'Enter your own Employee Code. The profile is read from the employee master for the selected site.' : 'Enter your own Employee Code. In this demo, results use synthetic records scoped to the selected site.')}</p>
+      <form className="training-check-form" onSubmit={checkTraining}><label htmlFor="training-employee-code" className="sr-only">{T('Employee Code')}</label><input id="training-employee-code" autoComplete="off" value={employeeCode} onChange={(event) => { setEmployeeCode(event.target.value.toUpperCase()); setCheck(null); setMessage(null); }} placeholder={T('Enter Employee Code')} required /><button type="submit" className="primary-button" disabled={checking}>{T(checking ? 'Checking…' : 'Check')}</button></form>
       {message && <div className="inline-notice warning training-check-message" role="status">{T(message.key, message.params)}</div>}
       {check && <div className="training-results" aria-live="polite">
         <div className="training-employee-found"><span className="live-dot" /><b>{check.employee.name}</b><span>{check.employee.empNo} · {check.employee.designation}</span></div>
-        <div className="training-count-grid"><div><small>{T('Applicable')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Available')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Pending')}</small><b>{check.pending.length}</b></div><div><small>{T('Completed')}</small><b>{check.completed.length}</b></div></div>
+        {!check.hasRecords && <div className="inline-notice warning" role="status">{T('This profile was found in the employee master, but training completion records are not connected yet.')}</div>}
+        {check.hasRecords && <div className="training-count-grid"><div><small>{T('Applicable')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Available')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Pending')}</small><b>{check.pending.length}</b></div><div><small>{T('Completed')}</small><b>{check.completed.length}</b></div></div>}
         {check.completed.length > 0 && <div className="training-result-list"><h3>✅ {T('Completed Trainings')} ({check.completed.length})</h3>{check.completed.map((topic) => <div className="training-result-row completed" key={topic}><CheckCircle2 size={15} /><span>{topic}</span><small>{T('Demo record')}</small></div>)}</div>}
         {check.pending.length > 0 && <div className="training-result-list"><h3>⏳ {T('Pending Trainings')} ({check.pending.length})</h3>{check.pending.map((topic) => <div className="training-result-row pending" key={topic}><Clock3 size={15} /><span>{topic}</span><small>{T('Not completed')}</small></div>)}</div>}
         <p className="training-demo-note">{T('Demo training records are synthetic and are not saved or checked against a real employee database.')}</p>
