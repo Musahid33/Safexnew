@@ -1,57 +1,21 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import '@/app/safetyos.css';
+import '@/app/safetyos-nav.css';
 import SafetyOsIcons from './SafetyOsIcons';
 import EmployeeProfilePage from './EmployeeProfilePage';
 import ComingSoonPage from './ComingSoonPage';
+import { GROUP_ORDER, NAV, defaultSubSection, findSection, findSubSection } from './nav';
 import type { Site } from '@/lib/types';
 
 /**
  * The SafetyOS admin / safety-officer console.
  *
- * Ported from the design file. The shell — sidebar, topbar, page routing — is faithful
- * to the original; pages are being brought over one at a time, starting with Employee
- * Profile because that is the one that has to stop showing invented people.
+ * Ported from the design file. The design puts every panel of a module on one scrolling
+ * page; here each panel is an addressable sub-section reached from an expanding sidebar,
+ * so Training Management is eight destinations rather than one long scroll.
  */
-
-export type PageKey =
-  | 'dashboard' | 'analytics' | 'cases' | 'training' | 'employees'
-  | 'comms' | 'documents' | 'audit' | 'dm' | 'access';
-
-type NavItem = {
-  key: PageKey;
-  icon: string;
-  label: string;
-  /** Present in the design but not yet built — rendered disabled, as designed. */
-  comingSoon?: boolean;
-};
-
-const NAV: NavItem[] = [
-  { key: 'dashboard', icon: 'i-dashboard', label: 'Dashboard', comingSoon: true },
-  { key: 'analytics', icon: 'i-chart', label: 'View & Analytics', comingSoon: true },
-  { key: 'cases', icon: 'i-briefcase', label: 'Case Management' },
-  { key: 'training', icon: 'i-cap', label: 'Training Management' },
-  { key: 'employees', icon: 'i-users', label: 'Employee Profile' },
-  { key: 'comms', icon: 'i-message', label: 'Communications' },
-  { key: 'documents', icon: 'i-book', label: 'Documents & Library' },
-  { key: 'audit', icon: 'i-clipboard', label: 'Audit & Inspection' },
-  { key: 'dm', icon: 'i-folder', label: 'DM' },
-  { key: 'access', icon: 'i-users', label: 'User Access Management', comingSoon: true }
-];
-
-const PAGE_TITLES: Record<PageKey, { title: string; subtitle: string; icon: string }> = {
-  dashboard: { title: 'Dashboard', subtitle: 'Site-wide safety overview', icon: 'i-dashboard' },
-  analytics: { title: 'View & Analytics', subtitle: 'Trends across every module', icon: 'i-chart' },
-  cases: { title: 'Case Management', subtitle: 'Incident and investigation records', icon: 'i-briefcase' },
-  training: { title: 'Training Management', subtitle: 'Courses, attendance and competency', icon: 'i-cap' },
-  employees: { title: 'Employee Profile', subtitle: 'Master employee details and linked records', icon: 'i-users' },
-  comms: { title: 'Communications', subtitle: 'Incident communications and circulars', icon: 'i-message' },
-  documents: { title: 'Documents & Library', subtitle: 'SOPs, policies and reference material', icon: 'i-book' },
-  audit: { title: 'Audit & Inspection', subtitle: 'Checklists, findings and actions', icon: 'i-clipboard' },
-  dm: { title: 'Daily Management', subtitle: 'Shift logs and daily safety records', icon: 'i-folder' },
-  access: { title: 'User Access Management', subtitle: 'Roles and permissions', icon: 'i-users' }
-};
 
 type Props = {
   sites: Site[];
@@ -70,12 +34,16 @@ function initials(name: string): string {
 export default function SafetyOsConsole({
   sites, selectedSiteId, onChangeSite, canChangeSite, onExit, officerName, directoryMode
 }: Props) {
-  const [page, setPage] = useState<PageKey>('employees');
+  const [sectionId, setSectionId] = useState('employees');
+  const [subId, setSubId] = useState('directory');
+  const [expanded, setExpanded] = useState<string[]>(['employees']);
   const [navOpen, setNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileWrap = useRef<HTMLDivElement>(null);
 
   const currentSite = sites.find((site) => site.id === selectedSiteId) ?? sites[0] ?? null;
+  const section = findSection(sectionId);
+  const sub = findSubSection(sectionId, subId);
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -93,7 +61,23 @@ export default function SafetyOsConsole({
     };
   }, [profileOpen]);
 
-  const heading = PAGE_TITLES[page];
+  function openSection(id: string) {
+    const target = findSection(id);
+    if (!target || target.comingSoon) return;
+    setSectionId(id);
+    setSubId(defaultSubSection(target));
+    setExpanded((open) => (open.includes(id) ? open : [...open, id]));
+    setNavOpen(false);
+  }
+
+  function toggleExpanded(id: string) {
+    setExpanded((open) => (open.includes(id) ? open.filter((value) => value !== id) : [...open, id]));
+  }
+
+  const grouped = useMemo(
+    () => GROUP_ORDER.map((group) => ({ group, items: NAV.filter((item) => item.group === group) })),
+    []
+  );
 
   return (
     <div className="sos">
@@ -104,24 +88,61 @@ export default function SafetyOsConsole({
             <div className="brand-mark"><svg className="icon"><use href="#i-shield" /></svg></div>
             <div className="brand-name">Safety<span>OS</span></div>
           </div>
+
           <nav className="nav-list" aria-label="Main navigation">
-            <div className="nav-label">WORKSPACE</div>
-            {NAV.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`nav-link ${item.comingSoon ? 'coming-soon' : ''} ${page === item.key ? 'active' : ''}`}
-                disabled={item.comingSoon}
-                aria-disabled={item.comingSoon || undefined}
-                title={item.comingSoon ? `${item.label} — Coming soon` : item.label}
-                onClick={() => { setPage(item.key); setNavOpen(false); }}
-              >
-                <svg className="icon"><use href={`#${item.icon}`} /></svg>
-                <span>{item.label}</span>
-                {item.comingSoon && <span className="nav-status">Coming Soon</span>}
-              </button>
+            {grouped.map(({ group, items }) => (
+              <div key={group}>
+                <div className="nav-group-label">{group}</div>
+                {items.map((item) => {
+                  const isOpen = expanded.includes(item.id);
+                  const isCurrent = sectionId === item.id;
+                  const hasChildren = item.children.length > 0;
+                  return (
+                    <div key={item.id}>
+                      <button
+                        type="button"
+                        className={`nav-link ${item.comingSoon ? 'coming-soon' : ''} ${isCurrent ? 'active' : ''}`}
+                        disabled={item.comingSoon}
+                        aria-disabled={item.comingSoon || undefined}
+                        aria-expanded={hasChildren ? isOpen : undefined}
+                        title={item.comingSoon ? `${item.label} — Coming soon` : item.label}
+                        onClick={() => {
+                          if (item.comingSoon) return;
+                          if (isCurrent && hasChildren) toggleExpanded(item.id);
+                          else openSection(item.id);
+                        }}
+                      >
+                        <svg className="icon"><use href={`#${item.icon}`} /></svg>
+                        <span>{item.label}</span>
+                        {item.comingSoon && <span className="nav-status">Coming Soon</span>}
+                        {hasChildren && !item.comingSoon && (
+                          <svg className="icon caret"><use href="#i-chevron-right" /></svg>
+                        )}
+                      </button>
+
+                      {hasChildren && isOpen && (
+                        <div className="nav-sub">
+                          {item.children.map((child) => (
+                            <button
+                              key={child.id}
+                              type="button"
+                              className={`nav-sub-link ${isCurrent && subId === child.id ? 'active' : ''}`}
+                              onClick={() => { setSectionId(item.id); setSubId(child.id); setNavOpen(false); }}
+                            >
+                              <span className="dot" aria-hidden="true" />
+                              <span>{child.label}</span>
+                              {child.pending && <span className="sub-pending">Soon</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             ))}
           </nav>
+
           <div className="sidebar-bottom">
             <div className="system-state">
               <i />
@@ -188,14 +209,20 @@ export default function SafetyOsConsole({
             </div>
           </header>
 
-          {page === 'employees' ? (
-            <EmployeeProfilePage sites={sites} selectedSiteId={selectedSiteId} />
+          {sectionId === 'employees' && !sub?.pending ? (
+            <EmployeeProfilePage
+              sites={sites}
+              selectedSiteId={selectedSiteId}
+              subSection={subId}
+              breadcrumb={`${section?.label ?? ''} · ${sub?.label ?? ''}`}
+              onNavigate={setSubId}
+            />
           ) : (
             <ComingSoonPage
-              title={heading.title}
-              subtitle={heading.subtitle}
-              icon={heading.icon}
-              designed={!NAV.find((item) => item.key === page)?.comingSoon}
+              title={sub?.label ?? section?.label ?? 'SafetyOS'}
+              parent={section?.label ?? ''}
+              icon={section?.icon ?? 'i-layout'}
+              designed={!section?.comingSoon}
             />
           )}
         </div>

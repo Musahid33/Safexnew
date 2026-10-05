@@ -30,7 +30,14 @@ type AdminEmployee = {
 };
 
 type SessionState = { configured: boolean; signedIn: boolean; piiEnabled: boolean };
-type Props = { sites: Site[]; selectedSiteId: string };
+type Props = {
+  sites: Site[];
+  selectedSiteId: string;
+  /** 'directory' | 'profile' | 'entry' — which panel of the design to show. */
+  subSection: string;
+  breadcrumb: string;
+  onNavigate: (subSection: string) => void;
+};
 
 const PAGE_SIZE = 25;
 
@@ -43,7 +50,7 @@ function Avatar({ name, large }: { name: string; large?: boolean }) {
   return <div className={`ep-avatar ${large ? 'large' : ''}`} aria-hidden="true"><span>{initials(name)}</span></div>;
 }
 
-export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
+export default function EmployeeProfilePage({ sites, selectedSiteId, subSection, breadcrumb, onNavigate }: Props) {
   const [session, setSession] = useState<SessionState | null>(null);
   const [passcode, setPasscode] = useState('');
   const [authError, setAuthError] = useState('');
@@ -137,6 +144,14 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
     }
   }
 
+  const crumb = breadcrumb.includes('·') ? (
+    <div className="sos-breadcrumb">
+      <span>{breadcrumb.split('·')[0].trim()}</span>
+      <svg className="icon"><use href="#i-chevron-right" /></svg>
+      <strong>{breadcrumb.split('·').slice(1).join('·').trim()}</strong>
+    </div>
+  ) : null;
+
   const heading = (
     <section className="page-heading">
       <div className="heading-left">
@@ -157,12 +172,13 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
   );
 
   if (!session) {
-    return <main className="page">{heading}<div className="ep-empty">Checking access…</div></main>;
+    return <main className="page">{crumb}{heading}<div className="ep-empty">Checking access…</div></main>;
   }
 
   if (!session.configured) {
     return (
       <main className="page">
+        {crumb}
         {heading}
         <div className="ep-source-note">
           <svg className="icon"><use href="#i-shield-alert" /></svg>
@@ -183,6 +199,7 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
   if (!session.signedIn) {
     return (
       <main className="page">
+        {crumb}
         {heading}
         <section className="panel ep-panel" style={{ maxWidth: 440 }}>
           <div className="ep-panel-heading">
@@ -221,6 +238,7 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
 
   return (
     <main className="page">
+      {crumb}
       {heading}
 
       <div className="ep-source-note">
@@ -239,6 +257,7 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
         <span className="case-demo-badge">{session.piiEnabled ? 'PII released' : 'PII hidden'}</span>
       </div>
 
+      {subSection === 'directory' && <>
       <section className="ep-summary-grid" aria-label="Employee profile summary">
         <article className="stat-card">
           <div className="stat-icon stat-blue"><svg className="icon"><use href="#i-users" /></svg></div>
@@ -266,40 +285,7 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
         </article>
       </section>
 
-      <div className="ep-workspace-grid">
-        <section className="panel ep-panel ep-master-panel">
-          <div className="ep-panel-heading">
-            <div>
-              <span className="eyebrow">MASTER EMPLOYEE</span>
-              <h2>Employee record</h2>
-              <p>Editing is not connected yet — the roster is loaded by the importer.</p>
-            </div>
-          </div>
-          <div className="ep-source-note" style={{ margin: 0 }}>
-            <svg className="icon"><use href="#i-shield-alert" /></svg>
-            <div>
-              <strong>Read-only for now</strong>
-              <small>
-                These are real people. Creating or editing them from a browser form needs its own
-                write endpoint with validation and an audit trail, so the form is not wired up
-                rather than pretending to save. Use npm run employees:import to load the roster.
-              </small>
-            </div>
-          </div>
-          <div className="ep-form-grid" style={{ marginTop: 12 }}>
-            <div className="ep-field"><label>Employee No</label><input value={selected?.empNo ?? ''} readOnly placeholder="Select an employee" /></div>
-            <div className="ep-field"><label>Full name</label><input value={selected?.name ?? ''} readOnly placeholder="—" /></div>
-            <div className="ep-field"><label>Designation</label><input value={selected?.designation ?? ''} readOnly placeholder="—" /></div>
-            <div className="ep-field"><label>Department</label><input value={selected?.department ?? ''} readOnly placeholder="—" /></div>
-            <div className="ep-field"><label>Skill grade</label><input value={selected?.skillGrade ?? ''} readOnly placeholder="—" /></div>
-            <div className="ep-field">
-              <label>Mobile number</label>
-              <input value={session.piiEnabled ? (selected?.mobile ?? '') : ''} readOnly placeholder={session.piiEnabled ? '—' : 'Hidden'} />
-            </div>
-          </div>
-        </section>
-
-        <section className="panel ep-panel ep-directory-panel">
+      <section className="panel ep-panel ep-directory-panel">
           <div className="ep-panel-heading">
             <div>
               <span className="eyebrow">EMPLOYEE DIRECTORY</span>
@@ -360,7 +346,8 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
                     <td>{session.piiEnabled ? (employee.mobile ?? 'Not added') : (employee.skillGrade ?? '—')}</td>
                     <td>
                       <div className="ep-row-actions">
-                        <button type="button" className="btn btn-light" onClick={() => setSelected(employee)}>View</button>
+                        <button type="button" className="btn btn-light" onClick={() => { setSelected(employee); onNavigate('profile'); }}>View</button>
+                        <button type="button" className="btn btn-light" onClick={() => { setSelected(employee); onNavigate('entry'); }}>Open</button>
                       </div>
                     </td>
                   </tr>
@@ -377,15 +364,16 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
               <button className="btn btn-light" type="button" disabled={pageEnd >= total} onClick={() => setOffset(offset + PAGE_SIZE)}>Next</button>
             </div>
           )}
-        </section>
-      </div>
+      </section>
+      </>}
 
+      {subSection === 'profile' && (
       <section className="panel ep-panel ep-detail-panel">
         {!selected ? (
           <div className="ep-detail-empty">
             <div className="ep-empty-icon"><svg className="icon"><use href="#i-search" /></svg></div>
             <strong>Select an employee profile</strong>
-            <span>Choose View in the directory to see personal details and all linked records.</span>
+            <span>Open Master Records and choose View on an employee to see their personal details and linked records here.</span>
           </div>
         ) : (
           <div>
@@ -459,6 +447,41 @@ export default function EmployeeProfilePage({ sites, selectedSiteId }: Props) {
           </div>
         )}
       </section>
+      )}
+
+      {subSection === 'entry' && (
+        <section className="panel ep-panel ep-master-panel">
+          <div className="ep-panel-heading">
+            <div>
+              <span className="eyebrow">MASTER EMPLOYEE</span>
+              <h2>Employee record</h2>
+              <p>Editing is not connected yet — the roster is loaded by the importer.</p>
+            </div>
+          </div>
+          <div className="ep-source-note" style={{ margin: 0 }}>
+            <svg className="icon"><use href="#i-shield-alert" /></svg>
+            <div>
+              <strong>Read-only for now</strong>
+              <small>
+                These are real people. Creating or editing them from a browser form needs its own
+                write endpoint with validation and an audit trail, so the form is not wired up
+                rather than pretending to save. Use npm run employees:import to load the roster.
+              </small>
+            </div>
+          </div>
+          <div className="ep-form-grid" style={{ marginTop: 12 }}>
+            <div className="ep-field"><label>Employee No</label><input value={selected?.empNo ?? ''} readOnly placeholder="Select an employee" /></div>
+            <div className="ep-field"><label>Full name</label><input value={selected?.name ?? ''} readOnly placeholder="—" /></div>
+            <div className="ep-field"><label>Designation</label><input value={selected?.designation ?? ''} readOnly placeholder="—" /></div>
+            <div className="ep-field"><label>Department</label><input value={selected?.department ?? ''} readOnly placeholder="—" /></div>
+            <div className="ep-field"><label>Skill grade</label><input value={selected?.skillGrade ?? ''} readOnly placeholder="—" /></div>
+            <div className="ep-field">
+              <label>Mobile number</label>
+              <input value={session.piiEnabled ? (selected?.mobile ?? '') : ''} readOnly placeholder={session.piiEnabled ? '—' : 'Hidden'} />
+            </div>
+          </div>
+        </section>
+      )}
     </main>
   );
 }
