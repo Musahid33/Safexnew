@@ -127,9 +127,9 @@ exact parser the app uses — the import and the live lookup can never drift apa
 
 ## 4. The admin console
 
-`/api/admin/employees` lists the roster for the Employees section of the admin dashboard.
-It is the one endpoint that deliberately enumerates the directory, so it is gated
-differently from `/api/employees`:
+`/api/admin/employees` lists the roster for the Employee Profile section of the Admin / HSE
+Manager dashboard (the mounted SafetyOS console). It is the one endpoint that deliberately
+enumerates the directory, so it is gated differently from `/api/employees`:
 
 | | `/api/employees` | `/api/admin/employees` |
 | --- | --- | --- |

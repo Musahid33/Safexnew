@@ -16,7 +16,7 @@ import ReportWorkflow, { type ReportSubmission } from './components/ReportWorkfl
 import TrainingPortal from './components/TrainingPortal';
 import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
-import SafetyOsConsole from './components/safetyos/SafetyOsConsole';
+import SafetyOsApp from './components/safetyos/SafetyOsApp';
 import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId } from './components/DocumentVault';
 import RewardCarousel from './components/RewardCarousel';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
@@ -610,9 +610,32 @@ export default function SafexHome() {
   const nextEventMonth = nextEventDate ? new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE, month: 'short' }).format(nextEventDate).replace('.', '').toLocaleUpperCase(locale) : '';
   const nextEventStatus = nextUpcomingEvent ? getUpcomingEventStatus(nextUpcomingEvent.date) : null;
 
+  const siteSelectionDialog = siteReady && siteDialog ? (
+    <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{DEMO_TENANT.companyName.trim().charAt(0) || 'S'}</span><span><b>{DEMO_TENANT.companyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button><div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>
+  ) : null;
+
+  // The Admin / HSE Manager dashboard is the uploaded SafetyOS console itself. It is
+  // rendered on its own so the worker app's layout and globals cannot restyle it — the
+  // design brings its own scoped stylesheet, topbar, sidebar and mobile behaviour.
+  if (page === 'adminDashboard') {
+    return (
+      <>
+        <SafetyOsApp
+          sites={sites}
+          selectedSiteId={siteId}
+          onChangeSite={() => openSitePicker('adminDashboard')}
+          canChangeSite={!isSingleSite}
+          onExit={() => setPage('home')}
+          officerName="Safety Officer"
+          directoryMode={directoryMode}
+        />
+        {siteSelectionDialog}
+      </>
+    );
+  }
+
   return (
-    <div className={`safex-app ${page === 'adminDashboard' ? 'admin-preview-app' : ''}`}>
-      {page !== 'adminDashboard' && <>
+    <div className="safex-app">
       <div className="demo-ribbon"><span className="demo-dot" /> {T(reportSyncEnabled ? 'DEMO MODE · Sample feed records only · new reports sync when online' : 'DEMO MODE · Sample records only · database sync is not configured')}</div>
       <div className="site-header-shell">
         <header className="topbar">
@@ -686,23 +709,13 @@ export default function SafexHome() {
           </div>
         </header>
       </div>
-      </>}
-      {page !== 'adminDashboard' && syncBanner && <aside className={`sync-status-banner ${syncBanner.tone}`} role="status" aria-live="polite">
+      {syncBanner && <aside className={`sync-status-banner ${syncBanner.tone}`} role="status" aria-live="polite">
         <span className="sync-status-icon">{syncBanner.icon === 'offline' ? <CloudOff size={19} /> : syncBanner.icon === 'syncing' ? <RefreshCw size={19} className="sync-status-spin" /> : syncBanner.icon === 'synced' ? <Check size={19} /> : syncBanner.icon === 'attention' ? <AlertTriangle size={19} /> : <CloudUpload size={19} />}</span>
         <span className="sync-status-copy"><b>{T(syncBanner.titleKey, syncBanner.params)}</b><small>{T(syncBanner.detailKey)}</small></span>
         {syncBanner.action === 'sync-now' && <button type="button" className="sync-status-action" onClick={() => void syncOfflineReports(true)} disabled={!reportSyncEnabled}>{T('Sync now')}</button>}
       </aside>}
 
-      <main className={page === 'adminDashboard' ? 'admin-main-content' : 'main-content'}>
-        {page === 'adminDashboard' && <SafetyOsConsole
-          sites={sites}
-          selectedSiteId={siteId}
-          onChangeSite={() => openSitePicker('adminDashboard')}
-          canChangeSite={!isSingleSite}
-          onExit={() => setPage('home')}
-          officerName="Safety Officer"
-          directoryMode={directoryMode}
-        />}
+      <main className="main-content">
         {page === 'home' && <>
           <section className="hero-strip">
             <div className="hero-copy"><span className="eyebrow">{T('SAFETY HOME')}</span><h1>{T('Safety Portal')}</h1><p>{T('Report hazards, find safety updates and learn from reports at your selected site.')}</p></div>
@@ -832,7 +845,7 @@ export default function SafexHome() {
         {page === 'aboutApp' && <AboutAppPage company={DEMO_TENANT} onBack={() => setPage('more')} onOpenInfo={setMoreInfoKind} />}
       </main>
 
-      {page !== 'adminDashboard' && <nav className="bottom-nav" aria-label={T('Main navigation')}>
+      {<nav className="bottom-nav" aria-label={T('Main navigation')}>
         <NavItem active={page === 'home'} icon={<Home />} label={T('home')} onClick={() => setPage('home')} />
         <NavItem active={page === 'alerts' || page === 'events' || page === 'circulars' || page === 'updates'} icon={<Bell />} label={T('alerts')} onClick={() => setPage('alerts')} />
         <button className="nav-report" onClick={() => setReportPickerOpen(true)} aria-label={T('report')} aria-haspopup="dialog"><PlusIcon /><span>{T('report')}</span></button>
@@ -840,7 +853,7 @@ export default function SafexHome() {
         <NavItem active={page === 'more' || page === 'appearance' || page === 'install' || page === 'library' || page === 'company' || page === 'account' || page === 'aboutApp'} icon={<MoreHorizontal />} label={T('more')} onClick={() => setPage('more')} />
       </nav>}
 
-      {siteReady && siteDialog && <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{DEMO_TENANT.companyName.trim().charAt(0) || 'S'}</span><span><b>{DEMO_TENANT.companyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button><div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>}
+      {siteSelectionDialog}
 
       {lifeRuleLocationOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="life-rule-location-title"><div className="modal life-rule-location-modal"><div className="modal-header"><div><span className="eyebrow">{T('LIFE SAVING RULE')}</span><h2 id="life-rule-location-title">{T('Select a location')}</h2><p>{T('Choose the site whose Life Saving Rules you want to view.')}</p></div><button className="close-button" type="button" onClick={() => setLifeRuleLocationOpen(false)} aria-label={T('Close location selection')}><X /></button></div><div className="life-rule-location-list">{[...(currentSite ? [currentSite] : []), ...sites.filter((site) => site.id !== currentSite?.id)].map((site) => <button key={site.id} className={`life-rule-location-option ${site.id === currentSite?.id ? 'current' : ''}`} type="button" onClick={() => openLifeRuleForSite(site)}><span className="life-location-icon"><MapPin size={18} /></span><span><b>{site.name}</b><small>{site.region}{site.id === currentSite?.id ? ` · ${T('Current site')}` : ''}</small></span><ChevronRight size={18} /></button>)}</div><button className="secondary-button full-button" type="button" onClick={() => setLifeRuleLocationOpen(false)}>{T('Back to Safety Portal')}</button></div></div>}
 
