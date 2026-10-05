@@ -206,7 +206,8 @@ authenticated by OTP, because the code cannot be delivered to one identifiable p
 ### Structural gaps
 
 - **No Site column.** Every row is currently mapped to a single site
-  (`SAFEX_EMPLOYEE_MASTER_SITE_ID`, default `kedla`). Add a Site column before onboarding a
+  (`SAFEX_EMPLOYEE_MASTER_SITE_ID`, default `wbd` — West Bokaro, the one live site). Add a Site
+column before onboarding a
   second location, otherwise site-scoped reporting cannot be trusted.
 - **No Department column.** The report form has a Department field that stays blank.
 - **No employment start/end date**, so "Active" is the only lifecycle signal available.

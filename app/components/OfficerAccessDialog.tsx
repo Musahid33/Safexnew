@@ -9,8 +9,8 @@ type Role = 'employee' | 'supervisor' | 'admin';
 type Mode = 'login' | 'otp' | 'reset';
 
 const COUNTRY_CODES = ['+91', '+1', '+44', '+971'];
-const DEMO_ADMIN_USERNAME = 'safety.officer.demo';
-const DEMO_ADMIN_PASSWORD = 'SafetyDemo2026!';
+const DEMO_ADMIN_USERNAME = 'admin';
+const DEMO_ADMIN_PASSWORD = 'admin';
 
 export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
   const { T } = useI18n();
@@ -165,7 +165,7 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
         <label htmlFor="account-username">{role === 'supervisor' ? T('Supervisor User ID') : T('Admin User ID')}</label>
         <div className="account-input-wrap"><UserRound size={19} /><input id="account-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={role === 'supervisor' ? T('Enter your Supervisor ID') : T('Enter your Admin User ID')} autoComplete="username" required /></div>
         <label htmlFor="account-password">{T('Password')}</label>
-        <div className="account-input-wrap"><LockKeyhole size={19} /><input id="account-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={T('Enter your password')} autoComplete="current-password" minLength={6} required /></div>
+        <div className="account-input-wrap"><LockKeyhole size={19} /><input id="account-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={T('Enter your password')} autoComplete="current-password" minLength={4} required /></div>
         <button className="account-primary-button" type="submit">{T('Login')} <ArrowRight size={21} /></button>
       </form>}
 

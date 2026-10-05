@@ -400,7 +400,7 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .life-rule-location-option b { color: var(--text); font-size: 12px; }
 .life-rule-location-option small { color: var(--muted); font-size: 10px; }
 .life-rule-location-option > svg:last-child { flex: none; color: var(--muted); }
-.life-rule-modal { width: min(100%, 560px); }
+.life-rule-modal { width: min(100%, 600px); }
 .life-rule-site-banner { display: flex; align-items: center; gap: 11px; margin: 12px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); padding: 11px 12px; }
 .life-rule-site-banner > span:last-child { display: grid; gap: 4px; }
 .life-rule-site-banner small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .08em; }
@@ -412,6 +412,15 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .life-rule-actions { display: flex; gap: 9px; margin-top: 15px; }
 .life-rule-actions > button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: 1; }
 .life-rule-actions .primary-button { font-size: 11px; }
+.life-rule-intro { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-soft); padding: 10px 12px; }
+.life-rule-intro > svg { flex: none; margin-top: 1px; color: var(--primary); }
+.life-rule-intro span { color: var(--text); font-size: 11px; line-height: 1.5; font-weight: 600; }
+.life-rule-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; max-height: min(52vh, 430px); overflow-y: auto; }
+.life-rule-item { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 12px; }
+.life-rule-number { width: 24px; height: 24px; display: grid; place-items: center; flex: none; border-radius: 8px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 900; }
+.life-rule-copy { min-width: 0; display: grid; gap: 4px; }
+.life-rule-copy b { color: var(--text); font-size: 12px; line-height: 1.35; }
+.life-rule-copy small { color: var(--muted); font-size: 10.5px; line-height: 1.5; }
 
 .report-modal { width: min(100%, 680px); }
 .anonymous-row, .preference-row { min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-2); padding: 10px 12px; }

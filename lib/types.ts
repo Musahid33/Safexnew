@@ -4,6 +4,8 @@ export type ReportStatus = 'Open' | 'In Progress' | 'Closed';
 export type Site = {
   id: string;
   name: string;
+  /** Short site code shown beside the name (for example WBD for West Bokaro). */
+  code?: string | null;
   region: string;
   sosNumber: string | null;
 };

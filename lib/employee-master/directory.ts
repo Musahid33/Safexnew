@@ -55,8 +55,9 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
       const sites: Site[] = siteIds.map((id) => ({
         id,
         name: id === config.site.id ? config.site.name : id,
+        code: id === config.site.id ? config.site.code : null,
         region: id === config.site.id ? config.site.region : '',
-        sosNumber: null
+        sosNumber: id === config.site.id ? config.site.sosNumber : null
       }));
       return {
         mode: 'sheet',
