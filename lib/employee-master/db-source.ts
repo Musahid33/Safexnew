@@ -24,6 +24,12 @@ type EmployeeRow = {
   department: string | null;
   site_id: string;
   active: boolean;
+  // Only selected by the admin roster query, and only when PII release is enabled.
+  safety_pass_no?: string | null;
+  skill_grade?: string | null;
+  blood_group?: string | null;
+  home_address?: string | null;
+  phone_e164?: string | null;
 };
 
 const SELECT_COLUMNS = 'id, employee_no, full_name, designation, department, site_id, active';
@@ -112,10 +118,10 @@ function toRecord(row: EmployeeRow): MasterEmployeeRecord {
     fullName: row.full_name,
     designation: row.designation ?? '',
     department: row.department,
-    skillGrade: null,
-    safetyPassNo: null,
-    bloodGroup: null,
-    mobileE164: null,
+    skillGrade: row.skill_grade ?? null,
+    safetyPassNo: row.safety_pass_no ?? null,
+    bloodGroup: row.blood_group ?? null,
+    mobileE164: row.phone_e164 ?? null,
     active: row.active,
     siteId: row.site_id
   };
@@ -248,4 +254,57 @@ export async function findEmployeeInDatabase(
 export function clearTenantCache(): void {
   tenantCache = null;
   circuitOpenUntil = 0;
+}
+
+// Written out in full rather than built from SELECT_COLUMNS: supabase-js parses the
+// select string at the type level, and a template literal defeats that.
+// home_address is intentionally absent — nothing renders it yet, and the cheapest way to
+// not leak a field is to never select it.
+const PII_COLUMNS =
+  'id, employee_no, full_name, designation, department, site_id, active, safety_pass_no, skill_grade, blood_group, phone_e164';
+
+export type DbRosterPage = { records: MasterEmployeeRecord[]; total: number };
+
+/**
+ * Paginated roster for the admin console.
+ *
+ * Separate from `searchEmployeesInDatabase` because the intent is different: that one is
+ * a narrow lookup for a worker filling in a form, this one deliberately enumerates the
+ * directory. Only the admin API may call it, and only behind a verified session.
+ */
+export async function listEmployeesFromDatabase(
+  siteRef: string,
+  options: { query?: string; limit: number; offset: number; includePii?: boolean }
+): Promise<DbRosterPage | null> {
+  const admin = getAdminSupabase();
+  if (!admin) return null;
+  const tenantId = await resolveTenantId(admin);
+  if (!tenantId) return null;
+
+  let request = admin
+    .from('employees')
+    .select(options.includePii ? PII_COLUMNS : SELECT_COLUMNS, { count: 'exact' })
+    .eq('tenant_id', tenantId)
+    .eq('active', true)
+    .order('employee_no')
+    .range(options.offset, options.offset + options.limit - 1);
+
+  const needle = sanitizeNeedle(options.query ?? '');
+  if (needle.length >= 2) {
+    request = request.or(`employee_no.ilike.%${needle}%,full_name.ilike.%${needle}%,designation.ilike.%${needle}%`);
+  }
+
+  if (siteRef) {
+    const siteId = await resolveSiteId(admin, tenantId, siteRef);
+    if (!siteId) return { records: [], total: 0 };
+    request = request.eq('site_id', siteId);
+  }
+
+  const result = await withTimeout(request);
+  if (!result || result.error) return null;
+  // supabase-js resolves the row type from the select string at compile time, which it
+  // cannot do when that string is chosen at runtime. Both branches are literals listing a
+  // subset of EmployeeRow, so the shape is sound; the cast just restates that.
+  const rows = result.data as unknown as EmployeeRow[];
+  return { records: rows.map(toRecord), total: result.count ?? 0 };
 }

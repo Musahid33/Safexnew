@@ -125,7 +125,52 @@ exact parser the app uses — the import and the live lookup can never drift apa
 ---
 
 
-## 4. Data-quality findings
+## 4. The admin console
+
+`/api/admin/employees` lists the roster for the Employees section of the admin dashboard.
+It is the one endpoint that deliberately enumerates the directory, so it is gated
+differently from `/api/employees`:
+
+| | `/api/employees` | `/api/admin/employees` |
+| --- | --- | --- |
+| Who | any visitor on the site | verified operator session |
+| Query | 2 characters minimum | optional |
+| Results | 8 maximum | 50 per page, paginated |
+| Fields | ID, name, designation, site | + department, skill grade, and PII when released |
+
+### Why there is a separate passcode
+
+The officer sign-in dialog in the UI is a **demo** login — `DEMO_ADMIN_USERNAME` and
+`DEMO_ADMIN_PASSWORD` are compile-time constants inside a client component, so every
+visitor can read them in the bundle. That is harmless while the dashboard shows synthetic
+records, but it cannot stand in front of ~191 real people: anyone could call the endpoint
+directly with `curl`.
+
+So the admin API checks `SAFEX_ADMIN_PASSCODE`, which exists only in the server
+environment. It is compared in constant time and exchanged for an HMAC-signed, httpOnly,
+`SameSite=Strict` cookie that lasts 8 hours. Sign-in attempts are limited to 10 per
+10 minutes per IP.
+
+This is deliberately modest: one shared operator credential, no per-user identity, no
+record of *who* signed in. It is the smallest thing that is honestly safe in front of real
+personal data. **Replace it with Supabase Auth plus a `staff_memberships` role check
+before real users touch this.**
+
+### Releasing personal data is a second decision
+
+`SAFEX_ADMIN_PII_ENABLED=false` by default. While it is off, a signed-in officer sees the
+same fields a worker would, plus department and skill grade. Turning it on adds safety
+pass number, registered mobile and blood group.
+
+Skill grade is **not** behind the flag — it is an occupational competency, and a safety
+officer needs it to know who is allowed to do what. Blood group is, because it is health
+data: it belongs in an authorised first-aid or SOS flow with an access log, not in a
+directory that anyone holding the console password can page through. `home_address` is
+not selected by any query at all.
+
+---
+
+## 5. Data-quality findings
 
 Parsed from the supplied sheet: **191 usable rows**, 27 distinct designations. The
 following were detected automatically. Numbers are masked here deliberately.
@@ -168,7 +213,7 @@ authenticated by OTP, because the code cannot be delivered to one identifiable p
 
 ---
 
-## 5. Next steps
+## 6. Next steps
 
 1. Fix the mobile numbers listed above in the source sheet, and decide whether EMP048 and
    EMP139 are one person.

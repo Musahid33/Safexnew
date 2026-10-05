@@ -2760,3 +2760,49 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
   .admin-dialog-profile-grid { grid-template-columns: 1fr; }
   .admin-injection-button { flex-wrap: wrap; }
 }
+
+/* ---- Admin employee directory (real employee master) ------------------------------ */
+.admin-directory-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.admin-directory-toolbar .admin-search { flex: 1; margin: 0; }
+.admin-directory-toolbar .text-button { flex: none; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 800; }
+
+.admin-directory-state { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 26px 20px; border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface-2); color: var(--muted); text-align: center; }
+.admin-directory-state > svg { color: var(--muted); }
+.admin-directory-state b { color: var(--text); font-size: 13px; }
+.admin-directory-state p { max-width: 42ch; font-size: 11px; line-height: 1.5; }
+.admin-directory-state.locked { border-style: solid; background: var(--surface); box-shadow: var(--shadow); }
+.admin-directory-state.locked .field-label { align-self: flex-start; margin-top: 4px; }
+.admin-directory-state.locked .form-control,
+.admin-directory-state.locked .primary-button,
+.admin-directory-state.locked .inline-notice { width: 100%; }
+.admin-directory-spinner { width: 17px; height: 17px; border: 2px solid var(--line); border-top-color: var(--focus); border-radius: 50%; animation: admin-spin .7s linear infinite; }
+@keyframes admin-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .admin-directory-spinner { animation-duration: 3s; } }
+
+.admin-employee-grid.is-loading { opacity: .55; transition: opacity .15s ease; }
+.admin-grade-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; font-size: 9px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.admin-grade-chip.platinum { background: #e8ecf4; color: #3c4a60; }
+.admin-grade-chip.gold { background: var(--accent-soft); color: #8a5b00; }
+.admin-grade-chip.silver { background: #eef1f5; color: #566478; }
+.admin-grade-chip.none { background: var(--surface-2); color: var(--muted); }
+:root[data-mode='dark'] .admin-grade-chip.platinum,
+:root[data-mode='dark'] .admin-grade-chip.silver { background: #22344c; color: #c6d3e3; }
+:root[data-mode='dark'] .admin-grade-chip.gold { color: #f2c66b; }
+
+.admin-employee-open { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 10px; font-weight: 800; cursor: pointer; }
+.admin-employee-open:hover { border-color: var(--focus); color: var(--focus); }
+
+.admin-pager { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.admin-pager .secondary-button { display: inline-flex; align-items: center; gap: 5px; }
+.admin-pager .secondary-button:disabled { opacity: .45; cursor: not-allowed; }
+
+.admin-profile-modal { max-width: 460px; }
+.admin-profile-hero { display: flex; align-items: center; gap: 11px; padding: 12px; margin-bottom: 12px; border-radius: 13px; background: var(--surface-2); }
+.admin-profile-avatar { display: grid; place-items: center; width: 46px; height: 46px; flex: none; border-radius: 50%; background: var(--primary); color: #fff; font-size: 15px; font-weight: 900; }
+.admin-profile-hero > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-profile-hero b { font-size: 13px; }
+.admin-profile-hero small { color: var(--muted); font-size: 10.5px; }
+.admin-profile-hero .admin-grade-chip { margin-left: auto; flex: none; }
+.admin-profile-modal .detail-grid dt { display: inline-flex; align-items: center; gap: 5px; }
+.detail-locked { grid-column: 1 / -1; padding: 10px; border: 1px dashed var(--line); border-radius: 11px; background: var(--surface-2); }
+.detail-locked dd { color: var(--muted); font-size: 10.5px; line-height: 1.5; }

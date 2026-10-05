@@ -7,6 +7,7 @@ import {
   findEmployeeInDatabase,
   isDatabaseDirectoryConfigured,
   isDatabaseDirectoryIntended,
+  listEmployeesFromDatabase,
   listSitesFromDatabase,
   searchEmployeesInDatabase
 } from './db-source';
@@ -112,4 +113,52 @@ export async function findInDirectory(
   }
 
   return { mode: 'demo', record: null };
+}
+
+export type RosterPage = {
+  mode: DirectoryMode;
+  records: MasterEmployeeRecord[];
+  total: number;
+};
+
+/**
+ * Enumerate the roster for the admin console.
+ *
+ * `searchDirectory` is deliberately crippled — minimum query length, hard cap — because
+ * it serves an unauthenticated form. This one is the opposite: it lists everyone, so it
+ * must only ever be reached through a verified admin session.
+ *
+ * `includePii` is honoured by the database source only. The sheet snapshot already holds
+ * every column in server memory, so the projection happens at the API boundary instead.
+ */
+export async function listDirectory(
+  siteId: string,
+  options: { query?: string; limit: number; offset: number; includePii?: boolean }
+): Promise<RosterPage> {
+  if (isDatabaseDirectoryConfigured()) {
+    const page = await listEmployeesFromDatabase(siteId, options);
+    if (page !== null) return { mode: 'supabase', ...page };
+  }
+
+  const config = getEmployeeMasterConfig();
+  if (config.enabled) {
+    const snapshot = await getEmployeeMaster();
+    if (snapshot) {
+      const needle = (options.query ?? '').trim().toLowerCase();
+      const filtered = snapshot.records.filter((record) => {
+        if (siteId && record.siteId !== siteId) return false;
+        if (!needle) return true;
+        return record.employeeNo.toLowerCase().includes(needle)
+          || record.fullName.toLowerCase().includes(needle)
+          || record.designation.toLowerCase().includes(needle);
+      });
+      return {
+        mode: 'sheet',
+        records: filtered.slice(options.offset, options.offset + options.limit),
+        total: filtered.length
+      };
+    }
+  }
+
+  return { mode: 'demo', records: [], total: 0 };
 }

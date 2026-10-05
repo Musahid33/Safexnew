@@ -12,6 +12,7 @@ import { LANGUAGE_LOCALE } from '@/lib/i18n';
 import type { Employee, Language, ReportType, SafetyReport, Site } from '@/lib/types';
 import { DEMO_TENANT } from '@/lib/demo-data';
 import { useI18n } from './I18nProvider';
+import AdminEmployeeDirectory from './AdminEmployeeDirectory';
 
 type Section = 'overview' | 'reports' | 'employees' | 'sites' | 'content' | 'settings';
 type AdminDialogKey = 'injection' | 'employee' | 'audit' | 'reward' | 'consequence' | null;
@@ -118,7 +119,6 @@ export default function AdminDashboard({
   const [statusFilter, setStatusFilter] = useState<'All' | SafetyReport['status']>('All');
   const [reportTypeFilter, setReportTypeFilter] = useState<'All' | ReportType>('All');
   const [reportQuery, setReportQuery] = useState('');
-  const [employeeQuery, setEmployeeQuery] = useState('');
   const [analyticsExpanded, setAnalyticsExpanded] = useState(false);
   const [activeDialog, setActiveDialog] = useState<AdminDialogKey>(null);
   const [employeeEditorTab, setEmployeeEditorTab] = useState<'existing' | 'new'>('existing');
@@ -143,11 +143,6 @@ export default function AdminDashboard({
     const searchable = `${report.id} ${report.type} ${report.area} ${report.shortDescription} ${sites.find((site) => site.id === report.siteId)?.name ?? ''}`.toLowerCase();
     return matchesStatus && matchesType && searchable.includes(reportQuery.trim().toLowerCase());
   }), [reportQuery, reportTypeFilter, scopedReports, sites, statusFilter]);
-  const scopedEmployees = useMemo(() => employees.filter((employee) => {
-    const matchesSite = scopeSiteId === 'all' || employee.siteId === scopeSiteId;
-    const searchable = `${employee.empNo} ${employee.name} ${employee.designation} ${sites.find((site) => site.id === employee.siteId)?.name ?? ''}`.toLowerCase();
-    return matchesSite && searchable.includes(employeeQuery.trim().toLowerCase());
-  }), [employeeQuery, employees, scopeSiteId, sites]);
   const employeeEditorMatches = useMemo(() => employees.filter((employee) => {
     const searchable = `${employee.empNo} ${employee.name} ${employee.designation}`.toLowerCase();
     return searchable.includes(employeeEditorSearch.trim().toLowerCase());
@@ -386,14 +381,8 @@ export default function AdminDashboard({
         </>}
 
         {section === 'employees' && <>
-          <PageHeading eyebrow="PEOPLE" title="Employee directory" description="These records are synthetic examples. The real employee master is not connected." />
-          <label className="admin-search admin-employee-search"><Search size={17} /><input value={employeeQuery} onChange={(event) => setEmployeeQuery(event.target.value)} placeholder={T('Search Employee ID, name or designation')} /></label>
-          <div className="admin-results-meta"><b>{T('{count} sample employees', { count: new Intl.NumberFormat(locale).format(scopedEmployees.length) })}</b><span>{T('No real employee information is shown.')}</span></div>
-          <div className="admin-employee-grid">{scopedEmployees.map((employee) => <article className="admin-employee-card" key={employee.id}>
-            <span className="admin-employee-avatar" aria-hidden="true">{employee.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
-            <div className="admin-employee-info"><b>{employee.name}</b><span>{employee.designation}</span><small>{employee.empNo}</small></div>
-            <span className="admin-employee-site"><MapPin size={13} />{sites.find((site) => site.id === employee.siteId)?.name ?? T('Site')}</span>
-          </article>)}{scopedEmployees.length === 0 && <EmptyState title="No matching employees" detail="Try a different search or site scope." />}</div>
+          <PageHeading eyebrow="PEOPLE" title="Employee directory" description="The live employee master, read through a server-verified session. Contact and medical fields stay hidden unless the server releases them." />
+          <AdminEmployeeDirectory sites={sites} scopeSiteId={scopeSiteId} />
         </>}
 
         {section === 'sites' && <>
