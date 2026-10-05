@@ -7,7 +7,7 @@ import {
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
-import { DEMO_EMPLOYEES, DEMO_REPORTS, DEMO_TENANT } from '@/lib/demo-data';
+import { DEMO_REPORTS, DEMO_TENANT } from '@/lib/demo-data';
 import { DEMO_SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
 import LanguageStrip from './components/LanguageStrip';
@@ -16,7 +16,7 @@ import ReportWorkflow, { type ReportSubmission } from './components/ReportWorkfl
 import TrainingPortal from './components/TrainingPortal';
 import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
-import AdminDashboard from './components/AdminDashboard';
+import SafetyOsConsole from './components/safetyos/SafetyOsConsole';
 import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId } from './components/DocumentVault';
 import RewardCarousel from './components/RewardCarousel';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
@@ -122,7 +122,7 @@ export default function SafexHome() {
   const { language, setLanguage, T } = useI18n();
   // Site list and employee directory come from the server: the real employee master when
   // one is configured, the synthetic demo roster otherwise.
-  const { ready: directoryReady, sites, directory, employeeCount, degraded } = useSafexBootstrap();
+  const { ready: directoryReady, sites, directory, directoryMode, employeeCount, degraded } = useSafexBootstrap();
   const locale = LANGUAGE_LOCALE[language];
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [page, setPage] = useState<PageKey>('home');
@@ -694,15 +694,14 @@ export default function SafexHome() {
       </aside>}
 
       <main className={page === 'adminDashboard' ? 'admin-main-content' : 'main-content'}>
-        {page === 'adminDashboard' && <AdminDashboard
-          companyName={DEMO_TENANT.companyName}
-          selectedSiteId={siteId}
+        {page === 'adminDashboard' && <SafetyOsConsole
           sites={sites}
-          reports={DEMO_REPORTS}
-          employees={DEMO_EMPLOYEES}
+          selectedSiteId={siteId}
           onChangeSite={() => openSitePicker('adminDashboard')}
           canChangeSite={!isSingleSite}
           onExit={() => setPage('home')}
+          officerName="Safety Officer"
+          directoryMode={directoryMode}
         />}
         {page === 'home' && <>
           <section className="hero-strip">

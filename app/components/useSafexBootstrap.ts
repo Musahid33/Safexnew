@@ -14,11 +14,15 @@ type BootstrapResponse = {
   degraded?: boolean;
 };
 
+export type DirectoryMode = 'supabase' | 'sheet' | 'demo';
+
 export type SafexBootstrap = {
   /** False until the server has answered, so site selection waits for the real site list. */
   ready: boolean;
   sites: Site[];
   directory: EmployeeDirectory;
+  /** Which source answered. The admin console shows this; the worker app does not care. */
+  directoryMode: DirectoryMode;
   employeeCount: number;
   /** A master is configured but could not be read; the app fell back to demo records. */
   degraded: boolean;
@@ -28,6 +32,7 @@ const INITIAL: SafexBootstrap = {
   ready: false,
   sites: DEMO_SITES,
   directory: DEMO_DIRECTORY,
+  directoryMode: 'demo',
   employeeCount: 0,
   degraded: false
 };
@@ -48,6 +53,7 @@ export function useSafexBootstrap(): SafexBootstrap {
           ready: true,
           sites,
           directory: directoryFor(payload?.directory && payload.directory !== 'demo' ? 'master' : 'demo'),
+          directoryMode: payload?.directory ?? 'demo',
           employeeCount: payload?.employeeCount ?? 0,
           degraded: Boolean(payload?.degraded)
         });
