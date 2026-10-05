@@ -1,0 +1,123 @@
+# Employee master
+
+The app can run its employee lookup against a real roster instead of the synthetic demo
+records. This document explains how that is wired, what the browser is allowed to see, and
+what needs fixing in the source sheet.
+
+---
+
+## 1. Read this before connecting a real roster
+
+**This repository is public.** The roster that prompted this feature contains, for roughly
+190 workers: full name, registered mobile number, home address, blood group and a photo
+link. That is personal data under India's DPDP Act, 2023.
+
+Consequences baked into the design:
+
+- **No roster file is committed.** The employee master is loaded at runtime from an
+  environment-configured source. `.gitignore` additionally blocks `.data/` and any
+  `employee-master*.csv`.
+- **The browser never receives the roster.** There is no "download all employees" route.
+  Lookups are query-scoped and the response is projected down to
+  `{ employeeNo, name, designation, siteId }`.
+- **Mobile numbers, addresses and blood groups never leave the server.** They are parsed
+  (so OTP can use them later) but are not part of any API response today.
+- **A "published to the web" Google Sheet is readable by anyone who has the link** — there
+  is no authentication on it. Treat the link itself as a secret, and unpublish the sheet
+  once the roster has been imported into Supabase.
+
+---
+
+## 2. How it is wired
+
+```
+Google Sheet / CSV  ──► lib/employee-master/source.ts  ──► /api/employees  ──► report form
+  (or local file)        (server-only, cached)              (scoped, capped)     profile search
+                                                                                 training check
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `SAFEX_EMPLOYEE_MASTER_CSV_URL` | Published CSV/TSV endpoint. Preferred in deployment. |
+| `SAFEX_EMPLOYEE_MASTER_FILE` | Local CSV path. Used for offline dev / no-egress sandboxes. |
+| `SAFEX_EMPLOYEE_MASTER_SITE_ID` | Site every row maps to when the sheet has no Site column. |
+| `SAFEX_EMPLOYEE_MASTER_SITE_NAME` | Display name for that site. |
+| `SAFEX_EMPLOYEE_MASTER_SITE_REGION` | Display region for that site. |
+| `SAFEX_EMPLOYEE_MASTER_TTL_SECONDS` | Server-memory cache lifetime (default 600). |
+
+Resolution order is **URL → file → demo**. If a master is configured but unreadable, the
+app falls back to demo records *and* says so in the UI rather than presenting an empty
+directory as if the site had no workers.
+
+### What the lookup endpoint enforces
+
+`GET /api/employees?siteId=…&q=…` (or `&empNo=…`)
+
+- same-origin only, `Cache-Control: no-store`
+- minimum 2-character query — the directory cannot be walked with an empty search
+- maximum 8 results per request
+- 40 lookups per minute per IP
+- results restricted to the requested site
+- response contains Employee ID, name, designation and site only
+
+### Column names understood
+
+`Employee ID` / `Employee No` / `Emp ID` / `Employee Code`, `Name` / `Full Name`,
+`Designation` / `Role` / `Trade`, `Department`, `Safety Pass No`, `Blood Group`,
+`Mobile` / `Phone` / `Contact`, `JNTVTI Skill Grade` / `Skill Grade` / `Grade`, `Status`,
+`Site` / `Location`. Matching ignores case, spaces and punctuation.
+
+---
+
+## 3. Data-quality findings
+
+Parsed from the supplied sheet: **191 usable rows**, 27 distinct designations. The
+following were detected automatically. Numbers are masked here deliberately.
+
+### Blocking for OTP sign-in
+
+| Employee | Problem |
+| --- | --- |
+| EMP001 | Mobile has 11 digits (`9177…`) — looks like a country code typed without `+`. |
+| EMP002 | Mobile has 11 digits (`9939…`). |
+| EMP047 | Mobile has 11 digits (`9234…`). |
+| EMP037 + EMP191 | Share one mobile number. |
+| EMP048 + EMP139 | Share one mobile number **and** an identical name — almost certainly one person holding two Employee IDs. |
+| EMP069 + EMP083 | Share one mobile number. |
+| EMP194, EMP195, EMP196, EMP197 | No mobile, no blood group, no skill grade recorded. |
+
+An employee whose number is missing, malformed or shared with somebody else cannot be
+authenticated by OTP, because the code cannot be delivered to one identifiable person.
+
+### Cosmetic / normalised automatically
+
+- Skill-grade spellings corrected on load: `Siler` (EMP004), `Siver` (EMP010, EMP015),
+  `Sillver` (EMP093) → **Silver**. Worth fixing at source so the sheet and the app agree.
+- `Sweepar` (EMP129) is kept as written; add it to the designation list or correct it.
+
+### Rows that are not people
+
+- **EMP159** and **EMP168** carry only a name and no other column. They are skipped and
+  reported as unassigned IDs, so they never appear in a search result.
+- **EMP081, EMP143, EMP179, EMP180** are absent from the sheet entirely. This matches the
+  remark in the sheet that those IDs are blank and reusable.
+
+### Structural gaps
+
+- **No Site column.** Every row is currently mapped to a single site
+  (`SAFEX_EMPLOYEE_MASTER_SITE_ID`, default `kedla`). Add a Site column before onboarding a
+  second location, otherwise site-scoped reporting cannot be trusted.
+- **No Department column.** The report form has a Department field that stays blank.
+- **No employment start/end date**, so "Active" is the only lifecycle signal available.
+
+---
+
+## 4. Next steps
+
+1. Fix the mobile numbers listed above in the source sheet, and decide whether EMP048 and
+   EMP139 are one person.
+2. Add `Site` and `Department` columns.
+3. Import the roster into Supabase `public.employees` (tenant-scoped, RLS already denies
+   browser access) and point the app at the database rather than the sheet.
+4. Unpublish the Google Sheet once the import is verified.
+5. Only then enable OTP sign-in, which depends on one verified mobile per employee.

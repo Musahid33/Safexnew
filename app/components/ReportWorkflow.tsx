@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ArrowLeft, Check, ChevronRight, ImagePlus, LockKeyhole, MapPin, Mic, Search, Send, X } from 'lucide-react';
+import type { EmployeeDirectory } from '@/lib/employee-directory';
 import type { Employee, Language, ReportType, Site } from '@/lib/types';
 import LanguageStrip from './LanguageStrip';
 import { useI18n } from './I18nProvider';
@@ -27,7 +28,7 @@ export type ReportSubmission = {
 type Props = {
   type: ReportType;
   site: Site;
-  employees: Employee[];
+  directory: EmployeeDirectory;
   language: Language;
   onLanguageChange: (language: Language) => void;
   voiceEnabled: boolean;
@@ -129,7 +130,7 @@ function descriptionConfig(type: ReportType, category: string | null): { label: 
   return { label: '📝 Description', placeholder: 'Describe the details...' };
 }
 
-export default function ReportWorkflow({ type, site, employees, language, onLanguageChange, voiceEnabled, syncEnabled, onClose, onSubmit }: Props) {
+export default function ReportWorkflow({ type, site, directory, language, onLanguageChange, voiceEnabled, syncEnabled, onClose, onSubmit }: Props) {
   const { T } = useI18n();
   const categories = CATEGORY_OPTIONS[type] ?? [];
   const [screen, setScreen] = useState<'category' | 'form'>(categories.length ? 'category' : 'form');
@@ -150,11 +151,43 @@ export default function ReportWorkflow({ type, site, employees, language, onLang
   const [voiceRecording, setVoiceRecording] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
-  const filteredEmployees = useMemo(() => {
-    const query = employeeQuery.trim().toLowerCase();
-    if (!query) return [];
-    return employees.filter((item) => item.siteId === site.id && `${item.empNo} ${item.name} ${item.designation}`.toLowerCase().includes(query)).slice(0, 6);
-  }, [employeeQuery, employees, site.id]);
+  // The real employee master lives on the server, so the lookup is debounced and
+  // cancellable instead of filtering a roster held in the browser.
+  const [employeeMatches, setEmployeeMatches] = useState<Employee[]>([]);
+  const [lookupState, setLookupState] = useState<'idle' | 'short' | 'searching' | 'done' | 'error'>('idle');
+
+  useEffect(() => {
+    const query = employeeQuery.trim();
+    if (employee) return;
+    if (!query) {
+      setEmployeeMatches([]);
+      setLookupState('idle');
+      return;
+    }
+    if (query.length < directory.minQueryLength) {
+      setEmployeeMatches([]);
+      setLookupState('short');
+      return;
+    }
+    const controller = new AbortController();
+    setLookupState('searching');
+    const timer = setTimeout(() => {
+      directory.search(site.id, query, controller.signal)
+        .then((matches) => {
+          setEmployeeMatches(matches);
+          setLookupState('done');
+        })
+        .catch((cause: unknown) => {
+          if (cause instanceof DOMException && cause.name === 'AbortError') return;
+          setEmployeeMatches([]);
+          setLookupState('error');
+        });
+    }, 220);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [employeeQuery, employee, directory, site.id]);
 
   useEffect(() => {
     setIncidentAt(localDateTime());
@@ -336,7 +369,14 @@ export default function ReportWorkflow({ type, site, employees, language, onLang
         {!anonymous && <section className="report-identity-section" aria-label={T('Reporter identity')}>
           <label className="field-label" htmlFor="report-employee-lookup">👤 {T('Your Name / Employee ID')} <span className="required">*</span></label>
           <div className="search-box employee-search-box"><Search size={17} /><input id="report-employee-lookup" value={employeeQuery} onChange={(event) => { setEmployeeQuery(event.target.value); setEmployee(null); setError(''); }} placeholder={T('Type your name or Employee ID')} autoComplete="off" aria-autocomplete="list" aria-controls="report-employee-suggestions" /><span className="lookup-hint">{T('Selected site only')}</span></div>
-          {employeeQuery && !employee && <div className="suggestions" id="report-employee-suggestions" role="listbox">{filteredEmployees.length ? filteredEmployees.map((item) => <button type="button" role="option" aria-selected="false" key={item.id} onClick={() => selectEmployee(item)}><span className="avatar-mini">{item.name.slice(0, 1)}</span><span><b>{item.name}</b><small>{item.empNo} · {item.designation}</small></span><ChevronRight size={16} /></button>) : <div className="no-suggestion">{T('No match at {site}. Check the spelling or use your Employee ID.', { site: site.name })}</div>}</div>}
+          {employeeQuery && !employee && <div className="suggestions" id="report-employee-suggestions" role="listbox" aria-busy={lookupState === 'searching'}>{employeeMatches.length ? employeeMatches.map((item) => <button type="button" role="option" aria-selected="false" key={item.id} onClick={() => selectEmployee(item)}><span className="avatar-mini">{item.name.slice(0, 1)}</span><span><b>{item.name}</b><small>{item.empNo} · {item.designation}</small></span><ChevronRight size={16} /></button>)
+            : <div className="no-suggestion">{T(
+              lookupState === 'short' ? 'Type at least {count} characters to search.'
+                : lookupState === 'searching' ? 'Searching the employee directory…'
+                  : lookupState === 'error' ? 'The employee directory is unavailable right now. Try again in a moment.'
+                    : 'No match at {site}. Check the spelling or use your Employee ID.',
+              { site: site.name, count: directory.minQueryLength }
+            )}</div>}</div>}
           {employee && <div className="auto-fields report-identity-fields"><label><small>{T('Your Name')}</small><input className="identity-readonly" value={employee.name} readOnly /></label><label><small>{T('Employee ID')}</small><input className="identity-readonly" value={employee.empNo} readOnly /></label><label className="wide"><small>{T('Designation · auto-filled')}</small><input className="identity-readonly" value={employee.designation} readOnly /></label><button type="button" className="clear-employee" onClick={() => { setEmployee(null); setEmployeeQuery(''); }}>{T('Change profile')}</button></div>}
           <small className="field-help">{T('Select a suggestion to fill your name, Employee ID and designation. The lookup is limited to the selected site in this demo.')}</small>
         </section>}

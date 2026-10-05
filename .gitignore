@@ -16,3 +16,9 @@ quarantine/
 .antideploy/
 *.pem
 *.key
+
+# Employee master snapshots. The roster is personal data (names, registered mobiles,
+# addresses) and must never be committed to this public repository.
+.data/
+*.employee-master.csv
+employee-master*.csv
