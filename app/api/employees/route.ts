@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchEmployeeMaster, findEmployeeByNumber } from '@/lib/employee-master/source';
-import { getEmployeeMasterConfig } from '@/lib/employee-master/config';
+import { findInDirectory, searchDirectory } from '@/lib/employee-master/directory';
 import { toPublicEmployee } from '@/lib/employee-master/parse';
 
 export const runtime = 'nodejs';
@@ -81,14 +80,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, code: 'CROSS_ORIGIN_REJECTED' }, { status: 403, headers: NO_STORE });
   }
 
-  const config = getEmployeeMasterConfig();
-  if (!config.enabled) {
-    return NextResponse.json(
-      { ok: true, source: 'demo', employees: [] },
-      { headers: NO_STORE }
-    );
-  }
-
   if (!rateLimit(clientIp(request))) {
     return NextResponse.json(
       { ok: false, code: 'LOOKUP_RATE_LIMITED', error: 'Too many lookups. Wait a minute and try again.' },
@@ -102,23 +93,23 @@ export async function GET(request: NextRequest) {
   const query = (params.get('q') ?? '').trim().slice(0, 80);
 
   if (employeeNo) {
-    const record = await findEmployeeByNumber(siteId, employeeNo);
+    const { mode, record } = await findInDirectory(siteId, employeeNo);
     return NextResponse.json(
-      { ok: true, source: 'master', employees: record ? [toPublicEmployee(record)] : [] },
+      { ok: true, source: mode, employees: record ? [toPublicEmployee(record)] : [] },
       { headers: NO_STORE }
     );
   }
 
   if (query.length < MIN_QUERY_LENGTH) {
     return NextResponse.json(
-      { ok: true, source: 'master', employees: [], code: 'QUERY_TOO_SHORT' },
+      { ok: true, source: 'unknown', employees: [], code: 'QUERY_TOO_SHORT' },
       { headers: NO_STORE }
     );
   }
 
-  const records = await searchEmployeeMaster(siteId, query, MAX_RESULTS);
+  const { mode, records } = await searchDirectory(siteId, query, MAX_RESULTS);
   return NextResponse.json(
-    { ok: true, source: 'master', employees: records.map(toPublicEmployee) },
+    { ok: true, source: mode, employees: records.map(toPublicEmployee) },
     { headers: NO_STORE }
   );
 }

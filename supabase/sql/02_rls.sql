@@ -146,7 +146,7 @@ begin
     'tenants', 'safex_platform_admins', 'tenant_domains', 'tenant_features', 'sites',
     'employees', 'staff_memberships', 'reports', 'report_attachments',
     'report_status_events', 'push_subscriptions', 'public_report_rate_limits',
-    'safex_sql_apply_log'
+    'safex_sql_apply_log', 'employee_master_sync_runs'
   ]
   loop
     if to_regclass('public.' || v_table) is not null then
@@ -171,7 +171,7 @@ begin
     'tenants', 'safex_platform_admins', 'tenant_domains', 'tenant_features', 'sites',
     'employees', 'staff_memberships', 'reports', 'report_attachments',
     'report_status_events', 'push_subscriptions', 'public_report_rate_limits',
-    'safex_sql_apply_log'
+    'safex_sql_apply_log', 'employee_master_sync_runs'
   ]
   loop
     if to_regclass('public.' || v_table) is not null then
@@ -264,7 +264,8 @@ create policy staff_report_status_insert on public.report_status_events for inse
   with check (public.safex_has_site_access(tenant_id, site_id));
 
 -- Intentionally NO authenticated policy on: tenant_features, push_subscriptions,
--- safex_platform_admins, public_report_rate_limits, safex_sql_apply_log.
+-- safex_platform_admins, public_report_rate_limits, safex_sql_apply_log,
+-- employee_master_sync_runs.
 -- Those stay service-role-only until ownership and audit trails are designed.
 
 select public.safex_mark_sql_part('02_rls.sql', 'PART 5 · policies');
@@ -314,6 +315,6 @@ where n.nspname = 'public'
     'tenants', 'safex_platform_admins', 'tenant_domains', 'tenant_features', 'sites',
     'employees', 'staff_memberships', 'reports', 'report_attachments',
     'report_status_events', 'push_subscriptions', 'public_report_rate_limits',
-    'safex_sql_apply_log'
+    'safex_sql_apply_log', 'employee_master_sync_runs'
   )
 order by c.relname;

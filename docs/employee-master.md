@@ -31,23 +31,29 @@ Consequences baked into the design:
 ## 2. How it is wired
 
 ```
-Google Sheet / CSV  ──► lib/employee-master/source.ts  ──► /api/employees  ──► report form
-  (or local file)        (server-only, cached)              (scoped, capped)     profile search
+Google Sheet / CSV ──┐
+                     ├─► lib/employee-master/directory.ts ─► /api/employees ─► report form
+Supabase employees ──┘        (Supabase → sheet → demo)       (scoped, capped)   profile search
                                                                                  training check
 ```
 
+Resolution order is **Supabase → published sheet/CSV → demo**. The sheet is a migration
+bridge: once the roster is imported, the database wins automatically and the sheet can be
+unpublished. A source that is configured but unreachable degrades to the next one *and
+says so in the UI*, rather than presenting an empty directory as if the site had no
+workers. A failing database also trips a 30-second circuit breaker so the fallback stays
+fast instead of paying a network timeout on every request.
+
 | Variable | Purpose |
 | --- | --- |
-| `SAFEX_EMPLOYEE_MASTER_CSV_URL` | Published CSV/TSV endpoint. Preferred in deployment. |
-| `SAFEX_EMPLOYEE_MASTER_FILE` | Local CSV path. Used for offline dev / no-egress sandboxes. |
+| `SAFEX_EMPLOYEE_DIRECTORY_SOURCE` | `auto` (default), or force `sheet` / `demo`. |
+| `SAFEX_TENANT_SLUG` | Which tenant the roster belongs to. Required for Supabase reads and for the importer. |
+| `SAFEX_EMPLOYEE_MASTER_CSV_URL` | Published CSV/TSV endpoint. |
+| `SAFEX_EMPLOYEE_MASTER_FILE` | Local CSV path, for offline dev / no-egress sandboxes. |
 | `SAFEX_EMPLOYEE_MASTER_SITE_ID` | Site every row maps to when the sheet has no Site column. |
 | `SAFEX_EMPLOYEE_MASTER_SITE_NAME` | Display name for that site. |
 | `SAFEX_EMPLOYEE_MASTER_SITE_REGION` | Display region for that site. |
-| `SAFEX_EMPLOYEE_MASTER_TTL_SECONDS` | Server-memory cache lifetime (default 600). |
-
-Resolution order is **URL → file → demo**. If a master is configured but unreadable, the
-app falls back to demo records *and* says so in the UI rather than presenting an empty
-directory as if the site had no workers.
+| `SAFEX_EMPLOYEE_MASTER_TTL_SECONDS` | Sheet cache lifetime in server memory (default 600). |
 
 ### What the lookup endpoint enforces
 
@@ -57,8 +63,12 @@ directory as if the site had no workers.
 - minimum 2-character query — the directory cannot be walked with an empty search
 - maximum 8 results per request
 - 40 lookups per minute per IP
-- results restricted to the requested site
+- results restricted to the requested site; an unknown site returns nothing
 - response contains Employee ID, name, designation and site only
+
+Supabase reads use the service role, because the browser holds **no** grant on these
+tables (see `supabase/sql/02_rls.sql`). That makes `lib/employee-master/db-source.ts` the
+security boundary: RLS is bypassed there, so it applies tenant and site scoping itself.
 
 ### Column names understood
 
@@ -69,7 +79,53 @@ directory as if the site had no workers.
 
 ---
 
-## 3. Data-quality findings
+## 3. Importing the roster into Supabase
+
+### Before you start
+
+Apply the migrations in order, then the hardening script:
+
+```
+supabase/migrations/202610030001_initial_safex.sql      # tables
+supabase/migrations/202610030002_offline_report_sync.sql
+supabase/migrations/202610050003_employee_master_sync.sql   # master columns + audit table
+supabase/sql/02_rls.sql                                 # grants / RLS / policies (resumable)
+supabase/sql/99_gate_test.sql                           # must be all PASS
+```
+
+`202610050003` adds `safety_pass_no`, `skill_grade`, `blood_group`, `home_address`,
+`source` and `synced_at` to `public.employees`. **None of them are granted to a browser
+role.** `blood_group` is health data and must only ever reach an authorised first-aid/SOS
+flow. The migration also creates `employee_master_sync_runs`, a service-role-only audit
+trail of every import.
+
+You also need a `tenants` row whose `slug` matches `SAFEX_TENANT_SLUG`.
+
+### Run it
+
+```bash
+npm run employees:dry-run                 # parse, map, report — touches nothing
+npm run employees:import -- --ensure-site # create the site row if missing, then upsert
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--dry-run` | Parse and print the mapping; make no database calls. |
+| `--ensure-site` | Create the tenant's site row if it does not exist yet. |
+| `--deactivate-missing` | Mark employees absent from the sheet as inactive. **Never deletes.** |
+| `--limit=N` | Only process the first N rows — useful for a first trial. |
+
+Upserts key on `(tenant_id, employee_no)`, so re-running is safe and idempotent. Rows the
+importer wrote are tagged `source = 'employee_master_sync'`, so a hand-edited record is
+distinguishable and `--deactivate-missing` will not touch manually created employees.
+
+The script runs on Node 22+, which strips the TypeScript types natively, so it shares the
+exact parser the app uses — the import and the live lookup can never drift apart.
+
+---
+
+
+## 4. Data-quality findings
 
 Parsed from the supplied sheet: **191 usable rows**, 27 distinct designations. The
 following were detected automatically. Numbers are masked here deliberately.
@@ -112,12 +168,13 @@ authenticated by OTP, because the code cannot be delivered to one identifiable p
 
 ---
 
-## 4. Next steps
+## 5. Next steps
 
 1. Fix the mobile numbers listed above in the source sheet, and decide whether EMP048 and
    EMP139 are one person.
 2. Add `Site` and `Department` columns.
-3. Import the roster into Supabase `public.employees` (tenant-scoped, RLS already denies
-   browser access) and point the app at the database rather than the sheet.
-4. Unpublish the Google Sheet once the import is verified.
-5. Only then enable OTP sign-in, which depends on one verified mobile per employee.
+3. Apply the migrations, create the tenant row, then run `npm run employees:import`.
+4. Switch the app to the database by leaving `SAFEX_EMPLOYEE_DIRECTORY_SOURCE=auto` and
+   confirming `/api/bootstrap` reports `"directory":"supabase"`.
+5. Unpublish the Google Sheet and clear `SAFEX_EMPLOYEE_MASTER_CSV_URL`.
+6. Only then enable OTP sign-in, which depends on one verified mobile per employee.

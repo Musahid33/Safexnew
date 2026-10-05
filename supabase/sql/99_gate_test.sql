@@ -65,6 +65,22 @@ check_employee_phone as (
     ) then 'PASS' else 'FAIL' end as status,
     'registered phone stays server-side' as requirement
 ),
+-- 5b. Employee master columns must never be column-granted to a browser role ---------
+check_master_columns as (
+  select
+    'employees.' || col || ' not granted' as check_name,
+    case when not exists (
+      select 1 from information_schema.column_privileges g
+      where g.table_schema = 'public' and g.table_name = 'employees'
+        and g.column_name = col and g.grantee in ('anon', 'authenticated')
+    ) then 'PASS' else 'FAIL' end as status,
+    'imported personal data stays server-side' as requirement
+  from unnest(array['blood_group', 'home_address', 'safety_pass_no']) as col
+  where exists (
+    select 1 from information_schema.columns c
+    where c.table_schema = 'public' and c.table_name = 'employees' and c.column_name = col
+  )
+),
 -- 6. Helper functions are SECURITY DEFINER with a pinned search_path ------------------
 check_functions as (
   select
@@ -162,6 +178,7 @@ results as (
   union all select * from check_anon
   union all select * from check_locked
   union all select * from check_employee_phone
+  union all select * from check_master_columns
   union all select * from check_functions
   union all select * from check_rate_limit_exec
   union all select * from check_policies

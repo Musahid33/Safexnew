@@ -6,7 +6,8 @@ import { DEMO_DIRECTORY, directoryFor, type EmployeeDirectory } from '@/lib/empl
 import type { Site } from '@/lib/types';
 
 type BootstrapResponse = {
-  directory?: 'demo' | 'master';
+  /** 'supabase' and 'sheet' both mean the lookup must go through the server. */
+  directory?: 'supabase' | 'sheet' | 'demo';
   sites?: Site[];
   employeeCount?: number;
   dataIssueCount?: number;
@@ -46,7 +47,7 @@ export function useSafexBootstrap(): SafexBootstrap {
         setState({
           ready: true,
           sites,
-          directory: directoryFor(payload?.directory === 'master' ? 'master' : 'demo'),
+          directory: directoryFor(payload?.directory && payload.directory !== 'demo' ? 'master' : 'demo'),
           employeeCount: payload?.employeeCount ?? 0,
           degraded: Boolean(payload?.degraded)
         });
