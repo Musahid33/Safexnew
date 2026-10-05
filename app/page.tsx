@@ -7,6 +7,7 @@ import {
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
+import { LIFE_SAVING_RULES } from '@/lib/life-saving-rules';
 import { DEMO_REPORTS, DEMO_TENANT } from '@/lib/demo-data';
 import { DEMO_SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
@@ -121,7 +122,7 @@ function queuedReportToSafetyReport(entry: QueuedReport): SafetyReport {
 export default function SafexHome() {
   const { language, setLanguage, T } = useI18n();
   // Site list and employee directory come from the server: the real employee master when
-  // one is configured, the synthetic demo roster otherwise.
+  // one is configured; otherwise lookups report unavailable.
   const { ready: directoryReady, sites, directory, directoryMode, employeeCount, degraded } = useSafexBootstrap();
   const locale = LANGUAGE_LOCALE[language];
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
@@ -131,7 +132,6 @@ export default function SafexHome() {
   const [siteDialog, setSiteDialog] = useState(false);
   const [siteDraft, setSiteDraft] = useState('');
   const [siteReturnPage, setSiteReturnPage] = useState<PageKey>('home');
-  const [lifeRuleLocationOpen, setLifeRuleLocationOpen] = useState(false);
   const [lifeRuleOpen, setLifeRuleOpen] = useState(false);
   const [lifeRuleSite, setLifeRuleSite] = useState<Site | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
@@ -304,7 +304,7 @@ export default function SafexHome() {
   }, [directoryReady, siteReady, sites]);
 
   useEffect(() => {
-    if (degraded) setToast({ key: 'The employee master is configured but could not be read, so demo records are shown.' });
+    if (degraded) setToast({ key: 'The employee master is unavailable. No sample employees are shown. Please try again later.' });
   }, [degraded]);
 
   useEffect(() => {
@@ -478,14 +478,10 @@ export default function SafexHome() {
 
   function openLifeRuleForSite(site: Site) {
     setLifeRuleSite(site);
-    setLifeRuleLocationOpen(false);
     setLifeRuleOpen(true);
   }
 
-  function changeLifeRuleLocation() {
-    setLifeRuleOpen(false);
-    setLifeRuleLocationOpen(true);
-  }
+
 
   function openReport(type: ReportType) {
     if (!currentSite) {
@@ -636,7 +632,7 @@ export default function SafexHome() {
 
   return (
     <div className="safex-app">
-      <div className="demo-ribbon"><span className="demo-dot" /> {T(reportSyncEnabled ? 'DEMO MODE · Sample feed records only · new reports sync when online' : 'DEMO MODE · Sample records only · database sync is not configured')}</div>
+      <div className="demo-ribbon"><span className="demo-dot" /> {T(reportSyncEnabled ? 'Sample feeds only · employee master uses real data · new reports sync when online' : 'Sample feeds only · employee master uses real data · report sync is not configured')}</div>
       <div className="site-header-shell">
         <header className="topbar">
           <div className="topbar-inner">
@@ -719,9 +715,9 @@ export default function SafexHome() {
         {page === 'home' && <>
           <section className="hero-strip">
             <div className="hero-copy"><span className="eyebrow">{T('SAFETY HOME')}</span><h1>{T('Safety Portal')}</h1><p>{T('Report hazards, find safety updates and learn from reports at your selected site.')}</p></div>
-            <button className="life-saving-card" type="button" onClick={() => setLifeRuleLocationOpen(true)} aria-haspopup="dialog">
+            <button className="life-saving-card" type="button" onClick={() => currentSite && openLifeRuleForSite(currentSite)} disabled={!currentSite} aria-haspopup="dialog">
               <span className="life-saving-icon"><ShieldAlert size={22} /></span>
-              <span className="life-saving-copy"><b>{T('LIFE SAVING RULE')}</b><small>{T('Select a location to view site rules')}</small></span>
+              <span className="life-saving-copy"><b>{T('LIFE SAVING RULE')}</b><small>West Bokaro (WBD) · 10 rules</small></span>
               <ChevronRight size={20} />
             </button>
           </section>
@@ -855,9 +851,7 @@ export default function SafexHome() {
 
       {siteSelectionDialog}
 
-      {lifeRuleLocationOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="life-rule-location-title"><div className="modal life-rule-location-modal"><div className="modal-header"><div><span className="eyebrow">{T('LIFE SAVING RULE')}</span><h2 id="life-rule-location-title">{T('Select a location')}</h2><p>{T('Choose the site whose Life Saving Rules you want to view.')}</p></div><button className="close-button" type="button" onClick={() => setLifeRuleLocationOpen(false)} aria-label={T('Close location selection')}><X /></button></div><div className="life-rule-location-list">{[...(currentSite ? [currentSite] : []), ...sites.filter((site) => site.id !== currentSite?.id)].map((site) => <button key={site.id} className={`life-rule-location-option ${site.id === currentSite?.id ? 'current' : ''}`} type="button" onClick={() => openLifeRuleForSite(site)}><span className="life-location-icon"><MapPin size={18} /></span><span><b>{site.name}</b><small>{site.region}{site.id === currentSite?.id ? ` · ${T('Current site')}` : ''}</small></span><ChevronRight size={18} /></button>)}</div><button className="secondary-button full-button" type="button" onClick={() => setLifeRuleLocationOpen(false)}>{T('Back to Safety Portal')}</button></div></div>}
-
-      {lifeRuleOpen && lifeRuleSite && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="life-rule-title"><div className="modal life-rule-modal"><div className="modal-header"><div><span className="eyebrow">{lifeRuleSite.name} · {T('LOCATION')}</span><h2 id="life-rule-title">{T('LIFE SAVING RULE')}</h2></div><button className="close-button" type="button" onClick={() => setLifeRuleOpen(false)} aria-label={T('Close Life Saving Rule')}><X /></button></div><div className="life-rule-site-banner"><span className="life-saving-icon"><ShieldAlert size={21} /></span><span><small>{T('SELECTED LOCATION')}</small><b>{lifeRuleSite.name}</b></span></div><div className="life-rule-placeholder"><BookOpen size={28} /><b>{T('Approved rules are not published yet')}</b><p>{T('Company-approved Life Saving Rules for {site} have not been configured in this demo. Confirm your site’s current rules with the Safety team before beginning work.', { site: lifeRuleSite.name })}</p></div><div className="life-rule-actions"><button className="secondary-button" type="button" onClick={changeLifeRuleLocation}><MapPin size={15} /> {T('Change location')}</button><button className="primary-button" type="button" onClick={() => setLifeRuleOpen(false)}>{T('Close')}</button></div></div></div>}
+      {lifeRuleOpen && lifeRuleSite && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="life-rule-title"><div className="modal life-rule-modal"><div className="modal-header"><div><span className="eyebrow">{lifeRuleSite.name} · {T('LOCATION')}</span><h2 id="life-rule-title">{T('LIFE SAVING RULE')}</h2></div><button className="close-button" type="button" onClick={() => setLifeRuleOpen(false)} aria-label={T('Close Life Saving Rule')}><X /></button></div><div className="life-rule-site-banner"><span className="life-saving-icon"><ShieldAlert size={21} /></span><span><small>{T('SELECTED LOCATION')}</small><b>{lifeRuleSite.name}</b></span></div><p className="life-rule-intro" lang="en">Rules designed to protect your life! Please respect and adhere to these rules.</p><ol className="life-rule-list" lang="en">{LIFE_SAVING_RULES.map((rule, index) => <li key={rule.title}><span className="life-rule-number">{index + 1}</span><div><h3>{rule.title}</h3><p>{rule.text}</p></div></li>)}</ol><div className="life-rule-actions"><button className="primary-button" type="button" onClick={() => setLifeRuleOpen(false)}>{T('Close')}</button></div></div></div>}
 
       {quickConcernChooserOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="quick-concern-title"><div className="modal quick-concern-modal">
         <div className="modal-header"><div><span className="eyebrow">{T('SAFETY REPORT')}</span><h2 id="quick-concern-title">{T('Grievance or Speak Up?')}</h2><p>{T('Choose a path. Anonymous reporting is available only for Speak Up.')}</p></div><button className="close-button" type="button" onClick={() => setQuickConcernChooserOpen(false)} aria-label={T('Close report choices')}><X /></button></div>

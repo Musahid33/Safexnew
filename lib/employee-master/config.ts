@@ -28,8 +28,8 @@ export function getEmployeeMasterConfig(): EmployeeMasterConfig {
     filePath,
     cacheTtlMs: Number.isFinite(ttlSeconds) && ttlSeconds > 0 ? ttlSeconds * 1000 : 600_000,
     site: {
-      id: env('SAFEX_EMPLOYEE_MASTER_SITE_ID') ?? 'kedla',
-      name: env('SAFEX_EMPLOYEE_MASTER_SITE_NAME') ?? 'Kedla',
+      id: env('SAFEX_EMPLOYEE_MASTER_SITE_ID') ?? 'west-bokaro',
+      name: env('SAFEX_EMPLOYEE_MASTER_SITE_NAME') ?? 'West Bokaro (WBD)',
       region: env('SAFEX_EMPLOYEE_MASTER_SITE_REGION') ?? 'Ghatotand, Ramgarh'
     }
   };

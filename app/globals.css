@@ -2760,3 +2760,12 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
   .admin-dialog-profile-grid { grid-template-columns: 1fr; }
   .admin-injection-button { flex-wrap: wrap; }
 }
+
+/* West Bokaro rules: readable transcription of the supplied poster. */
+.life-rule-modal { width: min(100%, 760px); }
+.life-rule-intro { color: var(--text); line-height: 1.6; }
+.life-rule-list { display: grid; gap: 12px; list-style: none; padding: 0; margin: 18px 0; }
+.life-rule-list li { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.life-rule-number { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--primary); font-weight: 800; }
+.life-rule-list h3 { margin: 0 0 7px; font-size: 16px; color: var(--text); }
+.life-rule-list p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text); }

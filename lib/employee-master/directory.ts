@@ -1,5 +1,5 @@
 import 'server-only';
-import { DEMO_SITES } from '@/lib/demo-data';
+import { WEST_BOKARO_SITE } from '@/lib/site-config';
 import type { Site } from '@/lib/types';
 import { getEmployeeMasterConfig } from './config';
 import {
@@ -14,18 +14,9 @@ import {
 import type { MasterEmployeeRecord } from './parse';
 import { findEmployeeByNumber, getEmployeeMaster, searchEmployeeMaster } from './source';
 
-/**
- * Single entry point for "where do employees come from".
- *
- * Resolution order is Supabase -> published sheet/CSV -> synthetic demo records. The
- * sheet is a migration bridge; once `npm run employees:import` has populated
- * `public.employees`, the database wins automatically and the sheet can be unpublished.
- *
- * A source that is configured but unreachable degrades to the next one rather than
- * reporting an empty directory, which would look like a site with no workers.
- */
+/** Real sources only: database (auto mode), then configured sheet. Never invent records. */
 
-export type DirectoryMode = 'supabase' | 'sheet' | 'demo';
+export type DirectoryMode = 'supabase' | 'sheet' | 'unavailable';
 
 export type DirectoryStatus = {
   mode: DirectoryMode;
@@ -60,7 +51,7 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
       }));
       return {
         mode: 'sheet',
-        sites: sites.length ? sites : DEMO_SITES,
+        sites: sites.length ? sites : [WEST_BOKARO_SITE],
         employeeCount: snapshot.records.length,
         dataIssueCount: snapshot.issues.length,
         degraded: isDatabaseDirectoryIntended()
@@ -69,11 +60,11 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
   }
 
   return {
-    mode: 'demo',
-    sites: DEMO_SITES,
+    mode: 'unavailable',
+    sites: [WEST_BOKARO_SITE],
     employeeCount: 0,
     dataIssueCount: 0,
-    degraded: isDatabaseDirectoryIntended() || config.enabled
+    degraded: true
   };
 }
 
@@ -93,7 +84,7 @@ export async function searchDirectory(
     if ((await getEmployeeMaster()) !== null) return { mode: 'sheet', records };
   }
 
-  return { mode: 'demo', records: [] };
+  return { mode: 'unavailable', records: [] };
 }
 
 export async function findInDirectory(
@@ -112,7 +103,7 @@ export async function findInDirectory(
     if ((await getEmployeeMaster()) !== null) return { mode: 'sheet', record };
   }
 
-  return { mode: 'demo', record: null };
+  return { mode: 'unavailable', record: null };
 }
 
 export type RosterPage = {
@@ -160,5 +151,5 @@ export async function listDirectory(
     }
   }
 
-  return { mode: 'demo', records: [], total: 0 };
+  return { mode: 'unavailable', records: [], total: 0 };
 }

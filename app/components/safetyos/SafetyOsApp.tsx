@@ -34,7 +34,7 @@ type Props = {
   onExit: () => void;
   /** Role label shown under the officer avatar in the console topbar. */
   officerName: string;
-  /** 'supabase' | 'sheet' | 'demo' — reported in the console sidebar. */
+  /** 'supabase' | 'sheet' | 'unavailable' — reported in the console sidebar. */
   directoryMode: string;
 };
 
@@ -57,7 +57,7 @@ type DesignEmployee = {
 type SessionState = { configured: boolean; signedIn: boolean; piiEnabled?: boolean };
 type RosterResult = { rows: DesignEmployee[] } | { error: 'auth' | 'unavailable' };
 type Phase = 'checking' | 'locked' | 'ready';
-type DirectoryState = 'live' | 'empty' | 'demo' | 'unavailable';
+type DirectoryState = 'live' | 'empty' | 'unavailable';
 
 type HostContext = {
   siteName: string;
@@ -92,7 +92,7 @@ export default function SafetyOsApp({
   const host = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<Phase>('checking');
   const [roster, setRoster] = useState<DesignEmployee[] | null>(null);
-  const [state, setState] = useState<DirectoryState>('demo');
+  const [state, setState] = useState<DirectoryState>('unavailable');
   const [reloadToken, setReloadToken] = useState(0);
   const [passcode, setPasscode] = useState('');
   const [authError, setAuthError] = useState('');
@@ -125,16 +125,15 @@ export default function SafetyOsApp({
 
       if (session?.configured && !session.signedIn) {
         setRoster(null);
-        setState('demo');
+        setState('unavailable');
         setPhase('locked');
         return;
       }
 
       if (!session?.configured) {
-        // No server passcode configured: run the console on the design's own records,
-        // exactly as the uploaded file behaves when opened directly.
+        // Fail closed: neither session failures nor missing auth may reveal a roster.
         setRoster(null);
-        setState('demo');
+        setState('unavailable');
         setPhase('ready');
         return;
       }
@@ -144,7 +143,7 @@ export default function SafetyOsApp({
       if ('error' in result) {
         if (result.error === 'auth') {
           setRoster(null);
-          setState('demo');
+          setState('unavailable');
           setPhase('locked');
           return;
         }
@@ -164,11 +163,11 @@ export default function SafetyOsApp({
 
   /* 2. Mount the design — markup first, then its script, then the host wiring. */
   useEffect(() => {
-    if (phase !== 'ready') return;
+    if (phase !== 'ready' || state === 'unavailable') return;
     const container = host.current;
     if (!container) return;
 
-    window.__SAFEX_EMPLOYEES__ = roster ?? undefined;
+    window.__SAFEX_EMPLOYEES__ = roster ?? [];
     container.innerHTML = DESIGN_MARKUP;
     applyContext(container, context.current);
 
@@ -212,7 +211,7 @@ export default function SafetyOsApp({
       delete window.__SAFEX_EMPLOYEES__;
     };
     // `roster` is the seam payload — a new roster means a fresh console. `state` is a
-    // dependency because the "try again"/"use demo records" screens unmount the container:
+    // dependency because the "try again" screens unmount the container:
     // leaving them has to mount the design again.
   }, [phase, state, roster]);
 
@@ -254,12 +253,6 @@ export default function SafetyOsApp({
     setReloadToken((token) => token + 1);
   }, []);
 
-  const useDemoRecords = useCallback(() => {
-    setRoster(null);
-    setState('demo');
-    setPhase('ready');
-  }, []);
-
   if (phase === 'checking') {
     return (
       <div className="sos sos-gate" id="safetyos-gate" role="status">
@@ -276,7 +269,7 @@ export default function SafetyOsApp({
           <p>
             The console can read the live employee master, so the server verifies access
             rather than the browser. Enter the workspace passcode to open it with real
-            records, or continue on the console&rsquo;s own demo records.
+            employee records.
           </p>
           <label htmlFor="sos-passcode">Workspace passcode</label>
           <input
@@ -292,9 +285,6 @@ export default function SafetyOsApp({
             {signingIn ? 'Verifying…' : 'Open the console'}
           </button>
           {authError && <p className="sos-gate-error" role="alert">{authError}</p>}
-          <button type="button" className="sos-gate-link" onClick={useDemoRecords}>
-            Continue with demo records
-          </button>
           <button type="button" className="sos-gate-link" onClick={onExit}>
             Back to the app
           </button>
@@ -309,13 +299,10 @@ export default function SafetyOsApp({
         <form onSubmit={(event) => { event.preventDefault(); retry(); }}>
           <h2>The employee master could not be read</h2>
           <p>
-            The session is valid but the roster request failed. Try the master again, or run
-            the console on the design&rsquo;s demo records.
+            The employee source or authorised session is unavailable. Check the server
+            employee-master and admin-access configuration, then try again. No sample records are shown.
           </p>
           <button type="submit">Try again</button>
-          <button type="button" className="sos-gate-link" onClick={useDemoRecords}>
-            Continue with demo records
-          </button>
           <button type="button" className="sos-gate-link" onClick={onExit}>
             Back to the app
           </button>
@@ -351,8 +338,8 @@ function describeDirectory(state: DirectoryState, count: number, directoryMode: 
     return `Live employee master · ${count} on file${via ? ` · ${via}` : ''}`;
   }
   if (state === 'empty') return 'Employee master connected · 0 employees imported';
-  if (state === 'unavailable') return 'Employee master unavailable · demo records';
-  return 'Demo records · employee master not connected';
+  if (state === 'unavailable') return 'Employee master unavailable';
+  return 'Employee master not connected';
 }
 
 async function readSession(): Promise<SessionState | null> {
@@ -380,7 +367,7 @@ async function readRoster(siteId: string): Promise<RosterResult> {
       if (response.status === 401) return { error: 'auth' };
       const data = await response.json();
       if (!response.ok || !data.ok || !Array.isArray(data.employees)) {
-        return collected.length ? { rows: collected } : { error: 'unavailable' };
+        return { error: 'unavailable' };
       }
       for (const row of data.employees as AdminEmployee[]) {
         collected.push({
@@ -394,7 +381,7 @@ async function readRoster(siteId: string): Promise<RosterResult> {
     }
     return { rows: collected };
   } catch {
-    return collected.length ? { rows: collected } : { error: 'unavailable' };
+    return { error: 'unavailable' };
   }
 }
 

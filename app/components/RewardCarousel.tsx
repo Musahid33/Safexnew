@@ -23,19 +23,11 @@ export type RecognitionGalleryItem = {
   rewardFor?: string | null;
 };
 
-/** Synthetic awardees for the demo build; real names only after consent is recorded. */
-const DEMO_AWARDEES = [
-  { employeeName: 'Aman Kumar', designation: 'Safety Helper', rewardFor: 'Near-Miss Reporting' },
-  { employeeName: 'Priya Das', designation: 'Technician', rewardFor: 'Hazard Identification' },
-  { employeeName: 'Ravi Singh', designation: 'Rigger', rewardFor: 'Safe Lifting Practice' }
-];
-
 const DEMO_RECOGNITION_CARDS: RecognitionGalleryItem[] = SLIDE_LABELS.map((altText, artworkIndex) => ({
   id: `demo-recognition-${artworkIndex + 1}`,
   altText,
   artworkIndex,
-  isPublished: true,
-  ...DEMO_AWARDEES[artworkIndex]
+  isPublished: true
 }));
 
 type Props = { items?: readonly RecognitionGalleryItem[] };

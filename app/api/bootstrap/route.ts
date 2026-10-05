@@ -1,3 +1,4 @@
+import { selectableSites } from '@/lib/site-config';
 import { NextResponse } from 'next/server';
 import { getDirectoryStatus } from '@/lib/employee-master/directory';
 
@@ -16,7 +17,7 @@ export async function GET() {
   return NextResponse.json(
     {
       directory: status.mode,
-      sites: status.sites,
+      sites: selectableSites(status.sites),
       employeeCount: status.employeeCount,
       dataIssueCount: status.dataIssueCount,
       degraded: status.degraded
