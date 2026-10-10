@@ -54,6 +54,21 @@ fast instead of paying a network timeout on every request.
 | `SAFEX_EMPLOYEE_MASTER_SITE_REGION` | Display region for that site. |
 | `SAFEX_EMPLOYEE_MASTER_TTL_SECONDS` | Sheet cache lifetime in server memory (default 600). |
 
+### Building a local CSV from a copy-pasted sheet
+
+If the only form of the roster you have is a copy-paste with the column separators lost,
+`scripts/roster-to-csv.mjs` rebuilds a usable CSV:
+
+```bash
+node scripts/roster-to-csv.mjs .data/raw-roster.txt employee-master.csv
+```
+
+It recovers fields by anchoring on the tokens that never vary (Employee ID, safety-pass
+prefix, blood group, contractor, mobile digit run, skill grade, status), prints a warning
+for every row it had to guess at, and runs a validation pass over the result. The default
+output name is `employee-master.csv`, which `.gitignore` keeps out of Git along with
+everything under `.data/`.
+
 ### What the lookup endpoint enforces
 
 `GET /api/employees?siteId=…&q=…` (or `&empNo=…`)
