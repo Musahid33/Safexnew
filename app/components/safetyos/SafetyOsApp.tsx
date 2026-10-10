@@ -94,9 +94,16 @@ export default function SafetyOsApp({
   const [roster, setRoster] = useState<DesignEmployee[] | null>(null);
   const [state, setState] = useState<DirectoryState>('unavailable');
   const [reloadToken, setReloadToken] = useState(0);
-  const [passcode, setPasscode] = useState('');
+  const [gateUsername, setGateUsername] = useState('');
+  const [gatePassword, setGatePassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [signingIn, setSigningIn] = useState(false);
+  /**
+   * True only when the console must not be shown at all: the server reported that admin
+   * auth is not configured. Every other problem (signed out, master source down) keeps
+   * a usable screen available.
+   */
+  const [failClosed, setFailClosed] = useState(false);
 
   const site = sites.find((entry) => entry.id === selectedSiteId) ?? sites[0] ?? null;
   const context = useRef<HostContext>({ siteName: '', officerRole: '', officerName: null, statusLabel: '' });
@@ -124,16 +131,19 @@ export default function SafetyOsApp({
       if (cancelled) return;
 
       if (session?.configured && !session.signedIn) {
+        // Auth exists but this browser has no session — ask for the admin credentials.
         setRoster(null);
         setState('unavailable');
+        setFailClosed(false);
         setPhase('locked');
         return;
       }
 
       if (!session?.configured) {
-        // Fail closed: neither session failures nor missing auth may reveal a roster.
+        // Fail closed: missing auth may not reveal a console at all.
         setRoster(null);
         setState('unavailable');
+        setFailClosed(true);
         setPhase('ready');
         return;
       }
@@ -142,18 +152,26 @@ export default function SafetyOsApp({
       if (cancelled) return;
       if ('error' in result) {
         if (result.error === 'auth') {
+          // Session cookie rejected (expired or cleared) — back to the gate.
           setRoster(null);
           setState('unavailable');
+          setFailClosed(false);
           setPhase('locked');
           return;
         }
-        setRoster(null);
+        // Signed in, but the employee master source is not configured or reachable right
+        // now. Open the console with an empty directory instead of a wall — the design's
+        // own in-memory records still render, and the status line says the master is
+        // unavailable. No synthetic employees are invented.
+        setRoster([]);
         setState('unavailable');
+        setFailClosed(false);
         setPhase('ready');
         return;
       }
       setRoster(result.rows);
       setState(result.rows.length ? 'live' : 'empty');
+      setFailClosed(false);
       setPhase('ready');
     }
 
@@ -163,7 +181,7 @@ export default function SafetyOsApp({
 
   /* 2. Mount the design — markup first, then its script, then the host wiring. */
   useEffect(() => {
-    if (phase !== 'ready' || state === 'unavailable') return;
+    if (phase !== 'ready' || failClosed) return;
     const container = host.current;
     if (!container) return;
 
@@ -188,6 +206,9 @@ export default function SafetyOsApp({
       if (target.closest('#logoutAction')) {
         event.preventDefault();
         event.stopPropagation();
+        // End the server session, then leave: the next visit must sign in again.
+        // Fire-and-forget — the app should not wait on a network round trip to close.
+        void fetch('/api/admin/session', { method: 'DELETE', credentials: 'same-origin' }).catch(() => undefined);
         handlers.current.onExit();
         return;
       }
@@ -211,9 +232,9 @@ export default function SafetyOsApp({
       delete window.__SAFEX_EMPLOYEES__;
     };
     // `roster` is the seam payload — a new roster means a fresh console. `state` is a
-    // dependency because the "try again" screens unmount the container:
+    // dependency because the gate/fail-closed screens unmount the container:
     // leaving them has to mount the design again.
-  }, [phase, state, roster]);
+  }, [phase, state, roster, failClosed]);
 
   /* 3. Keep the host context (site, officer, directory status) in the design's chrome. */
   useEffect(() => {
@@ -232,14 +253,14 @@ export default function SafetyOsApp({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passcode })
+        body: JSON.stringify({ username: gateUsername, password: gatePassword })
       });
       const data = await response.json();
       if (!response.ok || !data.ok) {
-        setAuthError(data.error ?? 'That passcode was not accepted.');
+        setAuthError(data.error ?? 'That username and password were not accepted.');
         return;
       }
-      setPasscode('');
+      setGatePassword('');
       retry();
     } catch {
       setAuthError('Sign-in failed. Check your connection and try again.');
@@ -268,20 +289,29 @@ export default function SafetyOsApp({
           <h2>Admin / HSE Manager sign-in</h2>
           <p>
             The console can read the live employee master, so the server verifies access
-            rather than the browser. Enter the workspace passcode to open it with real
-            employee records.
+            rather than the browser. Use the admin credentials from the app&apos;s login
+            screen to open it.
           </p>
-          <label htmlFor="sos-passcode">Workspace passcode</label>
+          <label htmlFor="sos-username">Admin User ID</label>
           <input
-            id="sos-passcode"
-            type="password"
-            value={passcode}
-            onChange={(event) => setPasscode(event.target.value)}
-            autoComplete="current-password"
-            minLength={12}
+            id="sos-username"
+            value={gateUsername}
+            onChange={(event) => setGateUsername(event.target.value)}
+            autoComplete="username"
+            minLength={3}
             required
           />
-          <button type="submit" disabled={signingIn || passcode.length === 0}>
+          <label htmlFor="sos-password">Password</label>
+          <input
+            id="sos-password"
+            type="password"
+            value={gatePassword}
+            onChange={(event) => setGatePassword(event.target.value)}
+            autoComplete="current-password"
+            minLength={6}
+            required
+          />
+          <button type="submit" disabled={signingIn || gateUsername.trim().length === 0 || gatePassword.length === 0}>
             {signingIn ? 'Verifying…' : 'Open the console'}
           </button>
           {authError && <p className="sos-gate-error" role="alert">{authError}</p>}
@@ -293,13 +323,13 @@ export default function SafetyOsApp({
     );
   }
 
-  if (state === 'unavailable') {
+  if (failClosed) {
     return (
       <div className="sos sos-gate" id="safetyos-gate">
         <form onSubmit={(event) => { event.preventDefault(); retry(); }}>
           <h2>The employee master could not be read</h2>
           <p>
-            The employee source or authorised session is unavailable. Check the server
+            Admin access is not configured on the server. Check the server
             employee-master and admin-access configuration, then try again. No sample records are shown.
           </p>
           <button type="submit">Try again</button>
@@ -312,6 +342,10 @@ export default function SafetyOsApp({
   }
 
   return <><div className="sos" id="safetyos-console" ref={host} data-site={selectedSiteId} />
+    {state === 'unavailable' && <div className="sos-master-note" role="status">
+      <span>Employee master not connected — the directory is showing 0 employees. Sign-in is active; configure the employee source to load real records.</span>
+      <button type="button" onClick={retry}>Try again</button>
+    </div>}
     <a className="sos-rewards-link" href="/admin/recognitions">Manage rewards ↗</a>
   </>;
 }

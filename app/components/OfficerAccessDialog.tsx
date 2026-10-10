@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Info, LockKeyhole, Mail, Phone, ShieldCheck, UserRound, UsersRound, X } from 'lucide-react';
+import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/admin-credentials';
 import { useI18n } from './I18nProvider';
 
 type Props = { onClose: () => void; onDemoLogin: () => void };
@@ -9,8 +10,6 @@ type Role = 'employee' | 'supervisor' | 'admin';
 type Mode = 'login' | 'otp' | 'reset';
 
 const COUNTRY_CODES = ['+91', '+1', '+44', '+971'];
-const DEMO_ADMIN_USERNAME = 'safety.officer.demo';
-const DEMO_ADMIN_PASSWORD = 'SafetyDemo2026!';
 
 export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
   const { T } = useI18n();
@@ -25,6 +24,7 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
   const [resetIdentifier, setResetIdentifier] = useState('');
   const [resetContact, setResetContact] = useState('');
   const [message, setMessage] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
 
   const employeeOtp = role === 'employee' && mode === 'otp';
 
@@ -49,27 +49,48 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
     setMessage('OTP verification is not connected in this demo. No sign-in has occurred.');
   }
 
-  function submitStaffLogin(event: FormEvent<HTMLFormElement>) {
+  async function submitStaffLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const isDemoAdmin = role === 'admin'
-      && username.trim().toLowerCase() === DEMO_ADMIN_USERNAME
-      && password === DEMO_ADMIN_PASSWORD;
-    setPassword('');
-    setUsername('');
-    if (isDemoAdmin) {
-      setMessage('');
-      onDemoLogin();
+
+    // Supervisor sign-in is not wired to a backend yet — admin login is the flow that
+    // talks to the server during this hookup phase.
+    if (role !== 'admin') {
+      setMessage('Authentication is not connected in this demo. No credentials were sent or stored.');
       return;
     }
-    setMessage(role === 'admin'
-      ? 'Demo login only. Use the username and password shown below. No credentials were sent or stored.'
-      : 'Authentication is not connected in this demo. No credentials were sent or stored.');
+
+    setSigningIn(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/session', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password })
+      });
+      const data = await response.json().catch(() => null);
+      setPassword('');
+      setUsername('');
+      if (response.ok && data?.ok) {
+        // The server accepted the credentials and set the signed session cookie —
+        // the dashboard opens through the same session it reads.
+        onDemoLogin();
+        return;
+      }
+      setMessage(response.status === 429
+        ? 'Too many sign-in attempts. Please wait a moment and try again.'
+        : (data?.error ?? 'Sign-in failed. Check your credentials and try again.'));
+    } catch {
+      setMessage('Could not reach the server. Check your connection and try again.');
+    } finally {
+      setSigningIn(false);
+    }
   }
 
   function fillDemoAdminCredentials() {
-    setUsername(DEMO_ADMIN_USERNAME);
-    setPassword(DEMO_ADMIN_PASSWORD);
-    setMessage('Demo credentials filled. Press Login to open the sample dashboard.');
+    setUsername(ADMIN_USERNAME);
+    setPassword(ADMIN_PASSWORD);
+    setMessage('Demo credentials filled. Press Login to open the admin dashboard.');
   }
 
   function submitReset(event: FormEvent<HTMLFormElement>) {
@@ -100,11 +121,11 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
     ? T('Enter the one-time code sent to your registered mobile number.')
     : mode === 'reset'
       ? role === 'employee' ? T('Enter your Employee ID and registered mobile number for account help.') : T('Enter your account ID and registered email to request a password reset.')
-      : role === 'employee'
-        ? T('Enter your Employee ID and registered mobile number to receive OTP.')
-        : role === 'supervisor'
-          ? T('Sign in with your Safety Supervisor or Site Supervisor account.')
-          : T('Use the demo username and password shown here to open the local sample dashboard. This does not sign in to Supabase.');
+        : role === 'employee'
+          ? T('Enter your Employee ID and registered mobile number to receive OTP.')
+          : role === 'supervisor'
+            ? T('Sign in with your Safety Supervisor or Site Supervisor account.')
+            : T('Sign in with the demo admin account to open the admin dashboard. The Safex server checks the credentials and issues the session; Supabase authentication is not used.');
 
   return <div className="overlay account-login-overlay" role="dialog" aria-modal="true" aria-labelledby="officer-access-title">
     <div className="modal account-login-modal">
@@ -166,17 +187,17 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
         <div className="account-input-wrap"><UserRound size={19} /><input id="account-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={role === 'supervisor' ? T('Enter your Supervisor ID') : T('Enter your Admin User ID')} autoComplete="username" required /></div>
         <label htmlFor="account-password">{T('Password')}</label>
         <div className="account-input-wrap"><LockKeyhole size={19} /><input id="account-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={T('Enter your password')} autoComplete="current-password" minLength={6} required /></div>
-        <button className="account-primary-button" type="submit">{T('Login')} <ArrowRight size={21} /></button>
+        <button className="account-primary-button" type="submit" disabled={signingIn}>{signingIn ? T('Signing in…') : T('Login')} <ArrowRight size={21} /></button>
       </form>}
 
       {role === 'admin' && mode === 'login' && <section className="admin-demo-credentials" aria-label={T('Demo credentials')}>
-        <div className="admin-demo-credentials-heading"><ShieldCheck size={18} /><span><b>{T('Local demo account')}</b><small>{T('These public demo credentials unlock synthetic dashboard data only. Supabase authentication is not used.')}</small></span></div>
-        <div className="admin-demo-credential-values"><span><small>{T('Username')}</small><code>{DEMO_ADMIN_USERNAME}</code></span><span><small>{T('Password')}</small><code>{DEMO_ADMIN_PASSWORD}</code></span></div>
+        <div className="admin-demo-credentials-heading"><ShieldCheck size={18} /><span><b>{T('Local demo account')}</b><small>{T('These public demo credentials are verified by the Safex server to open the admin dashboard. Supabase authentication is not used.')}</small></span></div>
+        <div className="admin-demo-credential-values"><span><small>{T('Username')}</small><code>{ADMIN_USERNAME}</code></span><span><small>{T('Password')}</small><code>{ADMIN_PASSWORD}</code></span></div>
         <button type="button" className="admin-demo-fill-button" onClick={fillDemoAdminCredentials}>{T('Use demo credentials')}</button>
       </section>}
       {message && <div className="account-login-message" role="status">{T(message)}</div>}
       {mode !== 'reset' && <div className="account-login-footer"><span /><button type="button" onClick={openReset}>{T('Forgot Password?')}</button></div>}
-      <div className="account-demo-note"><LockKeyhole size={14} /> {T('Demo interface only. OTP, password reset and live Supabase authentication are not connected; demo credentials stay local and are not saved.')}</div>
+      <div className="account-demo-note"><LockKeyhole size={14} /> {T('Demo interface only. OTP, password reset and live Supabase authentication are not connected. The demo admin sign-in is verified by the Safex server and credentials are not saved.')}</div>
     </div>
   </div>;
 }

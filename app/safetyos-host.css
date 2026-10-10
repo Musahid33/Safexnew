@@ -85,3 +85,36 @@
 
 .sos-rewards-link { position: fixed; z-index: 90; right: 16px; bottom: 16px; border-radius: 999px; background: #1263df; color: white; padding: 10px 16px; box-shadow: 0 5px 16px #142a50aa; font: 700 12px system-ui, sans-serif; text-decoration: none; }
 .sos-rewards-link:hover, .sos-rewards-link:focus-visible { background: #0e56c6; color: white; }
+
+/* Shown under the console topbar when the operator is signed in but the employee
+   master source is not configured/reachable: the console opens, the directory is
+   simply empty until the source exists. */
+.sos-master-note {
+  position: fixed;
+  z-index: 95;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(620px, calc(100vw - 32px));
+  padding: 9px 14px;
+  border: 1px solid #f2c94c88;
+  border-radius: 10px;
+  background: #fff9e8;
+  color: #6b5b1e;
+  font: 500 11px/1.5 system-ui, sans-serif;
+  box-shadow: 0 5px 16px #142a501f;
+}
+.sos-master-note button {
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: #1263df;
+  color: #fff;
+  font: 700 11px system-ui, sans-serif;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.sos-master-note button:hover { background: #0e56c6; }
