@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { NextRequest } from 'next/server';
+import { ADMIN_PASSWORD, ADMIN_USERNAME } from './admin-credentials';
 
 /**
  * Server-side gate for the admin / safety-officer surfaces.
@@ -25,13 +26,29 @@ import type { NextRequest } from 'next/server';
 export const ADMIN_COOKIE = 'safex_admin_session';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const MIN_PASSCODE_LENGTH = 12;
+// Cookie-signing fallback used ONLY when neither SAFEX_ADMIN_SESSION_SECRET nor
+// SAFEX_ADMIN_PASSCODE is set — i.e. the dummy demo credentials are the only way in.
+// It exists so the signed-cookie mechanism works out of the box; a real deployment
+// should still set one of the two env vars.
+const DEMO_SESSION_SECRET = 'safex-demo-admin-session-secret-v1';
 
 export type AdminSession = { issuedAt: number; expiresAt: number; nonce: string };
 
-/** The operator has configured a passcode, so the admin API may be served at all. */
+/** Whether the demo username/password pair is in place (they are, until Supabase Auth lands). */
+function demoCredentialsConfigured(): boolean {
+  return ADMIN_USERNAME.length > 0 && ADMIN_PASSWORD.length > 0;
+}
+
+/**
+ * Whether the admin API may be served at all.
+ *
+ * True when the operator configured SAFEX_ADMIN_PASSCODE, or — during the current
+ * frontend-to-backend hookup phase — whenever the dummy demo credentials exist, because
+ * they are the default sign-in for the admin dialog and the console gate.
+ */
 export function isAdminApiConfigured(): boolean {
   const passcode = process.env.SAFEX_ADMIN_PASSCODE ?? '';
-  return passcode.length >= MIN_PASSCODE_LENGTH;
+  return passcode.length >= MIN_PASSCODE_LENGTH || demoCredentialsConfigured();
 }
 
 /**
@@ -48,10 +65,15 @@ export function isAdminPiiEnabled(): boolean {
 function sessionSecret(): string {
   const explicit = process.env.SAFEX_ADMIN_SESSION_SECRET ?? '';
   if (explicit.length >= 16) return explicit;
-  // Fall back to deriving from the passcode so a single env var still yields signed
-  // cookies. Rotating the passcode then invalidates every existing session, which is the
-  // behaviour you want anyway.
-  return `derived:${process.env.SAFEX_ADMIN_PASSCODE ?? ''}`;
+  const passcode = process.env.SAFEX_ADMIN_PASSCODE ?? '';
+  if (passcode.length >= MIN_PASSCODE_LENGTH) {
+    // Fall back to deriving from the passcode so a single env var still yields signed
+    // cookies. Rotating the passcode then invalidates every existing session, which is
+    // the behaviour you want anyway.
+    return `derived:${passcode}`;
+  }
+  // Demo credentials only: no env vars at all, so use the fixed dev-only secret.
+  return `derived:${DEMO_SESSION_SECRET}`;
 }
 
 function sign(payload: string): string {
@@ -72,6 +94,19 @@ function constantTimeEqual(a: string, b: string): boolean {
 export function passcodeMatches(candidate: string): boolean {
   if (!isAdminApiConfigured()) return false;
   return constantTimeEqual(candidate, process.env.SAFEX_ADMIN_PASSCODE ?? '');
+}
+
+/**
+ * Verify the demo admin username and password, in constant time.
+ *
+ * The username comparison is case-insensitive (the old client-side check was, and people
+ * type in caps); the password is exact. Returns false when the demo credentials have
+ * been removed — that also switches the admin API off unless a passcode is configured.
+ */
+export function verifyAdminCredentials(username: string, password: string): boolean {
+  if (!demoCredentialsConfigured()) return false;
+  return constantTimeEqual(username.toLowerCase(), ADMIN_USERNAME.toLowerCase())
+    && constantTimeEqual(password, ADMIN_PASSWORD);
 }
 
 export function issueSessionCookie(): { value: string; maxAge: number } {

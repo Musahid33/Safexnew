@@ -137,22 +137,29 @@ enumerates the directory, so it is gated differently from `/api/employees`:
 | Results | 8 maximum | 50 per page, paginated |
 | Fields | ID, name, designation, site | + department, skill grade, and PII when released |
 
-### Why there is a separate passcode
+### Why there is a server-side check
 
-The officer sign-in dialog in the UI is a **demo** login — `DEMO_ADMIN_USERNAME` and
-`DEMO_ADMIN_PASSWORD` are compile-time constants inside a client component, so every
-visitor can read them in the bundle. That is harmless while the dashboard shows synthetic
-records, but it cannot stand in front of ~191 real people: anyone could call the endpoint
-directly with `curl`.
+The admin dialog in the UI is a **demo** login — its username and password are public
+constants in `lib/admin-credentials.ts`, shown in the dialog itself, so every visitor can
+read them. That is acceptable during the current frontend-to-backend hookup phase, but it
+cannot stand in front of ~191 real people: anyone could call the endpoint directly with
+`curl`.
 
-So the admin API checks `SAFEX_ADMIN_PASSCODE`, which exists only in the server
-environment. It is compared in constant time and exchanged for an HMAC-signed, httpOnly,
-`SameSite=Strict` cookie that lasts 8 hours. Sign-in attempts are limited to 10 per
-10 minutes per IP.
+So the admin API checks the credentials **on the server** — the dialog and the console's
+sign-in gate POST to `/api/admin/session` and the server compares, in constant time,
+either:
 
-This is deliberately modest: one shared operator credential, no per-user identity, no
-record of *who* signed in. It is the smallest thing that is honestly safe in front of real
-personal data. **Replace it with Supabase Auth plus a `staff_memberships` role check
+- the demo username/password from `lib/admin-credentials.ts` (the default today), or
+- `SAFEX_ADMIN_PASSCODE`, which exists only in the server environment.
+
+A success is exchanged for an HMAC-signed, httpOnly, `SameSite=Strict` cookie that lasts
+8 hours. Sign-in attempts are limited to 10 per 10 minutes per IP. When the
+employee-master source is not configured, a signed-in operator still gets the console —
+with an empty directory and an "Employee master unavailable" status banner — instead of a
+wall.
+
+This is deliberately modest: shared demo credentials, no per-user identity, no record of
+*who* signed in. **Replace it with Supabase Auth plus a `staff_memberships` role check
 before real users touch this.**
 
 ### Releasing personal data is a second decision

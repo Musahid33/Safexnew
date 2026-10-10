@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   ADMIN_COOKIE, cookieOptions, isAdminApiConfigured, isAdminPiiEnabled,
-  issueSessionCookie, passcodeMatches, readSession
+  issueSessionCookie, passcodeMatches, readSession, verifyAdminCredentials
 } from '@/lib/admin-auth';
 import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
 
@@ -11,9 +11,15 @@ export const dynamic = 'force-dynamic';
 /**
  * Sign-in for the admin / safety-officer console.
  *
- * The passcode lives only in the server environment. A wrong guess is rate limited hard
- * (10 attempts per 10 minutes per IP) because a single shared credential is exactly the
- * kind of thing that gets brute forced.
+ * Two ways in, either accepted:
+ *   - { passcode } — the operator's SAFEX_ADMIN_PASSCODE, which lives only in the server
+ *     environment (kept for the console's workspace gate and for tooling);
+ *   - { username, password } — the dummy demo credentials in lib/admin-credentials.ts,
+ *     which the login dialog sends. The check happens here, on the server, in constant
+ *     time; the browser never decides for itself.
+ *
+ * A wrong guess is rate limited hard (10 attempts per 10 minutes per IP) because a
+ * single shared credential is exactly the kind of thing that gets brute forced.
  */
 
 const allowAttempt = createRateLimiter({ windowMs: 600_000, max: 10 });
@@ -53,18 +59,31 @@ export async function POST(request: NextRequest) {
   }
 
   let passcode = '';
+  let username = '';
+  let password = '';
   try {
     const body = await request.json();
     passcode = typeof body?.passcode === 'string' ? body.passcode.slice(0, 200) : '';
+    username = typeof body?.username === 'string' ? body.username.trim().slice(0, 100) : '';
+    password = typeof body?.password === 'string' ? body.password.slice(0, 200) : '';
   } catch {
     return NextResponse.json({ ok: false, code: 'BAD_REQUEST' }, { status: 400, headers: NO_STORE });
   }
 
-  if (!passcodeMatches(passcode)) {
-    // Same shape and status for "wrong passcode" as for "no such operator": nothing here
-    // should help an attacker tell the two apart.
+  // A passcode field takes precedence; otherwise the username/password pair is checked.
+  const accepted = passcode
+    ? passcodeMatches(passcode)
+    : verifyAdminCredentials(username, password);
+
+  if (!accepted) {
+    // Same shape and status for "wrong passcode" and "wrong username/password": nothing
+    // here should help an attacker tell the two apart.
     return NextResponse.json(
-      { ok: false, code: 'INVALID_PASSCODE', error: 'That passcode was not accepted.' },
+      {
+        ok: false,
+        code: passcode ? 'INVALID_PASSCODE' : 'INVALID_CREDENTIALS',
+        error: passcode ? 'That passcode was not accepted.' : 'That username and password were not accepted.'
+      },
       { status: 401, headers: NO_STORE }
     );
   }
