@@ -15,8 +15,10 @@
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.109.0",
+    "html-to-image": "^1.11.13",
     "lucide-react": "latest",
     "next": "latest",
+    "qrcode.react": "^4.2.0",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"
