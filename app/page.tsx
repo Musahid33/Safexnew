@@ -843,6 +843,7 @@ export default function SafexHome() {
 
       {<nav className="bottom-nav" aria-label={T('Main navigation')}>
         <NavItem active={page === 'home'} icon={<Home />} label={T('home')} onClick={() => setPage('home')} />
+        <NavItem active={safetyAlertsOpen} icon={<Bell />} label={T('Safety Alerts')} onClick={openSafetyAlerts} />
         <button className="nav-report" onClick={() => setReportPickerOpen(true)} aria-label={T('report')} aria-haspopup="dialog"><PlusIcon /><span>{T('report')}</span></button>
         {DEMO_TENANT.features.trainingManagement && <NavItem active={page === 'training'} icon={<BookOpen />} label={T('training')} onClick={() => setPage('training')} />}
         <NavItem active={page === 'more' || page === 'appearance' || page === 'install' || page === 'library' || page === 'company' || page === 'account' || page === 'aboutApp'} icon={<MoreHorizontal />} label={T('more')} onClick={() => setPage('more')} />
