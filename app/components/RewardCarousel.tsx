@@ -36,11 +36,11 @@ export default function RewardCarousel({ items = DEMO_RECOGNITION_CARDS }: Props
   const { T } = useI18n();
   const [paused, setPaused] = useState(false);
   const publishedItems = items.filter((item) => item.isPublished !== false);
+  const namedItems = publishedItems.filter((item) => item.employeeName?.trim() && item.rewardFor?.trim());
 
   if (!publishedItems.length) return null;
 
-  return <div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery')}>
-    <span className="sr-only">{T('Recognition gallery. Each card shows the rewardee, designation and the reward received.')}</span>
+  return <><div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery')}>
     <div className="reward-gallery-viewport">
       <div className="reward-gallery-track" style={{ animationDuration: `${Math.max(18, publishedItems.length * 6)}s` }}>
         {[0, 1].map((copy) => <div className="reward-gallery-group" key={`gallery-copy-${copy}`} aria-hidden={copy === 1 ? true : undefined}>
@@ -50,11 +50,7 @@ export default function RewardCarousel({ items = DEMO_RECOGNITION_CARDS }: Props
                 ? <img className="reward-gallery-image" src={item.imageUrl} alt={item.altText} loading="lazy" decoding="async" />
                 : <RewardArtwork slide={item.artworkIndex ?? index % SLIDE_LABELS.length} />}
             </div>
-            {(item.employeeName || item.rewardFor) && <div className="reward-gallery-caption">
-              {item.employeeName && <b className="reward-gallery-name">{item.employeeName}</b>}
-              {item.designation && <span className="reward-gallery-designation">{T('Designation')}: {item.designation}</span>}
-              {item.rewardFor && <span className="reward-gallery-reward"><span className="reward-gallery-reward-label">{T('Reward For')}</span>{item.rewardFor}</span>}
-            </div>}
+            {item.employeeName && <b className="reward-gallery-name" title={item.employeeName}>{item.employeeName}</b>}
           </div>)}
         </div>)}
       </div>
@@ -62,7 +58,16 @@ export default function RewardCarousel({ items = DEMO_RECOGNITION_CARDS }: Props
     <button className="reward-gallery-pause" type="button" onClick={() => setPaused((value) => !value)} aria-label={T(paused ? 'Resume gallery scrolling' : 'Pause gallery scrolling')} aria-pressed={paused}>
       {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
     </button>
-  </div>;
+  </div>
+    {namedItems.length > 0 && <div className="reward-recognition-table-wrap">
+      <table className="reward-recognition-table">
+        <thead><tr><th scope="col">{T('Name')}</th><th scope="col">{T('Reward For')}</th></tr></thead>
+        <tbody>{namedItems.map((item) => <tr key={item.id}>
+          <td>{item.employeeName}</td><td>{item.rewardFor}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>}
+  </>;
 }
 
 function RewardArtwork({ slide }: { slide: number }) {

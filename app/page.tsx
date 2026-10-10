@@ -19,7 +19,8 @@ import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
 import SafetyOsApp from './components/safetyos/SafetyOsApp';
 import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId } from './components/DocumentVault';
-import RewardCarousel from './components/RewardCarousel';
+import RewardCarousel, { type RecognitionGalleryItem } from './components/RewardCarousel';
+import type { RecognitionItem } from '@/lib/recognitions';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
 import { useSafexBootstrap } from './components/useSafexBootstrap';
 import { AboutAppPage, AccountManagementPage, CompanyAboutPage, InstallAppPage, MoreInfoDialog, MoreMenuPage, type MoreInfoKind } from './components/MorePages';
@@ -127,6 +128,7 @@ export default function SafexHome() {
   const locale = LANGUAGE_LOCALE[language];
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [page, setPage] = useState<PageKey>('home');
+  const [recognitions, setRecognitions] = useState<RecognitionGalleryItem[]>([]);
   const [siteId, setSiteId] = useState('');
   const [siteReady, setSiteReady] = useState(false);
   const [siteDialog, setSiteDialog] = useState(false);
@@ -302,6 +304,20 @@ export default function SafexHome() {
     }
     setSiteReady(true);
   }, [directoryReady, siteReady, sites]);
+
+  useEffect(() => {
+    if (page !== 'home') return;
+    let active = true;
+    fetch('/api/recognitions', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!active || !data?.ok || !Array.isArray(data.items)) return;
+        setRecognitions((data.items as RecognitionItem[]).map((item) => ({
+          ...item, altText: `Recognition artwork for ${item.employeeName}`, isPublished: true
+        })));
+      }).catch(() => { /* Keep the artwork-only gallery when the backend is unavailable. */ });
+    return () => { active = false; };
+  }, [page]);
 
   useEffect(() => {
     if (degraded) setToast({ key: 'The employee master is unavailable. No sample employees are shown. Please try again later.' });
@@ -788,7 +804,7 @@ export default function SafexHome() {
           </section>}
           {DEMO_TENANT.features.rewardWall && <section className="section-block reward-wall-section">
             <div className="section-heading"><div><span className="eyebrow">{T('RECOGNITION')}</span><h2 className="rewards-gallery-title"><span aria-hidden="true">🏆</span> {T('Rewards & Recognition Gallery')}</h2></div></div>
-            <RewardCarousel />
+            <RewardCarousel items={recognitions.length ? recognitions : undefined} />
           </section>}
         </>}
 

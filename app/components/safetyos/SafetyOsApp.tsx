@@ -311,7 +311,9 @@ export default function SafetyOsApp({
     );
   }
 
-  return <div className="sos" id="safetyos-console" ref={host} data-site={selectedSiteId} />;
+  return <><div className="sos" id="safetyos-console" ref={host} data-site={selectedSiteId} />
+    <a className="sos-rewards-link" href="/admin/recognitions">Manage rewards ↗</a>
+  </>;
 }
 
 /** Write the host's own values into the design's chrome (site, officer, status line). */
