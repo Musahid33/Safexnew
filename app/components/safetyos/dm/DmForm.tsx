@@ -9,7 +9,7 @@ import {
   type DmPlan, type Tick
 } from '@/lib/dm/plan';
 import { findEmployee, type DirectoryEmployee } from '@/lib/dm/employees';
-import { Area, Field, Module, Pick, RowsTable, Toggle, type Column } from './ui';
+import { Area, Field, Module, PhotoFieldBox, Pick, RowsTable, Toggle, type Column } from './ui';
 import { EmployeeDatalists, PersonTable, PpeTable, WalkTable } from './employees';
 import { SignaturePad } from './signature';
 
@@ -82,7 +82,8 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     { key: 'check', label: 'Check', kind: 'select', options: EQUIPMENT_CHECKS },
     { key: 'devices', label: 'Key safety devices checked' },
     { key: 'status', label: 'Status', kind: 'select', options: EQUIPMENT_STATUS },
-    { key: 'remarks', label: 'Action / remarks' }
+    { key: 'remarks', label: 'Action / remarks' },
+    { key: 'photo', label: 'Photo', kind: 'photo', width: '132px' }
   ];
   const toolColumns: Column<DmPlan['modules']['tools'][number]>[] = [
     { key: 'name', label: 'Tool' },
@@ -91,7 +92,8 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     { key: 'condition', label: 'Condition', kind: 'select', options: TOOL_CONDITION },
     { key: 'description', label: 'Description' },
     { key: 'action', label: 'Action taken' },
-    { key: 'responsible', label: 'Responsible' }
+    { key: 'responsible', label: 'Responsible' },
+    { key: 'photo', label: 'Photo', kind: 'photo', width: '132px' }
   ];
   const adminColumns: Column<DmPlan['modules']['admin'][number]>[] = [
     { key: 'sopNo', label: 'SOP / JHA no.' },
@@ -186,7 +188,10 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
         columns={equipmentColumns}
         rows={m.equipment}
         onChange={(equipment) => setModules('equipment', equipment)}
-        blank={() => ({ name: '', check: EQUIPMENT_CHECKS[0], devices: '', status: EQUIPMENT_STATUS[0], remarks: '' })}
+        blank={() => ({
+          name: '', check: EQUIPMENT_CHECKS[0], devices: '', status: EQUIPMENT_STATUS[0],
+          remarks: '', photo: ''
+        })}
         addLabel="Add equipment"
       />
     </Module>
@@ -196,7 +201,10 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
         columns={toolColumns}
         rows={m.tools}
         onChange={(tools) => setModules('tools', tools)}
-        blank={() => ({ name: '', toolId: '', safe: TOOL_SAFETY[0], description: '', condition: TOOL_CONDITION[0], remarks: '', action: '', responsible: '' })}
+        blank={() => ({
+          name: '', toolId: '', safe: TOOL_SAFETY[0], description: '',
+          condition: TOOL_CONDITION[0], remarks: '', action: '', responsible: '', photo: ''
+        })}
         addLabel="Add tool"
       />
     </Module>
@@ -236,6 +244,11 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
         <Area label="Observation details" value={m.housekeeping.observations} onChange={(observations) => setModules('housekeeping', { ...m.housekeeping, observations })} />
         <Area label="Action taken" value={m.housekeeping.action} onChange={(action) => setModules('housekeeping', { ...m.housekeeping, action })} />
       </div>
+      <PhotoFieldBox
+        label="Photo of the area / finding"
+        value={m.housekeeping.photo}
+        onChange={(photo) => setModules('housekeeping', { ...m.housekeeping, photo })}
+      />
     </Module>
 
     <Module index={8} title={MODULE_TITLES[7]} summary={summary(8)} open={open.includes(8)} onToggle={() => toggle(8)}>
@@ -265,6 +278,11 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
         <Toggle label="Issue escalated" checked={m.interaction.escalated} onChange={(escalated) => setModules('interaction', { ...m.interaction, escalated })} />
         <Toggle label="Follow-up required" checked={m.interaction.followUp} onChange={(followUp) => setModules('interaction', { ...m.interaction, followUp })} />
       </div>
+      <PhotoFieldBox
+        label="Photo of the interaction"
+        value={m.interaction.photo}
+        onChange={(photo) => setModules('interaction', { ...m.interaction, photo })}
+      />
     </Module>
 
     <Module index={9} title={MODULE_TITLES[8]} summary={summary(9)} open={open.includes(9)} onToggle={() => toggle(9)}>
@@ -300,6 +318,11 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
         <Area label="Immediate action taken" value={m.incident.action} onChange={(action) => setModules('incident', { ...m.incident, action })} />
       </div>
       <Toggle label="Investigation initiated" checked={m.incident.investigation} onChange={(investigation) => setModules('incident', { ...m.incident, investigation })} />
+      <PhotoFieldBox
+        label="Photo of the incident / near miss spot"
+        value={m.incident.photo}
+        onChange={(photo) => setModules('incident', { ...m.incident, photo })}
+      />
     </Module>
 
     <Module index={10} title={MODULE_TITLES[9]} summary={summary(10)} open={open.includes(10)} onToggle={() => toggle(10)}>
@@ -341,6 +364,11 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
         <Toggle label="Conducted as per plan" checked={m.training.conducted} onChange={(conducted) => setModules('training', { ...m.training, conducted })} />
         <Toggle label="Training records available" checked={m.training.records} onChange={(records) => setModules('training', { ...m.training, records })} />
       </div>
+      <PhotoFieldBox
+        label="Photo of the training session"
+        value={m.training.photo}
+        onChange={(photo) => setModules('training', { ...m.training, photo })}
+      />
     </Module>
 
     <Module index={11} title={MODULE_TITLES[10]} summary={summary(11)} open={open.includes(11)} onToggle={() => toggle(11)}>

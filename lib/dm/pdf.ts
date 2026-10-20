@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import {
-  DECLARATION_TEXT, HOUSEKEEPING_ITEMS, MODULE_TITLES, PERMIT_CHECKS, displayReference, type DmPlan
+  DECLARATION_TEXT, HOUSEKEEPING_ITEMS, MODULE_TITLES, PERMIT_CHECKS, displayReference,
+  planPhotos, type DmPlan
 } from './plan';
 
 /**
@@ -112,19 +113,28 @@ function dataUrlBytes(data: unknown): { bytes: Uint8Array; jpeg: boolean } | nul
 /** Embed every attached photo once; a photo that cannot be decoded is skipped, not fatal. */
 async function embedPhotos(pdf: PDFDocument, plan: DmPlan): Promise<Map<string, PhotoImage>> {
   const embedded = new Map<string, PhotoImage>();
-  const rows = [...plan.modules.ppe, ...plan.modules.walkthrough];
-  for (const row of rows) {
-    if (!row.photo || embedded.has(row.photo)) continue;
-    const decoded = dataUrlBytes(row.photo);
+  // Every module that can carry evidence, not just PPE and the walk-through: a photo
+  // attached to a tool or a near miss has to appear in the document too.
+  for (const data of planPhotos(plan)) {
+    if (embedded.has(data)) continue;
+    const decoded = dataUrlBytes(data);
     if (!decoded) continue;
     try {
       const image = decoded.jpeg ? await pdf.embedJpg(decoded.bytes) : await pdf.embedPng(decoded.bytes);
-      embedded.set(row.photo, { image, width: image.width, height: image.height });
+      embedded.set(data, { image, width: image.width, height: image.height });
     } catch {
       // A corrupt frame must not cost the operator the whole document.
     }
   }
   return embedded;
+}
+
+/** The single photo a module-level field carries, if it is one we could embed. */
+function modulePhoto(
+  photos: Map<string, PhotoImage>, data: string, label: string
+): { label: string; photo: PhotoImage }[] {
+  const photo = data ? photos.get(data) : undefined;
+  return photo ? [{ label, photo }] : [];
 }
 
 /**
@@ -305,20 +315,24 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
 
   // 5 — equipment
   moduleHeading(ctx, 5, MODULE_TITLES[4]);
-  const equipment = m.equipment.filter((row) => row.name || row.devices || row.remarks);
+  const equipment = m.equipment.filter((row) => row.name || row.devices || row.remarks || row.photo);
   if (equipment.length) {
     table(ctx, ['Equipment', 'Check', 'Devices checked', 'Status', 'Remarks'], equipment.map((row) => [
       row.name, row.check, row.devices, row.status, row.remarks
     ]), [24, 20, 24, 12, 20]);
+    photoGrid(ctx, equipment.filter((row) => row.photo && photos.has(row.photo))
+      .map((row, index) => ({ label: `Equipment ${index + 1} — ${row.name || row.status || 'check'}`, photo: photos.get(row.photo)! })));
   } else textBlock(ctx, 'No equipment checks recorded.', { size: 8, color: MUTED });
 
   // 6 — tools
   moduleHeading(ctx, 6, MODULE_TITLES[5]);
-  const tools = m.tools.filter((row) => row.name || row.toolId || row.remarks);
+  const tools = m.tools.filter((row) => row.name || row.toolId || row.remarks || row.photo);
   if (tools.length) {
     table(ctx, ['Tool', 'ID', 'Safe / Unsafe', 'Condition', 'Action', 'Responsible'], tools.map((row) => [
       row.name, row.toolId, row.safe, row.condition, row.action || row.remarks, row.responsible
     ]), [20, 12, 14, 12, 24, 18]);
+    photoGrid(ctx, tools.filter((row) => row.photo && photos.has(row.photo))
+      .map((row, index) => ({ label: `Tool ${index + 1} — ${row.name || row.toolId || 'condition'}`, photo: photos.get(row.photo)! })));
   } else textBlock(ctx, 'No tools & tackles checks recorded.', { size: 8, color: MUTED });
 
   // 7 — housekeeping
@@ -338,6 +352,8 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
   } else {
     textBlock(ctx, 'Housekeeping checklist not filled for this shift.', { size: 8, color: MUTED });
   }
+  photoGrid(ctx, modulePhoto(photos, m.housekeeping.photo,
+    `Housekeeping — ${m.housekeeping.observations || 'shift condition'}`));
 
   // 8 — safety interaction
   moduleHeading(ctx, 8, MODULE_TITLES[7]);
@@ -352,6 +368,8 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
     ['Follow-up required', yesNo(m.interaction.followUp)],
     ['Target date', m.interaction.targetDate]
   ]);
+  photoGrid(ctx, modulePhoto(photos, m.interaction.photo,
+    `Safety interaction — ${m.interaction.feedback || 'session'}`));
 
   // 9 — incident
   moduleHeading(ctx, 9, MODULE_TITLES[8]);
@@ -366,6 +384,8 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
     table(ctx, ['Person', 'SP / Emp no.', 'Designation'], persons.map((row) => [row.name, row.number, row.designation]), [34, 18, 30]);
   }
   keyValues(ctx, [['Description', m.incident.description], ['Immediate action', m.incident.action]]);
+  photoGrid(ctx, modulePhoto(photos, m.incident.photo,
+    `Incident / near miss — ${m.incident.location || m.incident.categories.join(', ') || 'spot'}`));
 
   // 10 — training
   moduleHeading(ctx, 10, MODULE_TITLES[9]);
@@ -377,6 +397,8 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
     ['Conducted as per plan', yesNo(m.training.conducted)],
     ['Records available', yesNo(m.training.records)]
   ]);
+  photoGrid(ctx, modulePhoto(photos, m.training.photo,
+    `Training — ${m.training.employee || m.training.needType || 'session'}`));
 
   // 11 — admin
   moduleHeading(ctx, 11, MODULE_TITLES[10]);

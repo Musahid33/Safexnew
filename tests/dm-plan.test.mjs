@@ -261,7 +261,8 @@ test('photos must be real images and stay inside the payload budget', () => {
 });
 
 test('more photos than a shift can attach is a clear refusal', () => {
-  const rows = Array.from({ length: 13 }, (_, index) => ({
+  // 24 photos is the budget for a shift; the 25th is refused.
+  const rows = Array.from({ length: 25 }, (_, index) => ({
     area: `Area ${index}`,
     type: 'Safe act',
     details: '',
@@ -393,4 +394,65 @@ test('the thank-you line names the supervisor', () => {
   // A name that already carries a title is not given a second one.
   assert.equal(plan.thankYouLine('Mr Ravi Kumar'), 'Thank you Mr Ravi Kumar for submitting the DM.');
   assert.equal(plan.thankYouLine('Ms. Neha Singh'), 'Thank you Ms. Neha Singh for submitting the DM.');
+});
+
+
+test('every module that asks for a photo keeps it', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      equipment: [{ name: 'EOT crane', photo: TINY_JPEG }],
+      tools: [{ name: 'Torque wrench', photo: TINY_JPEG }],
+      housekeeping: { checks: {}, observations: 'Scrap near bay 2', photo: TINY_JPEG },
+      interaction: { team: [], topics: [], feedback: 'Crew asked for gloves', photo: TINY_JPEG },
+      incident: { categories: ['Near miss'], photo: TINY_JPEG },
+      training: { employee: 'Ravi Kumar', photo: TINY_JPEG }
+    }
+  });
+
+  assert.equal(result.ok, true);
+  const m = result.plan.modules;
+  assert.equal(m.equipment[0].photo, TINY_JPEG);
+  assert.equal(m.tools[0].photo, TINY_JPEG);
+  assert.equal(m.housekeeping.photo, TINY_JPEG);
+  assert.equal(m.interaction.photo, TINY_JPEG);
+  assert.equal(m.incident.photo, TINY_JPEG);
+  assert.equal(m.training.photo, TINY_JPEG);
+  assert.equal(plan.planPhotos(result.plan).length, 6);
+});
+
+test('a fake image is dropped in every module, not just the two it used to check', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      equipment: [{ name: 'Crane', photo: 'https://example.com/crane.jpg' }],
+      tools: [{ name: 'Spanner', photo: 'data:text/html;base64,PHNjcmlwdD4=' }],
+      housekeeping: { photo: `data:image/png;base64,${'A'.repeat(200_000)}` },
+      incident: { photo: true }
+    }
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.modules.equipment[0].photo, '');
+  assert.equal(result.plan.modules.tools[0].photo, '');
+  assert.equal(result.plan.modules.housekeeping.photo, '');
+  assert.equal(result.plan.modules.incident.photo, '');
+  assert.equal(plan.planPhotos(result.plan).length, 0);
+});
+
+test('a photo on its own fills the module it belongs to', () => {
+  const photoOnly = plan.emptyPlan('2026-10-21');
+  photoOnly.modules.training.photo = TINY_JPEG;
+  assert.equal(plan.filledModuleCount(photoOnly), 1);
+  assert.equal(plan.isEmptyPlan(photoOnly), false);
+
+  const housekeepingOnly = plan.emptyPlan('2026-10-21');
+  housekeepingOnly.modules.housekeeping.photo = TINY_JPEG;
+  assert.equal(plan.filledModuleCount(housekeepingOnly), 1);
+  assert.equal(plan.isEmptyPlan(housekeepingOnly), false);
+
+  // And a photo is enough to file, even with nothing typed anywhere.
+  assert.equal(plan.normalisePlan({
+    ...filled(),
+    modules: { incident: { photo: TINY_JPEG } }
+  }).ok, true);
 });

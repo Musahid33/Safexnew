@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, type ReactNode } from 'react';
+import { PhotoField } from './photo';
 
 /**
  * The small parts every DM module is made of.
@@ -81,10 +82,30 @@ export function Pick({ label, value, onChange, options }: {
 export type Column<T> = {
   key: keyof T & string;
   label: string;
-  kind?: 'text' | 'select' | 'check';
+  /** `photo` renders the camera/gallery field; the value is a data URL. */
+  kind?: 'text' | 'select' | 'check' | 'photo';
   options?: readonly string[];
   width?: string;
 };
+
+/**
+ * A photo field for the modules that hold one photo rather than a table of rows.
+ *
+ * Same camera + gallery control as the table cells, with a label above it so a stacked
+ * card on a phone still says what the picture is evidence of.
+ */
+export function PhotoFieldBox({
+  label, value, onChange
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return <div className="dm-photo-field">
+    <span className="dm-photo-field-label">{label}</span>
+    <PhotoField value={value} onChange={onChange} />
+  </div>;
+}
 
 /**
  * A table whose rows the operator can add and remove.
@@ -121,7 +142,12 @@ export function RowsTable<T extends Record<string, unknown>>({
           {rows.map((row, index) => <tr key={index}>
             <td className="dm-rownum">{index + 1}</td>
             {columns.map((column) => <td key={column.key} data-label={column.label}>
-              {column.kind === 'check'
+              {column.kind === 'photo'
+                ? <PhotoField
+                  value={String(row[column.key] ?? '')}
+                  onChange={(photo) => update(index, column.key, photo)}
+                />
+                : column.kind === 'check'
                 ? <input
                   type="checkbox"
                   checked={Boolean(row[column.key])}

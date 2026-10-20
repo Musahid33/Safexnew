@@ -91,12 +91,17 @@ export type DmPlan = {
       action: string;
       photo: string;
     }[];
-    equipment: { name: string; check: string; devices: string; status: string; remarks: string }[];
+    equipment: {
+      name: string; check: string; devices: string; status: string; remarks: string;
+      /** Evidence of the machine, guard or defect. */
+      photo: string;
+    }[];
     tools: {
       name: string; toolId: string; safe: string; description: string;
       condition: string; remarks: string; action: string; responsible: string;
+      photo: string;
     }[];
-    housekeeping: { checks: Record<string, Tick>; observations: string; action: string };
+    housekeeping: { checks: Record<string, Tick>; observations: string; action: string; photo: string };
     interaction: {
       team: DmPerson[];
       topics: string[];
@@ -104,6 +109,7 @@ export type DmPlan = {
       escalated: boolean;
       followUp: boolean;
       targetDate: string;
+      photo: string;
     };
     incident: {
       location: string;
@@ -116,6 +122,7 @@ export type DmPlan = {
       description: string;
       action: string;
       investigation: boolean;
+      photo: string;
     };
     training: {
       employeeNo: string;
@@ -126,6 +133,7 @@ export type DmPlan = {
       conducted: boolean;
       records: boolean;
       needType: string;
+      photo: string;
     };
     admin: { sopNo: string; compliance: string; adequacy: string; actionBy: string; remarks: string }[];
   };
@@ -241,9 +249,9 @@ export function severityApplies(type: string): boolean {
  * be a JSON body that the database or a phone browser chokes on. The browser compresses
  * before sending; these limits are the server's own backstop.
  */
-const MAX_PHOTOS = 12;
+const MAX_PHOTOS = 24;
 const MAX_PHOTO_CHARS = 140_000;
-const MAX_PHOTO_TOTAL_CHARS = 1_500_000;
+const MAX_PHOTO_TOTAL_CHARS = 2_400_000;
 
 /**
  * A hand-drawn signature is a few strokes, so it compresses far below a photo. The cap is
@@ -268,6 +276,27 @@ export function photoData(value: unknown): string {
   const data = value.trim();
   if (!/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(data)) return '';
   return data.length <= MAX_PHOTO_CHARS ? data : '';
+}
+
+/**
+ * Every photo in the plan, whichever module it hangs off.
+ *
+ * The form lets an officer attach evidence to seven modules now, so the budget and the PDF
+ * both need one list to walk: counting only PPE and walk-through would let the others grow
+ * the payload unchecked and never print.
+ */
+export function planPhotos(plan: DmPlan): string[] {
+  const m = plan.modules;
+  return [
+    ...m.ppe.map((row) => row.photo),
+    ...m.walkthrough.map((row) => row.photo),
+    ...m.equipment.map((row) => row.photo),
+    ...m.tools.map((row) => row.photo),
+    m.housekeeping.photo,
+    m.interaction.photo,
+    m.incident.photo,
+    m.training.photo
+  ].filter(Boolean);
 }
 
 function person(value: unknown): DmPerson {
@@ -296,15 +325,22 @@ export function emptyPlan(date = new Date().toISOString().slice(0, 10)): DmPlan 
       },
       ppe: [{ scope: 'all', employee: '', employeeNo: '', issue: '', items: [], remarks: '', photo: '' }],
       walkthrough: [{ area: '', type: WALKTHROUGH_TYPES[0], severity: '', details: '', action: '', photo: '' }],
-      equipment: [{ name: '', check: EQUIPMENT_CHECKS[0], devices: '', status: EQUIPMENT_STATUS[0], remarks: '' }],
-      tools: [{ name: '', toolId: '', safe: TOOL_SAFETY[0], description: '', condition: TOOL_CONDITION[0], remarks: '', action: '', responsible: '' }],
-      housekeeping: { checks: {}, observations: '', action: '' },
-      interaction: { team: [{ name: '', number: '', designation: '' }], topics: [], feedback: '', escalated: false, followUp: false, targetDate: '' },
+      equipment: [{ name: '', check: EQUIPMENT_CHECKS[0], devices: '', status: EQUIPMENT_STATUS[0], remarks: '', photo: '' }],
+      tools: [{ name: '', toolId: '', safe: TOOL_SAFETY[0], description: '', condition: TOOL_CONDITION[0], remarks: '', action: '', responsible: '', photo: '' }],
+      housekeeping: { checks: {}, observations: '', action: '', photo: '' },
+      interaction: {
+        team: [{ name: '', number: '', designation: '' }], topics: [], feedback: '',
+        escalated: false, followUp: false, targetDate: '', photo: ''
+      },
       incident: {
         location: '', reportedBy: '', reportNo: '', date: '', time: '', categories: [],
-        persons: [{ name: '', number: '', designation: '' }], description: '', action: '', investigation: false
+        persons: [{ name: '', number: '', designation: '' }], description: '', action: '',
+        investigation: false, photo: ''
       },
-      training: { employeeNo: '', employee: '', action: '', observation: '', required: false, conducted: false, records: false, needType: '' },
+      training: {
+        employeeNo: '', employee: '', action: '', observation: '', required: false,
+        conducted: false, records: false, needType: '', photo: ''
+      },
       admin: [{ sopNo: '', compliance: COMPLIANCE_STATUS[0], adequacy: SOP_ADEQUACY[0], actionBy: '', remarks: '' }]
     }
   };
@@ -460,7 +496,8 @@ export function normalisePlan(input: unknown, options: { requireSignOff?: boolea
     check: text(row.check, 60),
     devices: text(row.devices),
     status: text(row.status, 40),
-    remarks: text(row.remarks)
+    remarks: text(row.remarks),
+    photo: photoData(row.photo)
   }));
 
   plan.modules.tools = rows(modulesIn.tools).map((row) => ({
@@ -471,7 +508,8 @@ export function normalisePlan(input: unknown, options: { requireSignOff?: boolea
     condition: text(row.condition, 40),
     remarks: text(row.remarks),
     action: text(row.action),
-    responsible: text(row.responsible, 120)
+    responsible: text(row.responsible, 120),
+    photo: photoData(row.photo)
   }));
 
   const housekeeping = (modulesIn.housekeeping ?? {}) as Record<string, unknown>;
@@ -482,7 +520,8 @@ export function normalisePlan(input: unknown, options: { requireSignOff?: boolea
       .map((item) => [item.id, tick(checksIn[item.id])] as const)
       .filter(([, value]) => value !== '')),
     observations: text(housekeeping.observations),
-    action: text(housekeeping.action)
+    action: text(housekeeping.action),
+    photo: photoData(housekeeping.photo)
   };
 
   const interaction = (modulesIn.interaction ?? {}) as Record<string, unknown>;
@@ -493,7 +532,8 @@ export function normalisePlan(input: unknown, options: { requireSignOff?: boolea
     feedback: text(interaction.feedback),
     escalated: Boolean(interaction.escalated),
     followUp: Boolean(interaction.followUp),
-    targetDate: text(interaction.targetDate, 10)
+    targetDate: text(interaction.targetDate, 10),
+    photo: photoData(interaction.photo)
   };
 
   const incident = (modulesIn.incident ?? {}) as Record<string, unknown>;
@@ -508,7 +548,8 @@ export function normalisePlan(input: unknown, options: { requireSignOff?: boolea
     persons: rows(incident.persons).map(person),
     description: text(incident.description),
     action: text(incident.action),
-    investigation: Boolean(incident.investigation)
+    investigation: Boolean(incident.investigation),
+    photo: photoData(incident.photo)
   };
 
   const training = (modulesIn.training ?? {}) as Record<string, unknown>;
@@ -520,7 +561,8 @@ export function normalisePlan(input: unknown, options: { requireSignOff?: boolea
     required: Boolean(training.required),
     conducted: Boolean(training.conducted),
     records: Boolean(training.records),
-    needType: text(training.needType, 60)
+    needType: text(training.needType, 60),
+    photo: photoData(training.photo)
   };
 
   plan.modules.admin = rows(modulesIn.admin).map((row) => ({
@@ -539,7 +581,7 @@ export function normalisePlan(input: unknown, options: { requireSignOff?: boolea
 
   // Photos are compressed in the browser first. This is the backstop that stops one plan
   // from becoming a multi-megabyte JSON body — and a save that the database would refuse.
-  const photos = [...plan.modules.ppe, ...plan.modules.walkthrough].map((row) => row.photo).filter(Boolean);
+  const photos = planPhotos(plan);
   const photoChars = photos.reduce((total, photo) => total + photo.length, 0);
   if (photos.length > MAX_PHOTOS || photoChars > MAX_PHOTO_TOTAL_CHARS) {
     errors.push('Too many or too large photos — attach fewer, smaller photos and file again.');
@@ -565,12 +607,14 @@ export function isEmptyPlan(plan: DmPlan): boolean {
     .some(([key, value]) => !['check', 'status', 'type', 'safe', 'condition', 'compliance', 'adequacy', 'scope'].includes(key)
       && filled(value)));
   const housekeeping = Object.keys(m.housekeeping.checks).length > 0
-    || filled(m.housekeeping.observations) || filled(m.housekeeping.action);
+    || filled(m.housekeeping.observations) || filled(m.housekeeping.action) || filled(m.housekeeping.photo);
   const interaction = m.interaction.team.some((row) => row.name) || m.interaction.topics.length > 0
-    || filled(m.interaction.feedback);
+    || filled(m.interaction.feedback) || filled(m.interaction.photo);
   const incident = filled(m.incident.description) || filled(m.incident.reportNo)
-    || m.incident.categories.length > 0 || m.incident.persons.some((row) => row.name);
-  const training = filled(m.training.employee) || filled(m.training.observation) || filled(m.training.action);
+    || m.incident.categories.length > 0 || m.incident.persons.some((row) => row.name)
+    || filled(m.incident.photo);
+  const training = filled(m.training.employee) || filled(m.training.observation)
+    || filled(m.training.action) || filled(m.training.photo);
   return !(permits || tbt || table(m.ppe) || table(m.walkthrough) || table(m.equipment)
     || table(m.tools) || housekeeping || interaction || incident || training || table(m.admin));
 }
@@ -584,12 +628,13 @@ export function filledModuleCount(plan: DmPlan): number {
     has(Object.values(m.tbt).some(filled) || filled(m.tbt.attendees)),
     has(m.ppe.some((row) => row.employee || row.remarks || (row.items?.length ?? 0) > 0 || row.photo)),
     has(m.walkthrough.some((row) => row.area || row.details || row.action || row.photo)),
-    has(m.equipment.some((row) => row.name || row.devices || row.remarks)),
-    has(m.tools.some((row) => row.name || row.toolId || row.remarks)),
-    has(Object.keys(m.housekeeping.checks).length > 0 || filled(m.housekeeping.observations)),
-    has(m.interaction.team.some((row) => row.name) || m.interaction.topics.length > 0 || filled(m.interaction.feedback)),
-    has(m.incident.categories.length > 0 || filled(m.incident.description)),
-    has(filled(m.training.employee) || filled(m.training.observation)),
+    has(m.equipment.some((row) => Boolean(row.name || row.devices || row.remarks || row.photo))),
+    has(m.tools.some((row) => Boolean(row.name || row.toolId || row.remarks || row.photo))),
+    has(Object.keys(m.housekeeping.checks).length > 0 || filled(m.housekeeping.observations) || Boolean(m.housekeeping.photo)),
+    has(m.interaction.team.some((row) => row.name) || m.interaction.topics.length > 0
+      || filled(m.interaction.feedback) || Boolean(m.interaction.photo)),
+    has(m.incident.categories.length > 0 || filled(m.incident.description) || Boolean(m.incident.photo)),
+    has(filled(m.training.employee) || filled(m.training.observation) || Boolean(m.training.photo)),
     has(m.admin.some((row) => row.sopNo || row.remarks))
   ].reduce((sum, value) => sum + value, 0);
 }
