@@ -1,9 +1,10 @@
 import 'server-only';
 import { WEST_BOKARO_SITE } from '@/lib/site-config';
-import type { Site } from '@/lib/types';
+import type { DirectoryUnavailableReason, Site } from '@/lib/types';
 import { getBrandingCompanyName, getEmployeeMasterConfig } from './config';
 import {
   countEmployeesInDatabase,
+  probeDatabaseDirectory,
   findEmployeeInDatabase,
   getCompanyNameFromDatabase,
   isDatabaseDirectoryConfigured,
@@ -28,6 +29,8 @@ export type DirectoryStatus = {
   dataIssueCount: number;
   /** A richer source was configured but could not be read. */
   degraded: boolean;
+  /** Why the directory is unavailable. Null whenever a source answered. */
+  reason: DirectoryUnavailableReason | null;
 };
 
 export async function getDirectoryStatus(): Promise<DirectoryStatus> {
@@ -44,7 +47,8 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
         employeeCount,
         companyName: companyName ?? getBrandingCompanyName(),
         dataIssueCount: 0,
-        degraded: false
+        degraded: false,
+        reason: null
       };
     }
   }
@@ -66,7 +70,8 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
         employeeCount: snapshot.records.length,
         companyName: getBrandingCompanyName(),
         dataIssueCount: snapshot.issues.length,
-        degraded: isDatabaseDirectoryIntended()
+        degraded: isDatabaseDirectoryIntended(),
+        reason: null
       };
     }
   }
@@ -77,8 +82,23 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
     employeeCount: 0,
     companyName: getBrandingCompanyName(),
     dataIssueCount: 0,
-    degraded: true
+    degraded: true,
+    reason: await diagnoseUnavailable(config.enabled)
   };
+}
+
+/**
+ * Name the failure instead of printing one generic hint for every cause. The caller (the
+ * profile dialog) turns this into a specific sentence, so an operator can tell a missing
+ * service key from an unreachable database without reading server logs.
+ */
+async function diagnoseUnavailable(snapshotEnabled: boolean): Promise<DirectoryUnavailableReason> {
+  if (isDatabaseDirectoryIntended()) {
+    // A healthy probe here means the failure was transient between queries; report the
+    // database path rather than blaming the configuration.
+    return (await probeDatabaseDirectory()) ?? 'database_unreachable';
+  }
+  return snapshotEnabled ? 'snapshot_unreadable' : 'keys_missing';
 }
 
 export async function searchDirectory(

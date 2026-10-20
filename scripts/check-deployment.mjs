@@ -59,13 +59,23 @@ line(Boolean(health.body?.reportSubmissionEnabled), 'Report sync enabled',
 
 const bootstrap = await getJson('/api/bootstrap');
 const directory = bootstrap.body?.directory;
+const reasonHints = {
+  keys_missing: 'SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL is missing on this deployment',
+  database_unreachable: 'the deployment cannot reach the Supabase project (wrong URL, outage or blocked egress)',
+  tenant_unresolved: 'no active tenant, or more than one and SAFEX_TENANT_SLUG is unset',
+  no_sites: 'the tenant has no active row in public.sites',
+  empty_directory: 'the tenant has no active employees (check tenant_id on the imported roster)',
+  snapshot_unreadable: 'the configured roster snapshot file/URL could not be read'
+};
 const directoryOk = directory === 'supabase' || (allowSnapshot && directory === 'sheet');
 line(directoryOk, 'Employee directory source',
   directory === 'supabase'
     ? `supabase · ${bootstrap.body?.employeeCount ?? 0} active employees`
     : directory === 'sheet'
       ? `sheet snapshot · ${bootstrap.body?.employeeCount ?? 0} employees (expected supabase in production)`
-      : 'unavailable — set SUPABASE_SERVICE_ROLE_KEY, SAFEX_EMPLOYEE_DIRECTORY_SOURCE=auto and SAFEX_TENANT_SLUG');
+      : bootstrap.body?.directoryReason
+        ? `unavailable (${bootstrap.body.directoryReason}) — ${reasonHints[bootstrap.body.directoryReason] ?? 'see docs/report-sync.md'}`
+        : 'unavailable — set SUPABASE_SERVICE_ROLE_KEY, SAFEX_EMPLOYEE_DIRECTORY_SOURCE=auto and SAFEX_TENANT_SLUG');
 line(Array.isArray(bootstrap.body?.sites) && bootstrap.body.sites.length > 0, 'Site list',
   (bootstrap.body?.sites ?? []).map((site) => site.name).join(', ') || 'none');
 line(Boolean(bootstrap.body?.companyName), 'Company branding',

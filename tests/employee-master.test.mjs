@@ -134,7 +134,11 @@ test('sheet lookup scopes employees and outage never fabricates records', async 
 
 test('directory reports unavailable for all entry points without a real source', async () => {
   const directory = loader({
-    './db-source': { isDatabaseDirectoryConfigured: () => false, isDatabaseDirectoryIntended: () => false },
+    './db-source': {
+      isDatabaseDirectoryConfigured: () => false,
+      isDatabaseDirectoryIntended: () => false,
+      probeDatabaseDirectory: async () => 'database_unreachable'
+    },
     './config': { getEmployeeMasterConfig: () => ({ enabled: false }), getBrandingCompanyName: () => null },
     'node:fs/promises': { readFile: async () => { throw new Error('No file'); } }
   })('lib/employee-master/directory.ts');
@@ -146,6 +150,46 @@ test('directory reports unavailable for all entry points without a real source',
   assert.equal((await directory.findInDirectory('west-bokaro', 'TEST-01')).mode, 'unavailable');
   assert.equal((await directory.listDirectory('west-bokaro', { limit: 50, offset: 0 })).mode, 'unavailable');
   assert.equal(status.companyName, null);
+  // With no credentials at all the reason must be the configuration, not the network.
+  assert.equal(status.reason, 'keys_missing');
+});
+
+test('directory names the real cause when the database cannot be read', async () => {
+  const directory = loader({
+    './db-source': {
+      isDatabaseDirectoryConfigured: () => true,
+      isDatabaseDirectoryIntended: () => true,
+      listSitesFromDatabase: async () => null,
+      countEmployeesInDatabase: async () => null,
+      getCompanyNameFromDatabase: async () => null,
+      probeDatabaseDirectory: async () => 'database_unreachable'
+    },
+    './config': {
+      getEmployeeMasterConfig: () => ({ enabled: false }),
+      getBrandingCompanyName: () => 'Emveess Infraventures Pvt.Ltd'
+    },
+    'node:fs/promises': { readFile: async () => { throw new Error('No file'); } }
+  })('lib/employee-master/directory.ts');
+  const status = await directory.getDirectoryStatus();
+  assert.equal(status.mode, 'unavailable');
+  assert.equal(status.reason, 'database_unreachable');
+  assert.equal(status.companyName, 'Emveess Infraventures Pvt.Ltd');
+});
+
+test('an empty tenant is reported as such, not as a key problem', async () => {
+  const directory = loader({
+    './db-source': {
+      isDatabaseDirectoryConfigured: () => true,
+      isDatabaseDirectoryIntended: () => true,
+      listSitesFromDatabase: async () => [{ id: 'wbd', name: 'West Bokaro (WBD)', region: '', sosNumber: null }],
+      countEmployeesInDatabase: async () => 0,
+      getCompanyNameFromDatabase: async () => 'Emveess Infraventures Pvt.Ltd',
+      probeDatabaseDirectory: async () => 'empty_directory'
+    },
+    './config': { getEmployeeMasterConfig: () => ({ enabled: false }), getBrandingCompanyName: () => null },
+    'node:fs/promises': { readFile: async () => { throw new Error('No file'); } }
+  })('lib/employee-master/directory.ts');
+  assert.equal((await directory.getDirectoryStatus()).reason, 'empty_directory');
 });
 
 test('passport company name falls back to the configured public brand', async () => {

@@ -107,6 +107,28 @@ curl -s https://safexnew.vercel.app/api/bootstrap
 curl -s 'https://safexnew.vercel.app/api/employees?siteId=wbd&empNo=EMP004'
 ```
 
+## 4b. When the directory says "unavailable"
+
+`/api/bootstrap` now returns a machine-readable `directoryReason`. Match it to the fix
+instead of guessing:
+
+| `directoryReason` | Meaning | Fix |
+| --- | --- | --- |
+| `keys_missing` | `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` absent | add both, redeploy |
+| `database_unreachable` | server could not query the project (wrong URL, paused/outage, blocked egress) | verify the URL and the service key with the curl below |
+| `tenant_unresolved` | no active tenant, or several and `SAFEX_TENANT_SLUG` unset | set `SAFEX_TENANT_SLUG=emveess-infraventures` |
+| `no_sites` | tenant has no active `public.sites` row | activate the site or fix `tenant_id` |
+| `empty_directory` | tenant has zero active employees | check the import wrote the right `tenant_id` |
+| `snapshot_unreadable` | sheet/file source configured but unreadable | fix `SAFEX_EMPLOYEE_MASTER_FILE` / `SAFEX_EMPLOYEE_MASTER_CSV_URL` |
+
+Definitive key test (a service-role key from another project returns `[]` or `401`):
+
+```bash
+curl -s "https://mclrajfcrjdrlmoqwbdw.supabase.co/rest/v1/sites?select=slug,name&active=eq.true" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
+# expected: [{"slug":"wbd","name":"WEST BOKARO GHATO"}]
+```
+
 ## 5. Testing a real submission
 
 1. Pick the site, submit a report from the app on the deployed host.

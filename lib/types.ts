@@ -1,6 +1,18 @@
 export type Language = 'en' | 'hi' | 'or' | 'bn' | 'pa' | 'mr';
 export type ReportType = 'Near Miss' | 'Hazard' | 'Safety Observation' | 'Unsafe Condition' | 'Unsafe Act' | 'Feedback' | 'Grievance' | 'Speak Up' | 'Suggestion';
 export type ReportStatus = 'Open' | 'In Progress' | 'Closed';
+/**
+ * Why the employee directory could not answer. Shown to operators instead of the generic
+ * "keys are not configured" hint, which was wrong whenever the database was simply down.
+ */
+export type DirectoryUnavailableReason =
+  | 'keys_missing'
+  | 'database_unreachable'
+  | 'tenant_unresolved'
+  | 'no_sites'
+  | 'empty_directory'
+  | 'snapshot_unreadable';
+
 export type Site = {
   id: string;
   name: string;

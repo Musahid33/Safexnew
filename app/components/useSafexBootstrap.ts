@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { selectableSites } from '@/lib/site-config';
 import { DEMO_SITES, DEMO_TENANT } from '@/lib/demo-data';
 import { MASTER_DIRECTORY, type EmployeeDirectory } from '@/lib/employee-directory';
-import type { Site } from '@/lib/types';
+import type { DirectoryUnavailableReason, Site } from '@/lib/types';
 
 type BootstrapResponse = {
   /** 'supabase' and 'sheet' both mean the lookup must go through the server. */
@@ -14,6 +14,7 @@ type BootstrapResponse = {
   employeeCount?: number;
   dataIssueCount?: number;
   degraded?: boolean;
+  directoryReason?: DirectoryUnavailableReason | null;
 };
 
 export type DirectoryMode = 'supabase' | 'sheet' | 'unavailable';
@@ -30,6 +31,8 @@ export type SafexBootstrap = {
   employeeCount: number;
   /** The master could not be read. No sample records are substituted. */
   degraded: boolean;
+  /** Why the directory is unavailable, so the UI can name the cause. */
+  directoryReason: DirectoryUnavailableReason | null;
 };
 
 const INITIAL: SafexBootstrap = {
@@ -39,7 +42,8 @@ const INITIAL: SafexBootstrap = {
   directory: MASTER_DIRECTORY,
   directoryMode: 'unavailable',
   employeeCount: 0,
-  degraded: false
+  degraded: false,
+  directoryReason: null
 };
 
 export function useSafexBootstrap(): SafexBootstrap {
@@ -61,7 +65,8 @@ export function useSafexBootstrap(): SafexBootstrap {
           directory: MASTER_DIRECTORY,
           directoryMode: payload?.directory ?? 'unavailable',
           employeeCount: payload?.employeeCount ?? 0,
-          degraded: !payload || Boolean(payload.degraded)
+          degraded: !payload || Boolean(payload.degraded),
+          directoryReason: payload?.directoryReason ?? null
         });
       })
       .catch(() => {
