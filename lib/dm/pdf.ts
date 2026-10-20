@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import {
   HOUSEKEEPING_ITEMS, MODULE_TITLES, PERMIT_CHECKS, displayReference, type DmPlan
 } from './plan';
@@ -91,6 +91,66 @@ function newPage(ctx: Ctx): PDFPage {
 
 function ensure(ctx: Ctx, needed: number): void {
   if (ctx.y - needed < MARGIN + 28) newPage(ctx);
+}
+
+type PhotoImage = { image: PDFImage; width: number; height: number };
+
+/** Turn a `data:image/jpeg;base64,…` string into image bytes, or nothing if it is not one. */
+function dataUrlBytes(data: unknown): { bytes: Uint8Array; jpeg: boolean } | null {
+  if (typeof data !== 'string') return null;
+  const match = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/]+={0,2})$/.exec(data.trim());
+  if (!match) return null;
+  try {
+    const binary = Buffer.from(match[2], 'base64');
+    if (binary.length < 64) return null;
+    return { bytes: new Uint8Array(binary), jpeg: match[1] === 'jpeg' };
+  } catch {
+    return null;
+  }
+}
+
+/** Embed every attached photo once; a photo that cannot be decoded is skipped, not fatal. */
+async function embedPhotos(pdf: PDFDocument, plan: DmPlan): Promise<Map<string, PhotoImage>> {
+  const embedded = new Map<string, PhotoImage>();
+  const rows = [...plan.modules.ppe, ...plan.modules.walkthrough];
+  for (const row of rows) {
+    if (!row.photo || embedded.has(row.photo)) continue;
+    const decoded = dataUrlBytes(row.photo);
+    if (!decoded) continue;
+    try {
+      const image = decoded.jpeg ? await pdf.embedJpg(decoded.bytes) : await pdf.embedPng(decoded.bytes);
+      embedded.set(row.photo, { image, width: image.width, height: image.height });
+    } catch {
+      // A corrupt frame must not cost the operator the whole document.
+    }
+  }
+  return embedded;
+}
+
+/**
+ * Attached evidence, three to a row, captioned so a printed copy still says what it shows.
+ * Photos are shrunk to fit at most 74pt tall, which keeps a shift's evidence on one page.
+ */
+function photoGrid(ctx: Ctx, photos: { label: string; photo: PhotoImage }[]): void {
+  if (photos.length === 0) return;
+  const gap = 10;
+  const cell = (CONTENT - gap * 2) / 3;
+  textBlock(ctx, 'Photographs', { size: 7.5, bold: true, color: MUTED });
+  for (let start = 0; start < photos.length; start += 3) {
+    const row = photos.slice(start, start + 3);
+    const heights = row.map(({ photo }) => Math.min(74, (cell / photo.width) * photo.height));
+    const rowHeight = Math.max(...heights) + 14;
+    ensure(ctx, rowHeight + 6);
+    row.forEach(({ label, photo }, index) => {
+      const height = heights[index];
+      const x = MARGIN + index * (cell + gap);
+      const y = ctx.y - height - 10;
+      ctx.page.drawImage(photo.image, { x, y, width: Math.min(cell, (height / photo.height) * photo.width), height });
+      ctx.page.drawText(sanitize(label).slice(0, 46), { x, y: ctx.y - 8, size: 6.5, font: ctx.regular, color: MUTED });
+    });
+    ctx.y -= rowHeight;
+  }
+  ctx.y -= 4;
 }
 
 function textBlock(
@@ -196,7 +256,7 @@ function table(
 
 const yesNo = (value: boolean) => (value ? 'Yes' : 'No');
 
-function renderModules(ctx: Ctx, plan: DmPlan): void {
+function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>): void {
   const m = plan.modules;
 
   // 1 — permits
@@ -219,20 +279,24 @@ function renderModules(ctx: Ctx, plan: DmPlan): void {
 
   // 3 — PPE
   moduleHeading(ctx, 3, MODULE_TITLES[2]);
-  const ppe = m.ppe.filter((row) => row.employee || row.remarks || row.issue);
+  const ppe = m.ppe.filter((row) => row.employee || row.remarks || row.items?.length || row.photo);
   if (ppe.length) {
-    table(ctx, ['Employee', 'Observation', 'PPE', 'Remarks'], ppe.map((row) => [
-      row.employee, row.issue, row.item, row.remarks
-    ]), [26, 24, 22, 28]);
+    table(ctx, ['Emp. no.', 'Observed employee', 'Observation', 'PPE observed', 'Remarks'], ppe.map((row) => [
+      row.employeeNo, row.employee, row.issue, (row.items ?? []).join(', '), row.remarks
+    ]), [12, 24, 18, 24, 22]);
+    photoGrid(ctx, ppe.filter((row) => row.photo && photos.has(row.photo))
+      .map((row, index) => ({ label: `PPE ${index + 1} — ${row.employee || (row.items ?? []).join(', ') || 'observation'}`, photo: photos.get(row.photo)! })));
   } else textBlock(ctx, 'No PPE observations recorded.', { size: 8, color: MUTED });
 
   // 4 — walk-through
   moduleHeading(ctx, 4, MODULE_TITLES[3]);
-  const walk = m.walkthrough.filter((row) => row.area || row.details);
+  const walk = m.walkthrough.filter((row) => row.area || row.details || row.photo);
   if (walk.length) {
-    table(ctx, ['Time', 'Area', 'Type', 'Details', 'Photo'], walk.map((row) => [
-      row.time, row.area, row.type, row.details, row.photo ? 'Y' : 'N'
-    ]), [10, 20, 20, 42, 8]);
+    table(ctx, ['Area', 'Observation type', 'Severity', 'Details'], walk.map((row) => [
+      row.area, row.type, row.severity ? `${row.severity} / 5` : '—', row.details
+    ]), [20, 20, 12, 48]);
+    photoGrid(ctx, walk.filter((row) => row.photo && photos.has(row.photo))
+      .map((row, index) => ({ label: `Photo ${index + 1} — ${row.area || row.type}`, photo: photos.get(row.photo)! })));
   } else textBlock(ctx, 'No walk-through observations recorded.', { size: 8, color: MUTED });
 
   // 5 — equipment
@@ -302,7 +366,8 @@ function renderModules(ctx: Ctx, plan: DmPlan): void {
   // 10 — training
   moduleHeading(ctx, 10, MODULE_TITLES[9]);
   keyValues(ctx, [
-    ['Employee', m.training.employee], ['Observation', m.training.observation],
+    ['Employee', [m.training.employee, m.training.employeeNo && `(${m.training.employeeNo})`].filter(Boolean).join(' ')],
+    ['Observation', m.training.observation],
     ['Action taken', m.training.action], ['Training need', m.training.needType],
     ['Need identified', yesNo(m.training.required)],
     ['Conducted as per plan', yesNo(m.training.conducted)],
@@ -355,7 +420,7 @@ export async function renderDmPdf(plan: DmPlan, meta: DmPdfMeta): Promise<Uint8A
   ]);
   ctx.y -= 2;
 
-  renderModules(ctx, plan);
+  renderModules(ctx, plan, await embedPhotos(pdf, plan));
 
   // Signature block + footer
   ensure(ctx, 70);

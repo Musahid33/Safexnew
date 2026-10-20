@@ -226,14 +226,21 @@ function PlanSummary({ plan }: { plan: DmPlan }) {
   const lines: [string, string][] = [
     [MODULE_TITLES[0], [m.permits.permitNo && `Permit ${m.permits.permitNo}`, m.permits.observations].filter(Boolean).join(' · ')],
     [MODULE_TITLES[1], [m.tbt.attendees && `${m.tbt.attendees} attendees`, m.tbt.theme].filter(Boolean).join(' · ')],
-    [MODULE_TITLES[2], m.ppe.filter((row) => row.employee).map((row) => `${row.employee}: ${row.issue}`).join('; ')],
-    [MODULE_TITLES[3], m.walkthrough.filter((row) => row.area || row.details).map((row) => `${row.area}: ${row.details}`).join('; ')],
+    [MODULE_TITLES[2], m.ppe.filter((row) => row.employee || (row.items ?? []).length)
+      .map((row) => `${row.employee || row.employeeNo}: ${row.issue}${(row.items ?? []).length ? ` (${(row.items ?? []).join(', ')})` : ''}`)
+      .join('; ')],
+    [MODULE_TITLES[3], m.walkthrough.filter((row) => row.area || row.details)
+      .map((row) => [row.type, row.severity && `severity ${row.severity}/5`, row.area, row.details].filter(Boolean).join(' · '))
+      .join('; ')],
     [MODULE_TITLES[4], m.equipment.filter((row) => row.name).map((row) => `${row.name} — ${row.status}`).join('; ')],
     [MODULE_TITLES[5], m.tools.filter((row) => row.name).map((row) => `${row.name} — ${row.safe}`).join('; ')],
     [MODULE_TITLES[6], `${Object.keys(m.housekeeping.checks).length} checks answered · ${m.housekeeping.observations}`],
     [MODULE_TITLES[7], [m.interaction.team.filter((row) => row.name).map((row) => row.name).join(', '), m.interaction.feedback].filter(Boolean).join(' · ')],
     [MODULE_TITLES[8], [m.incident.categories.join(', '), m.incident.description].filter(Boolean).join(' · ')],
-    [MODULE_TITLES[9], [m.training.employee, m.training.observation].filter(Boolean).join(' · ')],
+    [MODULE_TITLES[9], [
+      m.training.employee && `${m.training.employee}${m.training.employeeNo ? ` (${m.training.employeeNo})` : ''}`,
+      m.training.observation
+    ].filter(Boolean).join(' · ')],
     [MODULE_TITLES[10], m.admin.filter((row) => row.sopNo).map((row) => `${row.sopNo} — ${row.compliance}`).join('; ')]
   ];
 

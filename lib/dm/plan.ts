@@ -43,8 +43,25 @@ export type DmPlan = {
       takeaways: string;
       conductedBy: string;
     };
-    ppe: { employee: string; issue: string; item: string; remarks: string }[];
-    walkthrough: { time: string; area: string; type: string; details: string; photo: boolean }[];
+    ppe: {
+      employee: string;
+      /** Employee number, filled from the employee master when the name is picked. */
+      employeeNo: string;
+      issue: string;
+      /** Every PPE item observed in this row — one row can cover several. */
+      items: string[];
+      remarks: string;
+      /** Compressed JPEG as a data URL. Empty when no photo was attached. */
+      photo: string;
+    }[];
+    walkthrough: {
+      area: string;
+      type: string;
+      /** 1–5, only for unsafe observations; empty for safe acts and good practices. */
+      severity: string;
+      details: string;
+      photo: string;
+    }[];
     equipment: { name: string; check: string; devices: string; status: string; remarks: string }[];
     tools: {
       name: string; toolId: string; safe: string; description: string;
@@ -72,6 +89,7 @@ export type DmPlan = {
       investigation: boolean;
     };
     training: {
+      employeeNo: string;
       employee: string;
       action: string;
       observation: string;
@@ -115,7 +133,9 @@ export const PPE_ITEMS = [
   'Safety Goggles', 'Ear Plug', 'Leather Apron', 'Leg Guard', 'Face Shield', 'Other'
 ] as const;
 
-export const WALKTHROUGH_TYPES = ['Safe act / condition', 'Unsafe act / condition'] as const;
+export const WALKTHROUGH_TYPES = ['Safe act', 'Good Practices', 'Unsafe act', 'Unsafe condition'] as const;
+/** Risk levels an unsafe observation can carry. Safe acts and good practices carry none. */
+export const SEVERITY_LEVELS = ['1', '2', '3', '4', '5'] as const;
 export const EQUIPMENT_CHECKS = ['Pre-use inspection', 'Mid-shift check'] as const;
 export const EQUIPMENT_STATUS = ['OK', 'Deficiency'] as const;
 export const TOOL_SAFETY = ['Safe', 'Unsafe'] as const;
@@ -177,6 +197,29 @@ const text = (value: unknown, limit = 800): string =>
 
 const tick = (value: unknown): Tick => (value === 'yes' || value === 'no' || value === 'na' ? value : '');
 
+/** Only a failure gets a severity: a safe act has nothing to rate. */
+export function severityApplies(type: string): boolean {
+  return type === 'Unsafe act' || type === 'Unsafe condition';
+}
+
+/**
+ * Photos travel inside the plan payload as compressed JPEG data URLs.
+ *
+ * They are capped hard: a shift may attach a dozen frames, and an unbounded payload would
+ * be a JSON body that the database or a phone browser chokes on. The browser compresses
+ * before sending; these limits are the server's own backstop.
+ */
+const MAX_PHOTOS = 12;
+const MAX_PHOTO_CHARS = 140_000;
+const MAX_PHOTO_TOTAL_CHARS = 1_500_000;
+
+export function photoData(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const data = value.trim();
+  if (!/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(data)) return '';
+  return data.length <= MAX_PHOTO_CHARS ? data : '';
+}
+
 function person(value: unknown): DmPerson {
   const row = (value ?? {}) as Record<string, unknown>;
   return {
@@ -200,8 +243,8 @@ export function emptyPlan(date = new Date().toISOString().slice(0, 10)): DmPlan 
         attendees: '', topics: '', previousIncidents: '', criticalTasks: '', procedures: '',
         theme: '', ppe: '', concerns: '', takeaways: '', conductedBy: ''
       },
-      ppe: [{ employee: '', issue: '', item: '', remarks: '' }],
-      walkthrough: [{ time: '', area: '', type: WALKTHROUGH_TYPES[0], details: '', photo: false }],
+      ppe: [{ employee: '', employeeNo: '', issue: '', items: [], remarks: '', photo: '' }],
+      walkthrough: [{ area: '', type: WALKTHROUGH_TYPES[0], severity: '', details: '', photo: '' }],
       equipment: [{ name: '', check: EQUIPMENT_CHECKS[0], devices: '', status: EQUIPMENT_STATUS[0], remarks: '' }],
       tools: [{ name: '', toolId: '', safe: TOOL_SAFETY[0], description: '', condition: TOOL_CONDITION[0], remarks: '', action: '', responsible: '' }],
       housekeeping: { checks: {}, observations: '', action: '' },
@@ -210,7 +253,7 @@ export function emptyPlan(date = new Date().toISOString().slice(0, 10)): DmPlan 
         location: '', reportedBy: '', reportNo: '', date: '', time: '', categories: [],
         persons: [{ name: '', number: '', designation: '' }], description: '', action: '', investigation: false
       },
-      training: { employee: '', action: '', observation: '', required: false, conducted: false, records: false, needType: '' },
+      training: { employeeNo: '', employee: '', action: '', observation: '', required: false, conducted: false, records: false, needType: '' },
       admin: [{ sopNo: '', compliance: COMPLIANCE_STATUS[0], adequacy: SOP_ADEQUACY[0], actionBy: '', remarks: '' }]
     }
   };
@@ -288,20 +331,37 @@ export function normalisePlan(input: unknown): PlanValidation {
   const rows = (value: unknown): Record<string, unknown>[] =>
     (Array.isArray(value) ? value : []).slice(0, MAX_ROWS).map((row) => (row ?? {}) as Record<string, unknown>);
 
-  plan.modules.ppe = rows(modulesIn.ppe).map((row) => ({
-    employee: text(row.employee, 120),
-    issue: text(row.issue, 60),
-    item: text(row.item, 60),
-    remarks: text(row.remarks)
-  }));
+  plan.modules.ppe = rows(modulesIn.ppe).map((row) => {
+    // `item` is the single-item shape older plans were filed with; fold it into the list so
+    // an archived plan still prints its PPE after the field became multi-select.
+    const legacy = text(row.item, 60);
+    const items = (Array.isArray(row.items) ? row.items : legacy ? [legacy] : [])
+      .map((item) => text(item, 60)).filter(Boolean).slice(0, PPE_ITEMS.length + 1);
+    return {
+      employee: text(row.employee, 120),
+      employeeNo: text(row.employeeNo, 40),
+      issue: text(row.issue, 60),
+      items,
+      remarks: text(row.remarks),
+      photo: photoData(row.photo)
+    };
+  });
 
-  plan.modules.walkthrough = rows(modulesIn.walkthrough).map((row) => ({
-    time: text(row.time, 20),
-    area: text(row.area, 120),
-    type: text(row.type, 60),
-    details: text(row.details),
-    photo: Boolean(row.photo)
-  }));
+  plan.modules.walkthrough = rows(modulesIn.walkthrough).map((row) => {
+    const type = text(row.type, 60) || WALKTHROUGH_TYPES[0];
+    // A safe act or a good practice has no severity; if one was sent anyway it is dropped,
+    // so the printed document never rates a job well done as a risk.
+    const severity = severityApplies(type)
+      ? (SEVERITY_LEVELS as readonly string[]).includes(text(row.severity, 2)) ? text(row.severity, 2) : ''
+      : '';
+    return {
+      area: text(row.area, 120),
+      type,
+      severity,
+      details: text(row.details),
+      photo: photoData(row.photo)
+    };
+  });
 
   plan.modules.equipment = rows(modulesIn.equipment).map((row) => ({
     name: text(row.name, 120),
@@ -361,6 +421,7 @@ export function normalisePlan(input: unknown): PlanValidation {
 
   const training = (modulesIn.training ?? {}) as Record<string, unknown>;
   plan.modules.training = {
+    employeeNo: text(training.employeeNo, 40),
     employee: text(training.employee, 120),
     action: text(training.action),
     observation: text(training.observation),
@@ -378,6 +439,20 @@ export function normalisePlan(input: unknown): PlanValidation {
     remarks: text(row.remarks)
   }));
 
+  // A failure has to say how bad it was: severity is what the record is triaged by. A row
+  // with no area and no details is still being typed, so it is not held against the plan.
+  const missingSeverity = plan.modules.walkthrough.some((row) => severityApplies(row.type)
+    && !row.severity && Boolean(row.area || row.details));
+  if (missingSeverity) errors.push('Choose a severity (1-5) for every unsafe walk-through observation.');
+
+  // Photos are compressed in the browser first. This is the backstop that stops one plan
+  // from becoming a multi-megabyte JSON body — and a save that the database would refuse.
+  const photos = [...plan.modules.ppe, ...plan.modules.walkthrough].map((row) => row.photo).filter(Boolean);
+  const photoChars = photos.reduce((total, photo) => total + photo.length, 0);
+  if (photos.length > MAX_PHOTOS || photoChars > MAX_PHOTO_TOTAL_CHARS) {
+    errors.push('Too many or too large photos — attach fewer, smaller photos and file again.');
+  }
+
   if (errors.length === 0 && isEmptyPlan(plan)) {
     errors.push('Fill at least one module before saving the plan.');
   }
@@ -385,7 +460,8 @@ export function normalisePlan(input: unknown): PlanValidation {
   return errors.length ? { ok: false, errors } : { ok: true, plan };
 }
 
-const filled = (value: string | undefined) => Boolean(value && value.trim());
+const filled = (value: unknown): boolean =>
+  typeof value === 'string' ? Boolean(value.trim()) : Array.isArray(value) ? value.length > 0 : false;
 
 /** True when only the header has been filled in. */
 export function isEmptyPlan(plan: DmPlan): boolean {
@@ -394,8 +470,8 @@ export function isEmptyPlan(plan: DmPlan): boolean {
     || m.permits.checks.some(Boolean);
   const tbt = Object.values(m.tbt).some(filled);
   const table = (list: Record<string, unknown>[]) => list.some((row) => Object.entries(row)
-    .some(([key, value]) => key !== 'check' && key !== 'status' && key !== 'type' && key !== 'safe'
-      && key !== 'condition' && key !== 'compliance' && key !== 'adequacy' && filled(value as string)));
+    .some(([key, value]) => !['check', 'status', 'type', 'safe', 'condition', 'compliance', 'adequacy'].includes(key)
+      && filled(value)));
   const housekeeping = Object.keys(m.housekeeping.checks).length > 0
     || filled(m.housekeeping.observations) || filled(m.housekeeping.action);
   const interaction = m.interaction.team.some((row) => row.name) || m.interaction.topics.length > 0
@@ -414,8 +490,8 @@ export function filledModuleCount(plan: DmPlan): number {
   return [
     has(filled(m.permits.permitNo) || m.permits.checks.some(Boolean) || filled(m.permits.observations)),
     has(Object.values(m.tbt).some(filled) || filled(m.tbt.attendees)),
-    has(m.ppe.some((row) => row.employee || row.remarks)),
-    has(m.walkthrough.some((row) => row.area || row.details)),
+    has(m.ppe.some((row) => row.employee || row.remarks || (row.items?.length ?? 0) > 0 || row.photo)),
+    has(m.walkthrough.some((row) => row.area || row.details || row.photo)),
     has(m.equipment.some((row) => row.name || row.devices || row.remarks)),
     has(m.tools.some((row) => row.name || row.toolId || row.remarks)),
     has(Object.keys(m.housekeeping.checks).length > 0 || filled(m.housekeeping.observations)),
