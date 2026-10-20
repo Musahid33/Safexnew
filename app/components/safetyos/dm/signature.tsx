@@ -53,6 +53,26 @@ export function SignaturePad({
     element.height = HEIGHT;
   }, []);
 
+  // The phone stepper unmounts this pad while the officer is on another module, so coming
+  // back has to put the stored stroke on the paper again — a signed plan that looks blank
+  // is worse than no pad at all. Only the value at mount is drawn: every later change comes
+  // from a stroke that is already on the canvas.
+  const initial = useRef(value);
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element || !initial.current) return;
+    const image = new Image();
+    image.onload = () => {
+      if (!element.isConnected) return;
+      const ctx = element.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, element.width, element.height);
+      ctx.drawImage(image, 0, 0, element.width, element.height);
+      ink.current = true;
+    };
+    image.src = initial.current;
+  }, []);
+
   // Clearing from outside — the form reset, or a filed plan — must empty the paper too.
   useEffect(() => {
     if (value) return;

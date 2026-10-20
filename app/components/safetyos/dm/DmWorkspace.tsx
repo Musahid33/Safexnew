@@ -29,6 +29,8 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
   const [error, setError] = useState('');
   const [filed, setFiled] = useState<Filed | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  /** Bumps whenever the plan starts over, so the phone stepper can go back to step one. */
+  const [resetKey, setResetKey] = useState(0);
   /** The employee master, so a number or a name in the form resolves to the other. */
   const [employees, setEmployees] = useState<DirectoryEmployee[]>([]);
   const [directoryNote, setDirectoryNote] = useState('');
@@ -111,6 +113,7 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
       }
       setFiled({ id: data.record.id, reference: data.record.reference, supervisor: plan.supervisor });
       setPlan(emptyPlan());
+      setResetKey((key) => key + 1);
       setRefreshKey((key) => key + 1);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The plan could not be filed.');
@@ -159,7 +162,8 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
         error={error}
         onChange={setPlan}
         onSubmit={() => void submit()}
-        onReset={() => { setPlan(emptyPlan()); setError(''); setFiled(null); }}
+        resetKey={resetKey}
+        onReset={() => { setPlan(emptyPlan()); setError(''); setFiled(null); setResetKey((key) => key + 1); }}
       />
     </>}
 

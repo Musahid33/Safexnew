@@ -174,10 +174,20 @@ navigation as a drawer over the page, and the content gets the full width back. 
 the drawer closes on the scrim, on Escape, or as soon as a destination is picked.
 
 Every control is sized for a thumb: 16 px inputs (anything smaller makes iOS zoom the page
-on focus), 44 px minimum height on fields and buttons, and larger Y / N / N/A ticks. The
-submit bar is sticky at the bottom of the screen, so filing is always one tap away while the
-long form scrolls behind it. **Expand all** in the form header opens every module at once
-instead of eleven taps.
+on focus), 44 px minimum height on fields and buttons, and larger Y / N / N/A ticks.
+
+The form itself is a **stepper** on a phone, not one long accordion: the plan details first,
+then **one module per screen**, then the declaration and signature. A bar pinned to the
+bottom of the display carries **← Back**, a jump list, and **Next →** (which reads `Sign-off`
+on module 11 and becomes the **Submit DM** button on the last screen). The bar also shows
+`Module 3 of 11` and how many modules have been filled, so a shift can see its progress
+without scrolling, and the jump list marks every module that already has something in it.
+Going back to module 4 from module 9 is one tap; nothing is required and skipping a module
+is allowed, exactly as before. The plan details live on the first screen, so a supervisor can
+correct the date, shift or location at any point by stepping back to it.
+
+On a desktop none of this applies: the eleven modules stay an accordion, with **Expand all**
+in the form header and a sticky Submit bar at the end.
 
 Below 860 px every DM table becomes a stack of cards: the header row disappears and each
 cell carries its own label (`data-label`), so a nine-column PPE row is still readable on a

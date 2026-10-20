@@ -183,23 +183,31 @@ export function RowsTable<T extends Record<string, unknown>>({
 }
 
 /** One numbered module of the eleven, collapsible, with a "done" hint in the header. */
-export function Module({ index, title, summary, open, onToggle, children }: {
+export function Module({ index, title, summary, open, onToggle, locked = false, children }: {
   index: number;
   title: string;
   summary: string;
   open: boolean;
-  onToggle: () => void;
+  onToggle?: () => void;
+  /** Phone stepper: one module on screen, so its head is a label rather than a fold control. */
+  locked?: boolean;
   children: ReactNode;
 }) {
-  return <section className={`dm-module${open ? ' is-open' : ''}`}>
-    <button type="button" className="dm-module-head" aria-expanded={open} onClick={onToggle}>
+  const head = (
+    <>
       <span className="dm-module-index">{index}</span>
       <span className="dm-module-title">
         {title}
         <small>{summary}</small>
       </span>
-      <span className="dm-module-caret" aria-hidden>{open ? '−' : '+'}</span>
-    </button>
+      {!locked && <span className="dm-module-caret" aria-hidden>{open ? '−' : '+'}</span>}
+    </>
+  );
+
+  return <section className={`dm-module${open ? ' is-open' : ''}${locked ? ' is-step' : ''}`}>
+    {locked
+      ? <div className="dm-module-head is-static">{head}</div>
+      : <button type="button" className="dm-module-head" aria-expanded={open} onClick={onToggle}>{head}</button>}
     {open && <div className="dm-module-body">{children}</div>}
   </section>;
 }
