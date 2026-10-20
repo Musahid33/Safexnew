@@ -263,10 +263,10 @@ export default function DmForm({
         </>;
 
       case 3:
-        return <PpeTable employees={employees} rows={m.ppe} onChange={(ppe) => setModules('ppe', ppe)} />;
+        return <PpeTable employees={employees} rows={m.ppe} onChange={(ppe) => setModules('ppe', ppe)} phone={phone} />;
 
       case 4:
-        return <WalkTable rows={m.walkthrough} onChange={(walkthrough) => setModules('walkthrough', walkthrough)} />;
+        return <WalkTable rows={m.walkthrough} onChange={(walkthrough) => setModules('walkthrough', walkthrough)} phone={phone} />;
 
       case 5:
         return <RowsTable
@@ -278,6 +278,7 @@ export default function DmForm({
             remarks: '', photo: ''
           })}
           addLabel="Add equipment"
+          phone={phone}
         />;
 
       case 6:
@@ -290,9 +291,48 @@ export default function DmForm({
             condition: TOOL_CONDITION[0], remarks: '', action: '', responsible: '', photo: ''
           })}
           addLabel="Add tool"
+          phone={phone}
         />;
 
       case 7:
+        if (phone) {
+          return <>
+            <div className="dm-hk-cards">
+              {HOUSEKEEPING_ITEMS.map((item, itemIndex) => {
+                const active = m.housekeeping.checks[item.id] ?? '';
+                const previous = HOUSEKEEPING_ITEMS[itemIndex - 1];
+                return [
+                  previous?.element !== item.element
+                    ? <h4 key={`${item.id}-band`} className="dm-hk-cards-band">{item.element}</h4>
+                    : null,
+                  <div key={item.id} className="dm-hk-card">
+                    <p className="dm-hk-card-text"><b>{itemIndex + 1}.</b> {item.text}</p>
+                    <div className="dm-hk-card-ticks">
+                      {TICKS.map((tickOption) => <button
+                        key={tickOption.value}
+                        type="button"
+                        className={`dm-tick${active === tickOption.value ? ' is-on' : ''}`}
+                        aria-pressed={active === tickOption.value}
+                        aria-label={`${item.text} — ${tickOption.value}`}
+                        onClick={() => setTick(item.id, active === tickOption.value ? '' : tickOption.value)}
+                      >{tickOption.label}</button>)}
+                    </div>
+                  </div>
+                ];
+              })}
+            </div>
+            <div className="dm-grid">
+              <Area label="Observation details" value={m.housekeeping.observations} onChange={(observations) => setModules('housekeeping', { ...m.housekeeping, observations })} />
+              <Area label="Action taken" value={m.housekeeping.action} onChange={(action) => setModules('housekeeping', { ...m.housekeeping, action })} />
+            </div>
+            <PhotoFieldBox
+              label="Photo of the area / finding"
+              value={m.housekeeping.photo}
+              onChange={(photo) => setModules('housekeeping', { ...m.housekeeping, photo })}
+            />
+          </>;
+        }
+
         return <>
           <div className="dm-rows-scroll">
             <table className="dm-table dm-hk">
@@ -342,6 +382,7 @@ export default function DmForm({
             rows={m.interaction.team}
             onChange={(team) => setModules('interaction', { ...m.interaction, team })}
             addLabel="Add person"
+            phone={phone}
           />
           <fieldset className="dm-choices">
             <legend>Key discussions</legend>
@@ -398,6 +439,7 @@ export default function DmForm({
             rows={m.incident.persons}
             onChange={(persons) => setModules('incident', { ...m.incident, persons })}
             addLabel="Add person involved"
+            phone={phone}
           />
           <div className="dm-grid">
             <Area label="Brief incident description" value={m.incident.description} onChange={(description) => setModules('incident', { ...m.incident, description })} />
@@ -465,6 +507,7 @@ export default function DmForm({
           onChange={(admin) => setModules('admin', admin)}
           blank={() => ({ sopNo: '', compliance: COMPLIANCE_STATUS[0], adequacy: SOP_ADEQUACY[0], actionBy: '', remarks: '' })}
           addLabel="Add row"
+          phone={phone}
         />;
     }
   };

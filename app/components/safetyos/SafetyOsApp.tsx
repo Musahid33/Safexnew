@@ -645,7 +645,6 @@ export default function SafetyOsApp({
       <span>Employee master not connected — the directory is showing 0 employees. Sign-in is active; configure the employee source to load real records.</span>
       <button type="button" onClick={retry}>Try again</button>
     </div>}
-    <a className="sos-rewards-link" href="/admin/recognitions">Manage rewards ↗</a>
   </>;
 }
 
