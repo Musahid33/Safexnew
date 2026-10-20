@@ -82,7 +82,7 @@ export function Pick({ label, value, onChange, options }: {
 export type Column<T> = {
   key: keyof T & string;
   label: string;
-  /** `photo` renders the camera/gallery field; the value is a data URL. */
+  /** `photo` renders the one-button photo field; the value is a data URL. */
   kind?: 'text' | 'select' | 'check' | 'photo';
   options?: readonly string[];
   width?: string;
@@ -91,7 +91,7 @@ export type Column<T> = {
 /**
  * A photo field for the modules that hold one photo rather than a table of rows.
  *
- * Same camera + gallery control as the table cells, with a label above it so a stacked
+ * The same one-button photo control as the table cells, with a label above it so a stacked
  * card on a phone still says what the picture is evidence of.
  */
 export function PhotoFieldBox({

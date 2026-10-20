@@ -58,6 +58,12 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     current.includes(index) ? current.filter((entry) => entry !== index) : [...current, index]
   ));
 
+  // Eleven collapsed headers is a lot of tapping on a phone. One control opens the whole
+  // plan, or folds it back so the sign-off is a short scroll away.
+  const moduleIndexes = Array.from({ length: 11 }, (_, index) => index + 1);
+  const allOpen = open.length === moduleIndexes.length;
+  const toggleAll = () => setOpen(allOpen ? [] : moduleIndexes);
+
   const setModules = <K extends keyof DmPlan['modules']>(key: K, value: DmPlan['modules'][K]) =>
     onChange({ ...plan, modules: { ...plan.modules, [key]: value } });
 
@@ -118,7 +124,12 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
           <h2>Daily Management Plan</h2>
           <p>Fill the modules that ran this shift. Filing stamps the record, archives the PDF and locks it.</p>
         </div>
-        <span className="dm-site-chip">{siteName}</span>
+        <div className="dm-card-tools">
+          <button type="button" className="dm-ghost dm-expand" onClick={toggleAll}>
+            {allOpen ? 'Collapse all' : 'Expand all'}
+          </button>
+          <span className="dm-site-chip">{siteName}</span>
+        </div>
       </header>
 
       <div className="dm-grid">

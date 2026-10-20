@@ -88,10 +88,8 @@ export function PhotoField({
   onChange: (value: PhotoValue) => void;
   disabled?: boolean;
 }) {
-  const cameraId = useId();
-  const galleryId = useId();
-  const camera = useRef<HTMLInputElement | null>(null);
-  const gallery = useRef<HTMLInputElement | null>(null);
+  const inputId = useId();
+  const input = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -105,27 +103,21 @@ export function PhotoField({
       setError(cause instanceof Error ? cause.message : 'That photo could not be attached.');
     } finally {
       setBusy(false);
-      if (camera.current) camera.current.value = '';
-      if (gallery.current) gallery.current.value = '';
+      // Cleared so picking the same file again after removing it still fires a change.
+      if (input.current) input.current.value = '';
     }
   }
 
   return <div className="dm-photo">
-    {/* Two inputs on purpose: `capture` forces the camera and hides the gallery on
-        Android, and no attribute makes the picker show both as separate choices. */}
+    {/*
+      One input, deliberately without `capture`: the browser then shows its own sheet —
+      Camera, Gallery / Files — and both are one tap away. Adding `capture="environment"`
+      skips that sheet and pins the field to the camera, which is exactly how the gallery
+      disappeared on Android.
+    */}
     <input
-      id={cameraId}
-      ref={camera}
-      type="file"
-      accept="image/*"
-      capture="environment"
-      className="dm-photo-input"
-      disabled={disabled || busy}
-      onChange={(event) => void pick(event.target.files?.[0])}
-    />
-    <input
-      id={galleryId}
-      ref={gallery}
+      id={inputId}
+      ref={input}
       type="file"
       accept="image/*"
       className="dm-photo-input"
@@ -142,17 +134,10 @@ export function PhotoField({
       <button
         type="button"
         className="dm-photo-add"
-        title="Take a photo"
-        onClick={() => camera.current?.click()}
+        title="Camera ya gallery — dono options khulenge"
+        onClick={() => input.current?.click()}
         disabled={disabled || busy}
-      >{busy ? '…' : 'Camera'}</button>
-      <button
-        type="button"
-        className="dm-photo-add"
-        title="Choose from the gallery"
-        onClick={() => gallery.current?.click()}
-        disabled={disabled || busy}
-      >{busy ? '…' : 'Gallery'}</button>
+      >{busy ? '…' : value ? 'Change' : 'Photo'}</button>
       {value && <button
         type="button"
         className="dm-photo-remove"
