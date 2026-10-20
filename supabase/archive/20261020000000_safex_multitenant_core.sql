@@ -5,7 +5,7 @@
 -- The applied additive migration is supabase/migrations/20261020171922_safex_existing_schema_extension.sql.
 --
 -- Safex / EMVEESS Safety Portal: shared-database, multi-tenant Supabase schema
--- Run once in Supabase SQL Editor or through `supabase db push`.
+-- Historical draft only: never run this on the live SafexNew project.
 -- Tenant/site business rows always carry NOT NULL company_id + location_id.
 -- company_code and location_name are canonical in companies/locations and are
 -- exposed alongside the IDs through the v_* read views (no denormalized drift).
