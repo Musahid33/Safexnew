@@ -114,7 +114,6 @@ export function PhotoField({
       ref={input}
       type="file"
       accept="image/*"
-      capture="environment"
       className="dm-photo-input"
       disabled={disabled || busy}
       onChange={(event) => void pick(event.target.files?.[0])}
