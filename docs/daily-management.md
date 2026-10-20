@@ -136,8 +136,8 @@ submitting the DM"** with the DM number and the PDF link.
 
 Every module that can carry evidence does: PPE (per row), site walk-through (per row),
 equipment (per row), tools (per row), housekeeping, safety interaction, incident / near
-miss and training. Each field offers **Camera** and **Gallery** separately, because a
-single `capture` input hides the gallery on Android.
+miss and training. One **Photo** button opens the browser's own sheet, which offers
+Camera and Gallery / Files side by side.
 
 A plan may carry 24 photos, each up to 140 000 characters as a JPEG data URL, with 2 400 000
 characters across the plan; the browser compresses to about 120 000 before sending, and the
@@ -160,8 +160,10 @@ cell carries its own label (`data-label`), so a nine-column PPE row is still rea
 keeps its three Y / N / N/A buttons in a row under the criteria. Nothing in the DM screen
 scrolls sideways any more.
 
-Photos are attached with two separate buttons — **Camera** (`capture="environment"`) and
-**Gallery** — because no single file input offers both on every mobile browser.
+A photo is attached with one **Photo** button over a plain `<input type="file"
+accept="image/*">`. The input deliberately has no `capture` attribute: without it the phone
+shows its own sheet with Camera and Gallery / Files as two options, and with it the phone
+skips the sheet and opens the camera, hiding the gallery on Android.
 
 ## Employee master lookups
 
