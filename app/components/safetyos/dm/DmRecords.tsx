@@ -187,32 +187,32 @@ function RecordRow({ record, expanded, detail, detailError, loading, onToggle, p
 }) {
   return <>
     <tr className={expanded ? 'is-open' : undefined}>
-      <td>
+      <td data-label="Reference">
         <button type="button" className="dm-ref" onClick={onToggle} aria-expanded={expanded}>
           {record.reference}
         </button>
       </td>
-      <td>{formatDate(record.planDate)}</td>
-      <td>{record.shift || '—'}</td>
-      <td>
+      <td data-label="Plan date">{formatDate(record.planDate)}</td>
+      <td data-label="Shift">{record.shift || '—'}</td>
+      <td data-label="Supervisor">
         {record.supervisor || '—'}
         {record.supervisorNo && <small className="dm-sub">{record.supervisorNo}</small>}
       </td>
-      <td>
+      <td data-label="Modules">
         <span className="dm-progress" aria-label={`${record.modulesFilled} of 11 modules`}>
           <span style={{ width: `${Math.min(100, (record.modulesFilled / 11) * 100)}%` }} />
         </span>
         <small className="dm-sub">{record.modulesFilled}/11</small>
       </td>
-      <td>{formatFiled(record.createdAt)}</td>
-      <td className="dm-records-actions">
+      <td data-label="Filed">{formatFiled(record.createdAt)}</td>
+      <td className="dm-records-actions" data-label="Document">
         <a className="dm-doc" href={pdfHref}>PDF ↓</a>
         {/* Opens in the browser's PDF viewer instead of downloading. */}
         <a className="dm-doc is-light" href={openHref} target="_blank" rel="noopener noreferrer">Open</a>
       </td>
     </tr>
     {expanded && <tr className="dm-record-detail">
-      <td colSpan={7}>
+      <td colSpan={7} className="dm-detail-cell">
         {loading && <p className="dm-muted">Loading the plan…</p>}
         {detailError && <p className="dm-error" role="alert">{detailError}</p>}
         {detail && <PlanSummary plan={detail} />}
@@ -227,10 +227,16 @@ function PlanSummary({ plan }: { plan: DmPlan }) {
     [MODULE_TITLES[0], [m.permits.permitNo && `Permit ${m.permits.permitNo}`, m.permits.observations].filter(Boolean).join(' · ')],
     [MODULE_TITLES[1], [m.tbt.attendees && `${m.tbt.attendees} attendees`, m.tbt.theme].filter(Boolean).join(' · ')],
     [MODULE_TITLES[2], m.ppe.filter((row) => row.employee || (row.items ?? []).length)
-      .map((row) => `${row.employee || row.employeeNo}: ${row.issue}${(row.items ?? []).length ? ` (${(row.items ?? []).join(', ')})` : ''}`)
+      .map((row) => `${row.scope === 'all' ? 'All employees' : (row.employee || row.employeeNo)}: ${row.issue}${(row.items ?? []).length ? ` (${(row.items ?? []).join(', ')})` : ''}`)
       .join('; ')],
-    [MODULE_TITLES[3], m.walkthrough.filter((row) => row.area || row.details)
-      .map((row) => [row.type, row.severity && `severity ${row.severity}/5`, row.area, row.details].filter(Boolean).join(' · '))
+    [MODULE_TITLES[3], m.walkthrough.filter((row) => row.area || row.details || row.action)
+      .map((row) => [
+        row.type,
+        row.severity && `severity ${row.severity}/5`,
+        row.area,
+        row.details,
+        row.action && `action: ${row.action}`
+      ].filter(Boolean).join(' · '))
       .join('; ')],
     [MODULE_TITLES[4], m.equipment.filter((row) => row.name).map((row) => `${row.name} — ${row.status}`).join('; ')],
     [MODULE_TITLES[5], m.tools.filter((row) => row.name).map((row) => `${row.name} — ${row.safe}`).join('; ')],

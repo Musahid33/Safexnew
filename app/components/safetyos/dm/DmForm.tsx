@@ -203,7 +203,7 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
                   : null,
                 <tr key={item.id}>
                   <td className="dm-rownum">{index + 1}</td>
-                  <td>{item.text}</td>
+                  <td className="dm-hk-criteria">{item.text}</td>
                   {TICKS.map((tickOption) => <td key={tickOption.value} className="dm-hk-tick">
                     <button
                       type="button"

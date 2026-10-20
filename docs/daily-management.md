@@ -31,8 +31,8 @@ would lose a record. The PDF is stored and downloaded as `<reference>.pdf`.
 |---|---|---|
 | 1 | Permit reviews | permit no / taken by / reviewed by, 5 review checks, observations, action |
 | 2 | Tool Box Talk (TBT) | attendees, conducted by, topics, previous incidents, hazards, procedures, theme, PPE, open forum, takeaways |
-| 3 | PPE checking | rows: employee number + observed employee (from the master), issue, every PPE item observed, remarks, photo |
-| 4 | Site walk-through | rows: area, observation type (`Safe act`, `Good Practices`, `Unsafe act`, `Unsafe condition`), severity 1–5 for unsafe only, details, photo |
+| 3 | PPE checking | rows: **All (team)** or **Individual** (employee number ↔ name from the master), issue, every PPE item observed, remarks, photo |
+| 4 | Site walk-through | rows: area, observation type (`Safe act`, `Good Practices`, `Unsafe act`, `Unsafe condition`), severity 1–5 for unsafe only, details, immediate action taken, photo |
 | 5 | Equipment / machinery | rows: equipment, check, safety devices, status, action |
 | 6 | Tools & tackles | rows: tool, ID, safe/unsafe, condition, description, action, responsible |
 | 7 | Housekeeping (1S / 2S) | 23 criteria (8 × 1S, 15 × 2S) answered Y / N / N/A, plus observations and action |
@@ -110,6 +110,24 @@ database refuses.
 Only `data:image/jpeg` and `data:image/png` are accepted. Anything else — a link, an HTML
 data URL, a file that failed to decode — is dropped, and the PDF skips an image it cannot
 read rather than failing the document.
+
+## Team-wide or individual observations
+
+A PPE row says who it covers. **All (team)** is the default: the observation is about the
+whole shift, so no name is typed — the PDF prints `All employees`. **Individual** reveals
+the employee-number and name fields, with the master lookup. Switching back to the team
+clears the name, so a saved plan never prints a person's name against a team-wide row.
+
+## Phone layout
+
+Below 860 px every DM table becomes a stack of cards: the header row disappears and each
+cell carries its own label (`data-label`), so a nine-column PPE row is still readable on a
+360 px screen. Below 430 px the label moves above the field. The housekeeping checklist
+keeps its three Y / N / N/A buttons in a row under the criteria. Nothing in the DM screen
+scrolls sideways any more.
+
+Photos are attached with two separate buttons — **Camera** (`capture="environment"`) and
+**Gallery** — because no single file input offers both on every mobile browser.
 
 ## Employee master lookups
 

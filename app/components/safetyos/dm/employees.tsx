@@ -13,6 +13,9 @@ import { PhotoField } from './photo';
  * Every place a person is named — PPE observation, safety interaction, incident and
  * training — takes an employee number or a name and fills the other from the master. The
  * suggestions come from one shared datalist so 190 employees are not re-rendered per row.
+ *
+ * Every cell carries `data-label`: on a phone the tables collapse into stacked cards and
+ * that label is the only thing telling the operator which field they are looking at.
  */
 
 export type DmPpeRow = DmPlan['modules']['ppe'][number];
@@ -57,7 +60,7 @@ export function PersonTable({
           {rows.length === 0 && <tr><td colSpan={5} className="dm-empty">No rows yet.</td></tr>}
           {rows.map((row, index) => <tr key={index}>
             <td className="dm-rownum">{index + 1}</td>
-            <td>
+            <td data-label="Emp. no.">
               <input
                 className="dm-cell-input"
                 value={row.number}
@@ -73,7 +76,7 @@ export function PersonTable({
                 }}
               />
             </td>
-            <td>
+            <td data-label="Employee">
               <input
                 className="dm-cell-input"
                 value={row.name}
@@ -89,7 +92,7 @@ export function PersonTable({
                 }}
               />
             </td>
-            <td>
+            <td data-label="Designation">
               <input
                 className="dm-cell-input"
                 value={row.designation}
@@ -135,120 +138,141 @@ export function PpeTable({
         <thead>
           <tr>
             <th className="dm-rownum">#</th>
+            <th style={{ width: '128px' }}>Observed</th>
             <th style={{ width: '110px' }}>Emp. no.</th>
-            <th style={{ width: '180px' }}>Observed employee</th>
+            <th style={{ width: '170px' }}>Employee</th>
             <th style={{ width: '150px' }}>Observation</th>
             <th>PPE observed</th>
             <th>Remarks</th>
-            <th style={{ width: '130px' }}>Photo</th>
+            <th style={{ width: '132px' }}>Photo</th>
             <th className="dm-rowact" />
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 && <tr><td colSpan={8} className="dm-empty">No PPE observation yet.</td></tr>}
-          {rows.map((row, index) => <tr key={index}>
-            <td className="dm-rownum">{index + 1}</td>
-            <td>
-              <input
-                className="dm-cell-input"
-                value={row.employeeNo}
-                list="dm-employee-no"
-                placeholder="Emp. no."
-                maxLength={40}
-                aria-label={`Employee number, row ${index + 1}`}
-                onChange={(event) => {
-                  const hit = findEmployee(employees, event.target.value, 'empNo');
-                  update(index, hit
-                    ? { employeeNo: hit.empNo, employee: hit.name }
-                    : { employeeNo: event.target.value });
-                }}
-              />
-            </td>
-            <td>
-              <input
-                className="dm-cell-input"
-                value={row.employee}
-                list="dm-employee-name"
-                placeholder="Name"
-                maxLength={120}
-                aria-label={`Observed employee, row ${index + 1}`}
-                onChange={(event) => {
-                  const hit = findEmployee(employees, event.target.value, 'name');
-                  update(index, hit
-                    ? { employee: hit.name, employeeNo: hit.empNo }
-                    : { employee: event.target.value });
-                }}
-              />
-            </td>
-            <td>
-              <select
-                className="dm-cell-input"
-                value={row.issue}
-                aria-label={`Observation, row ${index + 1}`}
-                onChange={(event) => update(index, { issue: event.target.value })}
-              >
-                {row.issue === '' && <option value="">Select…</option>}
-                {PPE_ISSUES.map((issue) => <option key={issue} value={issue}>{issue}</option>)}
-              </select>
-            </td>
-            <td>
-              <div className="dm-ppe-items">
-                {row.items.map((item) => <span key={item} className="dm-chip">
-                  {item}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${item}`}
-                    onClick={() => update(index, { items: row.items.filter((entry) => entry !== item) })}
-                  >×</button>
-                </span>)}
+          {rows.length === 0 && <tr><td colSpan={9} className="dm-empty">No PPE observation yet.</td></tr>}
+          {rows.map((row, index) => {
+            const individual = row.scope === 'individual';
+            return <tr key={index}>
+              <td className="dm-rownum">{index + 1}</td>
+              <td data-label="Observed">
                 <select
-                  className="dm-chip-add"
-                  value=""
-                  aria-label={`Add PPE item, row ${index + 1}`}
-                  onChange={(event) => {
-                    const item = event.target.value;
-                    if (item) update(index, { items: [...row.items, item] });
-                  }}
+                  className={`dm-cell-input dm-scope${individual ? ' is-individual' : ''}`}
+                  value={row.scope}
+                  aria-label={`Observation scope, row ${index + 1}`}
+                  onChange={(event) => update(index, event.target.value === 'individual'
+                    // Switching back to the team clears the name: the row now speaks for
+                    // everyone, and a stale name would print against the wrong subject.
+                    ? { scope: 'individual' }
+                    : { scope: 'all', employee: '', employeeNo: '' })}
                 >
-                  <option value="">+ PPE</option>
-                  {PPE_ITEMS.filter((item) => !row.items.includes(item))
-                    .map((item) => <option key={item} value={item}>{item}</option>)}
+                  <option value="all">All (team)</option>
+                  <option value="individual">Individual</option>
                 </select>
-              </div>
-            </td>
-            <td>
-              <input
-                className="dm-cell-input"
-                value={row.remarks}
-                placeholder="Remarks"
-                maxLength={800}
-                aria-label={`Remarks, row ${index + 1}`}
-                onChange={(event) => update(index, { remarks: event.target.value })}
-              />
-            </td>
-            <td>
-              <PhotoField
-                label="Photo"
-                value={row.photo}
-                onChange={(photo) => update(index, { photo })}
-              />
-            </td>
-            <td className="dm-rowact">
-              <button
-                type="button"
-                className="dm-remove"
-                aria-label={`Remove row ${index + 1}`}
-                onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))}
-              >×</button>
-            </td>
-          </tr>)}
+              </td>
+              {individual ? <>
+                <td data-label="Emp. no.">
+                  <input
+                    className="dm-cell-input"
+                    value={row.employeeNo}
+                    list="dm-employee-no"
+                    placeholder="Emp. no."
+                    maxLength={40}
+                    aria-label={`Employee number, row ${index + 1}`}
+                    onChange={(event) => {
+                      const hit = findEmployee(employees, event.target.value, 'empNo');
+                      update(index, hit
+                        ? { employeeNo: hit.empNo, employee: hit.name }
+                        : { employeeNo: event.target.value });
+                    }}
+                  />
+                </td>
+                <td data-label="Employee">
+                  <input
+                    className="dm-cell-input"
+                    value={row.employee}
+                    list="dm-employee-name"
+                    placeholder="Name"
+                    maxLength={120}
+                    aria-label={`Observed employee, row ${index + 1}`}
+                    onChange={(event) => {
+                      const hit = findEmployee(employees, event.target.value, 'name');
+                      update(index, hit
+                        ? { employee: hit.name, employeeNo: hit.empNo }
+                        : { employee: event.target.value });
+                    }}
+                  />
+                </td>
+              </> : <td data-label="Employee" colSpan={2} className="dm-all-cell">
+                All employees — poori team observed
+              </td>}
+              <td data-label="Observation">
+                <select
+                  className="dm-cell-input"
+                  value={row.issue}
+                  aria-label={`Observation, row ${index + 1}`}
+                  onChange={(event) => update(index, { issue: event.target.value })}
+                >
+                  {row.issue === '' && <option value="">Select…</option>}
+                  {PPE_ISSUES.map((issue) => <option key={issue} value={issue}>{issue}</option>)}
+                </select>
+              </td>
+              <td data-label="PPE observed">
+                <div className="dm-ppe-items">
+                  {row.items.map((item) => <span key={item} className="dm-chip">
+                    {item}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${item}`}
+                      onClick={() => update(index, { items: row.items.filter((entry) => entry !== item) })}
+                    >×</button>
+                  </span>)}
+                  <select
+                    className="dm-chip-add"
+                    value=""
+                    aria-label={`Add PPE item, row ${index + 1}`}
+                    onChange={(event) => {
+                      const item = event.target.value;
+                      if (item) update(index, { items: [...row.items, item] });
+                    }}
+                  >
+                    <option value="">+ PPE</option>
+                    {PPE_ITEMS.filter((item) => !row.items.includes(item))
+                      .map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+              </td>
+              <td data-label="Remarks">
+                <input
+                  className="dm-cell-input"
+                  value={row.remarks}
+                  placeholder="Remarks"
+                  maxLength={800}
+                  aria-label={`Remarks, row ${index + 1}`}
+                  onChange={(event) => update(index, { remarks: event.target.value })}
+                />
+              </td>
+              <td data-label="Photo">
+                <PhotoField value={row.photo} onChange={(photo) => update(index, { photo })} />
+              </td>
+              <td className="dm-rowact">
+                <button
+                  type="button"
+                  className="dm-remove"
+                  aria-label={`Remove row ${index + 1}`}
+                  onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))}
+                >×</button>
+              </td>
+            </tr>;
+          })}
         </tbody>
       </table>
     </div>
     <button
       type="button"
       className="dm-addrow"
-      onClick={() => onChange([...rows, { employee: '', employeeNo: '', issue: PPE_ISSUES[0], items: [], remarks: '', photo: '' }])}
+      onClick={() => onChange([...rows, {
+        scope: 'all', employee: '', employeeNo: '', issue: '', items: [], remarks: '', photo: ''
+      }])}
     >+ Add PPE observation</button>
   </div>;
 }
@@ -269,21 +293,22 @@ export function WalkTable({
         <thead>
           <tr>
             <th className="dm-rownum">#</th>
-            <th style={{ width: '170px' }}>Location / area</th>
-            <th style={{ width: '160px' }}>Observation type</th>
-            <th style={{ width: '110px' }}>Severity</th>
+            <th style={{ width: '150px' }}>Location / area</th>
+            <th style={{ width: '150px' }}>Observation type</th>
+            <th style={{ width: '100px' }}>Severity</th>
             <th>Details</th>
-            <th style={{ width: '130px' }}>Photo</th>
+            <th>Immediate action taken</th>
+            <th style={{ width: '132px' }}>Photo</th>
             <th className="dm-rowact" />
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 && <tr><td colSpan={7} className="dm-empty">No walk-through observation yet.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={8} className="dm-empty">No walk-through observation yet.</td></tr>}
           {rows.map((row, index) => {
             const needsSeverity = severityApplies(row.type);
             return <tr key={index}>
               <td className="dm-rownum">{index + 1}</td>
-              <td>
+              <td data-label="Location / area">
                 <input
                   className="dm-cell-input"
                   value={row.area}
@@ -293,7 +318,7 @@ export function WalkTable({
                   onChange={(event) => update(index, { area: event.target.value })}
                 />
               </td>
-              <td>
+              <td data-label="Observation type">
                 <select
                   className="dm-cell-input"
                   value={row.type}
@@ -308,7 +333,7 @@ export function WalkTable({
                   {WALKTHROUGH_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                 </select>
               </td>
-              <td>
+              <td data-label="Severity">
                 {needsSeverity
                   ? <select
                     className={`dm-cell-input${row.severity ? '' : ' is-missing'}`}
@@ -321,7 +346,7 @@ export function WalkTable({
                   </select>
                   : <span className="dm-na" title="Safe acts and good practices carry no severity">—</span>}
               </td>
-              <td>
+              <td data-label="Details">
                 <input
                   className="dm-cell-input"
                   value={row.details}
@@ -331,8 +356,18 @@ export function WalkTable({
                   onChange={(event) => update(index, { details: event.target.value })}
                 />
               </td>
-              <td>
-                <PhotoField label="Photo" value={row.photo} onChange={(photo) => update(index, { photo })} />
+              <td data-label="Immediate action taken">
+                <input
+                  className="dm-cell-input"
+                  value={row.action}
+                  placeholder="Action taken on the spot"
+                  maxLength={800}
+                  aria-label={`Immediate action taken, row ${index + 1}`}
+                  onChange={(event) => update(index, { action: event.target.value })}
+                />
+              </td>
+              <td data-label="Photo">
+                <PhotoField value={row.photo} onChange={(photo) => update(index, { photo })} />
               </td>
               <td className="dm-rowact">
                 <button
@@ -350,7 +385,9 @@ export function WalkTable({
     <button
       type="button"
       className="dm-addrow"
-      onClick={() => onChange([...rows, { area: '', type: WALKTHROUGH_TYPES[0], severity: '', details: '', photo: '' }])}
+      onClick={() => onChange([...rows, {
+        area: '', type: WALKTHROUGH_TYPES[0], severity: '', details: '', action: '', photo: ''
+      }])}
     >+ Add walk-through entry</button>
   </div>;
 }

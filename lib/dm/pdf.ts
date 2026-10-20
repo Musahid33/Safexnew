@@ -281,9 +281,13 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
   moduleHeading(ctx, 3, MODULE_TITLES[2]);
   const ppe = m.ppe.filter((row) => row.employee || row.remarks || row.items?.length || row.photo);
   if (ppe.length) {
-    table(ctx, ['Emp. no.', 'Observed employee', 'Observation', 'PPE observed', 'Remarks'], ppe.map((row) => [
-      row.employeeNo, row.employee, row.issue, (row.items ?? []).join(', '), row.remarks
-    ]), [12, 24, 18, 24, 22]);
+    table(ctx, ['Observed', 'Observation', 'PPE observed', 'Remarks'], ppe.map((row) => [
+      // A team-wide observation says so, instead of leaving the name columns blank.
+      row.scope === 'all'
+        ? 'All employees'
+        : [row.employee, row.employeeNo].filter(Boolean).join(' · '),
+      row.issue, (row.items ?? []).join(', '), row.remarks
+    ]), [26, 18, 26, 30]);
     photoGrid(ctx, ppe.filter((row) => row.photo && photos.has(row.photo))
       .map((row, index) => ({ label: `PPE ${index + 1} — ${row.employee || (row.items ?? []).join(', ') || 'observation'}`, photo: photos.get(row.photo)! })));
   } else textBlock(ctx, 'No PPE observations recorded.', { size: 8, color: MUTED });
@@ -292,9 +296,9 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
   moduleHeading(ctx, 4, MODULE_TITLES[3]);
   const walk = m.walkthrough.filter((row) => row.area || row.details || row.photo);
   if (walk.length) {
-    table(ctx, ['Area', 'Observation type', 'Severity', 'Details'], walk.map((row) => [
-      row.area, row.type, row.severity ? `${row.severity} / 5` : '—', row.details
-    ]), [20, 20, 12, 48]);
+    table(ctx, ['Area', 'Observation type', 'Severity', 'Details', 'Immediate action'], walk.map((row) => [
+      row.area, row.type, row.severity ? `${row.severity} / 5` : '—', row.details, row.action
+    ]), [16, 16, 9, 33, 26]);
     photoGrid(ctx, walk.filter((row) => row.photo && photos.has(row.photo))
       .map((row, index) => ({ label: `Photo ${index + 1} — ${row.area || row.type}`, photo: photos.get(row.photo)! })));
   } else textBlock(ctx, 'No walk-through observations recorded.', { size: 8, color: MUTED });

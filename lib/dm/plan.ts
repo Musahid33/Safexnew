@@ -44,6 +44,8 @@ export type DmPlan = {
       conductedBy: string;
     };
     ppe: {
+      /** `all` = the whole team was observed; `individual` = one named employee. */
+      scope: DmPpeScope;
       employee: string;
       /** Employee number, filled from the employee master when the name is picked. */
       employeeNo: string;
@@ -60,6 +62,8 @@ export type DmPlan = {
       /** 1–5, only for unsafe observations; empty for safe acts and good practices. */
       severity: string;
       details: string;
+      /** What was put right on the spot, before the shift ended. */
+      action: string;
       photo: string;
     }[];
     equipment: { name: string; check: string; devices: string; status: string; remarks: string }[];
@@ -136,6 +140,9 @@ export const PPE_ITEMS = [
 export const WALKTHROUGH_TYPES = ['Safe act', 'Good Practices', 'Unsafe act', 'Unsafe condition'] as const;
 /** Risk levels an unsafe observation can carry. Safe acts and good practices carry none. */
 export const SEVERITY_LEVELS = ['1', '2', '3', '4', '5'] as const;
+/** Who a PPE observation covers: the whole team, or one named employee. */
+export const PPE_SCOPES = ['all', 'individual'] as const;
+export type DmPpeScope = (typeof PPE_SCOPES)[number];
 export const EQUIPMENT_CHECKS = ['Pre-use inspection', 'Mid-shift check'] as const;
 export const EQUIPMENT_STATUS = ['OK', 'Deficiency'] as const;
 export const TOOL_SAFETY = ['Safe', 'Unsafe'] as const;
@@ -243,8 +250,8 @@ export function emptyPlan(date = new Date().toISOString().slice(0, 10)): DmPlan 
         attendees: '', topics: '', previousIncidents: '', criticalTasks: '', procedures: '',
         theme: '', ppe: '', concerns: '', takeaways: '', conductedBy: ''
       },
-      ppe: [{ employee: '', employeeNo: '', issue: '', items: [], remarks: '', photo: '' }],
-      walkthrough: [{ area: '', type: WALKTHROUGH_TYPES[0], severity: '', details: '', photo: '' }],
+      ppe: [{ scope: 'all', employee: '', employeeNo: '', issue: '', items: [], remarks: '', photo: '' }],
+      walkthrough: [{ area: '', type: WALKTHROUGH_TYPES[0], severity: '', details: '', action: '', photo: '' }],
       equipment: [{ name: '', check: EQUIPMENT_CHECKS[0], devices: '', status: EQUIPMENT_STATUS[0], remarks: '' }],
       tools: [{ name: '', toolId: '', safe: TOOL_SAFETY[0], description: '', condition: TOOL_CONDITION[0], remarks: '', action: '', responsible: '' }],
       housekeeping: { checks: {}, observations: '', action: '' },
@@ -337,9 +344,16 @@ export function normalisePlan(input: unknown): PlanValidation {
     const legacy = text(row.item, 60);
     const items = (Array.isArray(row.items) ? row.items : legacy ? [legacy] : [])
       .map((item) => text(item, 60)).filter(Boolean).slice(0, PPE_ITEMS.length + 1);
+    // Plans filed before the scope existed named one employee per row; anything with a
+    // name is therefore an individual observation, not a team-wide one.
+    const named = text(row.employee, 120) || text(row.employeeNo, 40);
+    const scope: DmPpeScope = row.scope === 'all' ? 'all'
+      : row.scope === 'individual' ? 'individual'
+        : named ? 'individual' : 'all';
     return {
-      employee: text(row.employee, 120),
-      employeeNo: text(row.employeeNo, 40),
+      scope,
+      employee: scope === 'individual' ? text(row.employee, 120) : '',
+      employeeNo: scope === 'individual' ? text(row.employeeNo, 40) : '',
       issue: text(row.issue, 60),
       items,
       remarks: text(row.remarks),
@@ -359,6 +373,7 @@ export function normalisePlan(input: unknown): PlanValidation {
       type,
       severity,
       details: text(row.details),
+      action: text(row.action),
       photo: photoData(row.photo)
     };
   });
@@ -470,7 +485,7 @@ export function isEmptyPlan(plan: DmPlan): boolean {
     || m.permits.checks.some(Boolean);
   const tbt = Object.values(m.tbt).some(filled);
   const table = (list: Record<string, unknown>[]) => list.some((row) => Object.entries(row)
-    .some(([key, value]) => !['check', 'status', 'type', 'safe', 'condition', 'compliance', 'adequacy'].includes(key)
+    .some(([key, value]) => !['check', 'status', 'type', 'safe', 'condition', 'compliance', 'adequacy', 'scope'].includes(key)
       && filled(value)));
   const housekeeping = Object.keys(m.housekeeping.checks).length > 0
     || filled(m.housekeeping.observations) || filled(m.housekeeping.action);
@@ -491,7 +506,7 @@ export function filledModuleCount(plan: DmPlan): number {
     has(filled(m.permits.permitNo) || m.permits.checks.some(Boolean) || filled(m.permits.observations)),
     has(Object.values(m.tbt).some(filled) || filled(m.tbt.attendees)),
     has(m.ppe.some((row) => row.employee || row.remarks || (row.items?.length ?? 0) > 0 || row.photo)),
-    has(m.walkthrough.some((row) => row.area || row.details || row.photo)),
+    has(m.walkthrough.some((row) => row.area || row.details || row.action || row.photo)),
     has(m.equipment.some((row) => row.name || row.devices || row.remarks)),
     has(m.tools.some((row) => row.name || row.toolId || row.remarks)),
     has(Object.keys(m.housekeeping.checks).length > 0 || filled(m.housekeeping.observations)),
