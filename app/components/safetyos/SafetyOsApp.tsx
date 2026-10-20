@@ -1,16 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import '@/app/safetyos.css';
 import '@/app/safetyos-host.css';
 import { DESIGN_MARKUP } from './generated/markup';
 import { DESIGN_SCRIPT } from './generated/script';
 import type { Site } from '@/lib/types';
+import DmWorkspace from './dm/DmWorkspace';
 import {
   CASE_STATUS, CASE_STATUS_DB, toCaseReport,
   type AdminReport, type DesignCaseReport
 } from '@/lib/case-report-view';
-import { mountDmPage, resolveDmpUrl } from '@/lib/dm-embed';
 
 /**
  * The Admin / HSE Manager dashboard — the uploaded SafetyOS console, running as designed.
@@ -32,8 +33,8 @@ import { mountDmPage, resolveDmpUrl } from '@/lib/dm-embed';
  *    submitted — and a status change is written back through that session;
  *  - "Log out", the location selector and the sidebar status line are wired back to the
  *    host, so the console behaves as a screen of this app rather than a separate page;
- *  - the design's empty DM page hosts the company's Daily Management Plan app, so
- *    supervisors fill the real DMP form instead of a placeholder.
+ *  - the design's empty DM page hosts the Daily Management workspace (a React portal), so
+ *    supervisors fill the real plan and file it as a numbered PDF instead of a placeholder.
  */
 
 type Props = {
@@ -126,12 +127,6 @@ declare global {
   }
 }
 
-// Configured per deployment; the default is the company's DMP system. The URL is only ever
-// written into an iframe/link, never treated as a credential — the DMP login happens inside
-// the Google app.
-const DMP_URL = resolveDmpUrl(process.env.NEXT_PUBLIC_DMP_URL);
-const DMP_EMBEDDED = (process.env.NEXT_PUBLIC_DMP_EMBED ?? 'on').trim().toLowerCase() !== 'off';
-
 const PAGE_SIZE = 50;
 const MAX_ROSTER = 2000;
 const REPORT_PAGE_SIZE = 100;
@@ -169,6 +164,8 @@ export default function SafetyOsApp({
   const [note, setNote] = useState<HostNote | null>(null);
   /** Kept from /api/admin/session: decides which profile fields may be written. */
   const [piiEnabled, setPiiEnabled] = useState(false);
+  /** The design's DM page container, which the React workspace is portalled into. */
+  const [dmHost, setDmHost] = useState<HTMLElement | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [gateUsername, setGateUsername] = useState('');
   const [gatePassword, setGatePassword] = useState('');
@@ -414,9 +411,16 @@ export default function SafetyOsApp({
       recorder.restore();
     }
 
-    // The design leaves DM as an empty placeholder; the real daily-management workflow is
-    // the DMP app, so it goes in that page rather than a new screen of our own.
-    mountDmPage(container, DMP_URL, { embedded: DMP_EMBEDDED });
+    // The design leaves DM as an empty placeholder. The form is real React state, so it is
+    // portalled into that page: the design keeps owning every other screen, and the DM form
+    // keeps owning its own inputs.
+    const dmPage = container.querySelector<HTMLElement>('#dmPage');
+    if (dmPage) {
+      const host = document.createElement('div');
+      host.className = 'dm-host';
+      dmPage.replaceChildren(host);
+      setDmHost(host);
+    }
 
     const onCaptureClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
@@ -466,6 +470,7 @@ export default function SafetyOsApp({
         entry.target.removeEventListener(entry.type, entry.listener, entry.options as never);
       }
       container.innerHTML = '';
+      setDmHost(null);
       delete window.__SAFEX_EMPLOYEES__;
       delete window.__SAFEX_EMPLOYEE_CHANGED__;
       delete window.__SAFEX_CASE_REPORTS__;
@@ -579,6 +584,14 @@ export default function SafetyOsApp({
   }
 
   return <><div className="sos" id="safetyos-console" ref={host} data-site={selectedSiteId} />
+    {dmHost && createPortal(
+      <DmWorkspace
+        siteId={selectedSiteId}
+        siteName={site?.name ?? 'Site'}
+        officerName={personName(officerName) ?? ''}
+      />,
+      dmHost
+    )}
     {(note || reportState === 'unavailable') && <div
       className={`sos-sync-note ${note ? `is-${note.tone}` : 'is-error'}`}
       role="status"
