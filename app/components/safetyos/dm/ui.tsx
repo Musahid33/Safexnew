@@ -107,14 +107,120 @@ export function PhotoFieldBox({
   </div>;
 }
 
+/* ------------------------------------------------------------------ *
+ * Phone rows
+ * ------------------------------------------------------------------ *
+ * On a phone a nine-column table is unreadable and collapsing it with CSS turned a row into
+ * a card whose labels were visible but whose fields were not. These are real cards instead:
+ * a bordered box per row, a labelled box per field, and a remove button in the row header.
+ * The desktop table is untouched and stays the desktop rendering.
+ */
+
+/**
+ * One labelled field inside a phone row card.
+ *
+ * The visible box is the wrapper `div`, not the input: a browser that styles inputs into
+ * nothing (which is what the phone did to the old table cells) still leaves an outlined,
+ * filled box here, with the field inside it.
+ */
+export function CardField({
+  label, hint, boxed = true, children
+}: {
+  label: string;
+  hint?: string;
+  /** Off for controls that bring their own chrome — the photo field, mainly. */
+  boxed?: boolean;
+  children: ReactNode;
+}) {
+  return <div className="dm-cfield">
+    <span>{label}</span>
+    <div className={boxed ? 'dm-cfield-box' : 'dm-cfield-plain'}>{children}</div>
+    {hint && <small>{hint}</small>}
+  </div>;
+}
+
+/** The frame one row becomes on a phone: a number, a remove button, then the fields. */
+export function RowCard({
+  index, label, onRemove, canRemove = true, children
+}: {
+  index: number;
+  label: string;
+  onRemove: () => void;
+  canRemove?: boolean;
+  children: ReactNode;
+}) {
+  return <article className="dm-rowcard">
+    <header className="dm-rowcard-head">
+      <span className="dm-rowcard-no">{label} {index + 1}</span>
+      <button
+        type="button"
+        className="dm-rowcard-remove"
+        aria-label={`Remove ${label.toLowerCase()} ${index + 1}`}
+        disabled={!canRemove}
+        onClick={onRemove}
+      >×</button>
+    </header>
+    <div className="dm-rowcard-body">{children}</div>
+  </article>;
+}
+
+/** A text input styled for a phone card — full width, thumb height, no inherited size. */
+export function CardInput({
+  value, onChange, placeholder, maxLength, list, label, type = 'text'
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  list?: string;
+  label: string;
+  type?: 'text' | 'date' | 'time' | 'number';
+}) {
+  return <input
+    className="dm-cinput"
+    type={type}
+    value={value}
+    placeholder={placeholder}
+    maxLength={maxLength}
+    list={list}
+    aria-label={label}
+    onChange={(event) => onChange(event.target.value)}
+  />;
+}
+
+export function CardSelect({
+  value, onChange, options, label, blank
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  label: string;
+  /** An extra empty option, for a select that has not been answered yet. */
+  blank?: string;
+}) {
+  return <select
+    className="dm-cinput"
+    value={value}
+    aria-label={label}
+    onChange={(event) => onChange(event.target.value)}
+  >
+    {blank !== undefined && <option value="">{blank}</option>}
+    {options.map((option) => <option key={option} value={option}>{option}</option>)}
+  </select>;
+}
+
 /**
  * A table whose rows the operator can add and remove.
  *
  * `blank` is a factory, not a shared object: two rows pointing at the same object would
  * edit each other.
+ *
+ * `phone` renders the same rows as cards instead of a table. It is driven by the form's
+ * layout hook rather than a media query because these are two different trees, not two
+ * styles of the same one.
  */
 export function RowsTable<T extends Record<string, unknown>>({
-  columns, rows, onChange, blank, addLabel, minRows = 1
+  columns, rows, onChange, blank, addLabel, minRows = 1, phone = false
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -122,10 +228,56 @@ export function RowsTable<T extends Record<string, unknown>>({
   blank: () => T;
   addLabel: string;
   minRows?: number;
+  phone?: boolean;
 }) {
   const update = (index: number, key: keyof T & string, value: unknown) => {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)));
   };
+  const remove = (index: number) => onChange(rows.filter((_, rowIndex) => rowIndex !== index));
+
+  if (phone) {
+    return <div className="dm-rows">
+      {rows.length === 0 && <p className="dm-empty-state">No rows yet — “{addLabel}” se pehli row add karein.</p>}
+      {rows.map((row, index) => <RowCard
+        key={index}
+        index={index}
+        label={addLabel.replace(/^Add /, '').replace(/^(.)/, (letter) => letter.toUpperCase())}
+        onRemove={() => remove(index)}
+        canRemove={rows.length > minRows}
+      >
+        {columns.map((column) => <CardField key={column.key} label={column.label} boxed={column.kind !== 'photo'}>
+          {column.kind === 'photo'
+            ? <PhotoField
+              value={String(row[column.key] ?? '')}
+              onChange={(photo) => update(index, column.key, photo)}
+            />
+            : column.kind === 'select'
+              ? <CardSelect
+                label={column.label}
+                value={String(row[column.key] ?? '')}
+                options={column.options ?? []}
+                onChange={(value) => update(index, column.key, value)}
+              />
+              : column.kind === 'check'
+                ? <input
+                  className="dm-cinput"
+                  type="checkbox"
+                  checked={Boolean(row[column.key])}
+                  aria-label={column.label}
+                  onChange={(event) => update(index, column.key, event.target.checked)}
+                />
+                : <CardInput
+                  label={column.label}
+                  value={String(row[column.key] ?? '')}
+                  onChange={(value) => update(index, column.key, value)}
+                />}
+        </CardField>)}
+      </RowCard>)}
+      <button type="button" className="dm-addrow" onClick={() => onChange([...rows, blank()])}>
+        + {addLabel}
+      </button>
+    </div>;
+  }
 
   return <div className="dm-rows">
     <div className="dm-rows-scroll">

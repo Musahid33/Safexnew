@@ -189,11 +189,13 @@ correct the date, shift or location at any point by stepping back to it.
 On a desktop none of this applies: the eleven modules stay an accordion, with **Expand all**
 in the form header and a sticky Submit bar at the end.
 
-Below 860 px every DM table becomes a stack of cards: the header row disappears and each
-cell carries its own label (`data-label`), so a nine-column PPE row is still readable on a
-360 px screen. Below 430 px the label moves above the field. The housekeeping checklist
-keeps its three Y / N / N/A buttons in a row under the criteria. Nothing in the DM screen
-scrolls sideways any more.
+Below 860 px the row tables are not tables at all: `RowsTable`, `PpeTable`, `WalkTable` and
+`PersonTable` render **cards** — one bordered card per row, a labelled box per field, and the
+remove button in the card header. The housekeeping checklist becomes one card per criterion
+with its three Y / N / A buttons side by side. The table markup stays for the desktop, so
+nothing depends on collapsing a nine-column table with CSS, and nothing in the DM screen
+scrolls sideways. This is deliberate: the earlier CSS-only card trick left the labels visible
+and the fields invisible on a real phone, which is exactly the bug these cards replace.
 
 A photo is attached with one **Photo** button over a plain `<input type="file"
 accept="image/*">`. The input deliberately has no `capture` attribute: without it the phone
