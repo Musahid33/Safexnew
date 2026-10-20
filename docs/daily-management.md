@@ -85,10 +85,25 @@ configured → operator session → rate limit.
 
 ## Rendering
 
-`lib/dm/pdf.ts` draws the document with `pdf-lib`: A4, letterhead
-`EMVEESS INFRAVENTURES PVT. LTD.`, the reference in a box beside the title, eleven numbered
-module bands, wrapped tables, a declaration with the supervisor's name, and a footer with the
-reference, generation time and page count.
+`lib/dm/pdf.ts` draws the document with `pdf-lib`, laid out like the paper DMP the sites
+already file: a **landscape** page (841.89 × 595.28 pt) with a boxed letterhead —
+`DAILY MANAGEMENT PLAN`, the company, the site and `Doc No: <reference>` — then a four-cell
+strip with the execution date, site location, safety supervisor and shift.
+
+Under that, **one ruled table per module**, each behind a grey banded heading: permit
+reviews with five Y/N checks as columns, the tool box talk, the PPE matrix (one column per
+PPE item, ticked, crossed or `N/A`), site inspection, equipment, tools, housekeeping as the
+eight 1S and fifteen 2S criteria, safety interaction, incident, training and administrative
+documentation. **Date and location repeat on every row**, so a single printed line still
+says which shift and which site it belongs to. Empty cells are left blank, exactly as on
+the form, and modules with no entry are listed in one line before the sign-off.
+
+Columns are proportional weights, not fixed widths: headers wrap (and shrink a point or two
+when a word like `SIGNATURES` would otherwise break mid-word), a row that does not fit
+starts a new page with the header repeated, and a section band is never left alone at the
+foot of a page. Ticks and crosses are drawn as lines — the standard fonts have no check
+mark — and photographs follow on their own annexure page, three to a row, captioned with
+what they show. The footer repeats the reference, generation time and `Page x of y`.
 
 Helvetica is a WinAnsi font, so every string goes through `sanitize()` first: curly quotes,
 dashes, bullets and `₹` are folded to ASCII, and characters with no WinAnsi form (emoji,
@@ -185,11 +200,6 @@ master. An exact match wins; a prefix only counts when it identifies exactly one
 The picker reads the same `public.employees` rows the console's Employee Profile screen
 does (`GET /api/admin/employees`, session-gated), so a corrected spelling in the master
 shows up in the next plan.
-
-## Digital signature
-
-The signature block is still text (`Signed: <supervisor>`) drawn on the PDF. A captured
-signature would need a Storage upload and one extra column; it is not in this phase.
 
 ## Testing
 

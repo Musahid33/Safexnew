@@ -177,11 +177,13 @@ test('a filled plan renders a real PDF with the reference on it', async () => {
   // Severity and the multi-item PPE list are what the new columns exist for.
   assert.ok(text.includes('3 / 5'));
   assert.ok(text.includes('Area cordoned and spill cleaned'), 'the immediate action is printed');
-  assert.ok(text.includes('Safety Helmet, Hand Gloves'));
+  // PPE is a tick matrix now: the item names are the column headers, not a joined list.
+  assert.ok(text.includes('HELMET'), 'PPE item columns are printed');
+  assert.ok(text.includes('GLOVES'));
   assert.ok(text.includes('EIPL-1042'));
-  // Every module band is printed, in order.
+  // Every module band is printed, in order, as the printed form's uppercase headings.
   planModule.MODULE_TITLES.forEach((title, index) => {
-    assert.ok(text.includes(title.replace(/[&]/g, '&').slice(0, 18)), `module ${index + 1} is printed`);
+    assert.ok(text.includes(title.toUpperCase()), `module ${index + 1} is printed`);
   });
 });
 
@@ -193,9 +195,12 @@ test('the PDF survives curly quotes, emoji and Devanagari instead of throwing', 
 
   const bytes = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
   assert.ok(bytes.length > 4000);
-  const text = pdfText(bytes);
+  // Cells wrap, so compare with the line breaks flattened out.
+  const text = pdfText(bytes).replace(/\s+/g, ' ');
   // WinAnsi has no emoji or Devanagari, so they are dropped; the ASCII around them stays.
   assert.ok(text.includes('Stop, look, assess'));
+  assert.ok(text.includes('Rs.500'), 'the rupee sign is folded, not dropped');
+  assert.ok(text.includes('-> restarted'));
   assert.ok(!/[\u{1F300}-\u{1FAFF}]/u.test(text));
 });
 
@@ -239,7 +244,7 @@ test('attached photos are printed with the observations', async () => {
 
   const withPhotos = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
   const text = pdfText(withPhotos);
-  assert.ok(text.includes('Photographs'), 'evidence gets its own caption');
+  assert.ok(text.includes('PHOTOGRAPHS'), 'evidence gets its own page');
   assert.ok(text.includes('PPE 1'));
 
   // The same image bytes are embedded once, not once per occurrence.
@@ -286,7 +291,7 @@ test('a team-wide PPE observation prints as "All employees"', async () => {
   const bytes = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
   const text = pdfText(bytes);
   assert.ok(text.includes('All employees'));
-  assert.ok(text.includes('Safety Helmet, Hand Gloves'));
+  assert.ok(text.includes('HELMET'));
 });
 
 
