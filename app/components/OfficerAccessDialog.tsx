@@ -1,24 +1,23 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, Info, LockKeyhole, Mail, Phone, ShieldCheck, UserRound, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Info, LockKeyhole, Mail, ShieldCheck, UserRound, UsersRound, X } from 'lucide-react';
 import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/admin-credentials';
 import { useI18n } from './I18nProvider';
 
 type Props = { onClose: () => void; onDemoLogin: () => void };
-type Role = 'employee' | 'supervisor' | 'admin';
-type Mode = 'login' | 'otp' | 'reset';
-
-const COUNTRY_CODES = ['+91', '+1', '+44', '+971'];
+/**
+ * Staff sign-in only. Employees never hold an account here: they use the public app
+ * (report submission needs no login) and identify themselves through the Employee-ID
+ * lookup on the profile screen.
+ */
+type Role = 'supervisor' | 'admin';
+type Mode = 'login' | 'reset';
 
 export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
   const { T } = useI18n();
-  const [role, setRole] = useState<Role>('employee');
+  const [role, setRole] = useState<Role>('supervisor');
   const [mode, setMode] = useState<Mode>('login');
-  const [countryCode, setCountryCode] = useState('+91');
-  const [employeeId, setEmployeeId] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [otp, setOtp] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [resetIdentifier, setResetIdentifier] = useState('');
@@ -26,27 +25,12 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
   const [message, setMessage] = useState('');
   const [signingIn, setSigningIn] = useState(false);
 
-  const employeeOtp = role === 'employee' && mode === 'otp';
-
   function chooseRole(nextRole: Role) {
     setRole(nextRole);
     setMode('login');
-    setOtp('');
     setUsername('');
     setPassword('');
     setMessage('');
-  }
-
-  function requestEmployeeOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setOtp('');
-    setMode('otp');
-    setMessage('Demo only: no OTP was sent. Connect employee verification and SMS delivery to enable sign-in.');
-  }
-
-  function verifyEmployeeOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage('OTP verification is not connected in this demo. No sign-in has occurred.');
   }
 
   async function submitStaffLogin(event: FormEvent<HTMLFormElement>) {
@@ -95,14 +79,12 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
 
   function submitReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(role === 'employee'
-      ? 'Employee account recovery is not connected in this demo. No message was sent.'
-      : 'Password reset is not connected in this demo. No email was sent.');
+    setMessage('Password reset is not connected in this demo. No email was sent.');
   }
 
   function openReset() {
-    setResetIdentifier(role === 'employee' ? employeeId : username);
-    setResetContact(role === 'employee' ? mobile : '');
+    setResetIdentifier(username);
+    setResetContact('');
     setMessage('');
     setMode('reset');
   }
@@ -112,20 +94,14 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
     setMode('login');
   }
 
-  const infoTitle = mode === 'otp'
-    ? T('Verify your OTP')
-    : mode === 'reset'
-      ? role === 'employee' ? T('Employee Account Help') : T('Password Reset')
-      : role === 'employee' ? T('Employee Login') : role === 'supervisor' ? T('Safety Supervisor / Site Supervisor Login') : T('Admin Login');
-  const infoText = mode === 'otp'
-    ? T('Enter the one-time code sent to your registered mobile number.')
-    : mode === 'reset'
-      ? role === 'employee' ? T('Enter your Employee ID and registered mobile number for account help.') : T('Enter your account ID and registered email to request a password reset.')
-        : role === 'employee'
-          ? T('Enter your Employee ID and registered mobile number to receive OTP.')
-          : role === 'supervisor'
-            ? T('Sign in with your Safety Supervisor or Site Supervisor account.')
-            : T('Sign in with the demo admin account to open the admin dashboard. The Safex server checks the credentials and issues the session; Supabase authentication is not used.');
+  const infoTitle = mode === 'reset'
+    ? T('Password Reset')
+    : role === 'supervisor' ? T('Safety Supervisor / Site Supervisor Login') : T('Admin Login');
+  const infoText = mode === 'reset'
+    ? T('Enter your account ID and registered email to request a password reset.')
+    : role === 'supervisor'
+      ? T('Sign in with your Safety Supervisor or Site Supervisor account.')
+      : T('Sign in with the demo admin account to open the admin dashboard. The Safex server checks the credentials and issues the session; Supabase authentication is not used.');
 
   return <div className="overlay account-login-overlay" role="dialog" aria-modal="true" aria-labelledby="officer-access-title">
     <div className="modal account-login-modal">
@@ -138,10 +114,6 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
       </div>
 
       <div className="account-role-grid" role="group" aria-label={T('Choose account type')}>
-        <button type="button" className={`account-role-tab ${role === 'employee' ? 'selected' : ''}`} aria-pressed={role === 'employee'} onClick={() => chooseRole('employee')}>
-          <UserRound aria-hidden="true" />
-          <b>{T('Employee')}</b>
-        </button>
         <button type="button" className={`account-role-tab ${role === 'supervisor' ? 'selected' : ''}`} aria-pressed={role === 'supervisor'} onClick={() => chooseRole('supervisor')}>
           <UsersRound aria-hidden="true" />
           <b>{T('Safety Supervisor')}<br />/ {T('Site Supervisor')}</b>
@@ -159,29 +131,12 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
       </div>
 
       {mode === 'reset' ? <form className="account-login-form" onSubmit={submitReset}>
-        <label htmlFor="account-reset-id">{role === 'employee' ? T('Employee ID') : role === 'supervisor' ? T('Supervisor ID') : T('Admin User ID')}</label>
-        <div className="account-input-wrap"><UserRound size={19} /><input id="account-reset-id" value={resetIdentifier} onChange={(event) => setResetIdentifier(event.target.value)} placeholder={role === 'employee' ? T('Enter your Employee ID') : T('Enter your account ID')} autoComplete="username" required /></div>
-        <label htmlFor="account-reset-contact">{role === 'employee' ? T('Registered Mobile Number') : T('Registered Email')}</label>
-        {role === 'employee' ? <div className="account-phone-row">
-          <div className="account-country-wrap"><Phone size={18} /><select value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-label={T('Country calling code')}>{COUNTRY_CODES.map((code) => <option key={code} value={code}>{code}</option>)}</select></div>
-          <div className="account-input-wrap phone-field"><input id="account-reset-contact" type="tel" inputMode="tel" autoComplete="tel-national" value={resetContact} onChange={(event) => setResetContact(event.target.value)} placeholder={T('Enter your registered mobile number')} minLength={8} maxLength={16} required /></div>
-        </div> : <div className="account-input-wrap"><Mail size={19} /><input id="account-reset-contact" type="email" autoComplete="email" value={resetContact} onChange={(event) => setResetContact(event.target.value)} placeholder={T('Enter your registered email')} required /></div>}
-        <button className="account-primary-button" type="submit">{role === 'employee' ? T('Get Account Help') : T('Send Reset Link')} <ArrowRight size={20} /></button>
+        <label htmlFor="account-reset-id">{role === 'supervisor' ? T('Supervisor ID') : T('Admin User ID')}</label>
+        <div className="account-input-wrap"><UserRound size={19} /><input id="account-reset-id" value={resetIdentifier} onChange={(event) => setResetIdentifier(event.target.value)} placeholder={T('Enter your account ID')} autoComplete="username" required /></div>
+        <label htmlFor="account-reset-contact">{T('Registered Email')}</label>
+        <div className="account-input-wrap"><Mail size={19} /><input id="account-reset-contact" type="email" autoComplete="email" value={resetContact} onChange={(event) => setResetContact(event.target.value)} placeholder={T('Enter your registered email')} required /></div>
+        <button className="account-primary-button" type="submit">{T('Send Reset Link')} <ArrowRight size={20} /></button>
         <button className="account-back-button" type="button" onClick={backToLogin}><ArrowLeft size={16} /> {T('Back to Login')}</button>
-      </form> : employeeOtp ? <form className="account-login-form" onSubmit={verifyEmployeeOtp}>
-        <label htmlFor="account-otp">{T('One-Time Password')}</label>
-        <div className="account-input-wrap"><LockKeyhole size={19} /><input id="account-otp" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder={T('Enter 6-digit OTP')} minLength={6} maxLength={6} required /></div>
-        <button className="account-primary-button" type="submit">{T('Verify & Continue')} <ArrowRight size={20} /></button>
-        <button className="account-back-button" type="button" onClick={backToLogin}><ArrowLeft size={16} /> {T('Change Employee ID / Mobile')}</button>
-      </form> : role === 'employee' ? <form className="account-login-form" onSubmit={requestEmployeeOtp}>
-        <label htmlFor="account-employee-id">{T('Employee ID')}</label>
-        <div className="account-input-wrap"><UserRound size={19} /><input id="account-employee-id" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder={T('Enter your Employee ID')} autoComplete="username" required /></div>
-        <label htmlFor="account-mobile">{T('Mobile Number')}</label>
-        <div className="account-phone-row">
-          <div className="account-country-wrap"><Phone size={18} /><select value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-label={T('Country calling code')}>{COUNTRY_CODES.map((code) => <option key={code} value={code}>{code}</option>)}</select></div>
-          <div className="account-input-wrap phone-field"><input id="account-mobile" type="tel" inputMode="tel" autoComplete="tel-national" value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder={T('Enter your registered mobile number')} minLength={8} maxLength={16} required /></div>
-        </div>
-        <button className="account-primary-button" type="submit">{T('Send OTP')} <ArrowRight size={21} /></button>
       </form> : <form className="account-login-form" onSubmit={submitStaffLogin}>
         <label htmlFor="account-username">{role === 'supervisor' ? T('Supervisor User ID') : T('Admin User ID')}</label>
         <div className="account-input-wrap"><UserRound size={19} /><input id="account-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={role === 'supervisor' ? T('Enter your Supervisor ID') : T('Enter your Admin User ID')} autoComplete="username" required /></div>
@@ -197,7 +152,7 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
       </section>}
       {message && <div className="account-login-message" role="status">{T(message)}</div>}
       {mode !== 'reset' && <div className="account-login-footer"><span /><button type="button" onClick={openReset}>{T('Forgot Password?')}</button></div>}
-      <div className="account-demo-note"><LockKeyhole size={14} /> {T('Demo interface only. OTP, password reset and live Supabase authentication are not connected. The demo admin sign-in is verified by the Safex server and credentials are not saved.')}</div>
+      <div className="account-demo-note"><LockKeyhole size={14} /> {T('Demo interface only. Password reset and live Supabase authentication are not connected. The admin sign-in is verified by the Safex server and credentials are not saved.')}</div>
     </div>
   </div>;
 }

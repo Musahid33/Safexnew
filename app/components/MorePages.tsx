@@ -169,7 +169,7 @@ export function AccountManagementPage({ onBack, onLogin, onOpenInfo }: {
     <MoreSubpageHeading eyebrow="ACCOUNT" title="Account Login" description="Access and account preferences." icon={LockKeyhole} onBack={onBack} />
     <div className="account-session-note"><span><LockKeyhole size={19} /></span><div><b>{T('Demo mode · no active session')}</b><small>{T('Authentication is not connected. No login or logout state is stored.')}</small></div></div>
     <div className="more-option-list account-option-list" aria-label={T('Account actions')}>
-      <MoreOptionCard icon={LogIn} tone="employee" title="Login" description="Employee, supervisor or admin access" onClick={onLogin} />
+      <MoreOptionCard icon={LogIn} tone="employee" title="Login" description="Safety supervisor or admin access" onClick={onLogin} />
       <button type="button" className="more-option-card disabled" disabled aria-disabled="true">
         <span className="more-option-icon account"><LogOut size={20} aria-hidden="true" /></span>
         <span className="more-option-copy"><b>{T('Logout')}</b><small>{T('No signed-in account to log out')}</small></span>
