@@ -118,3 +118,38 @@
   cursor: pointer;
 }
 .sos-master-note button:hover { background: #0e56c6; }
+
+/* Feedback for the one write the console performs — a report status change — plus the
+   notice shown when the report database could not be read at all. Sits bottom-left so it
+   never covers the design's own toasts (top-right) or the rewards link. */
+.sos-sync-note {
+  position: fixed;
+  z-index: 95;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 9px 14px;
+  border: 1px solid #c9d7ea;
+  border-radius: 10px;
+  background: #f6faff;
+  color: #24405f;
+  font: 500 11px/1.5 system-ui, sans-serif;
+  box-shadow: 0 5px 16px #142a501f;
+}
+.sos-sync-note.is-pending { border-color: #c9d7ea; background: #f6faff; color: #24405f; }
+.sos-sync-note.is-ok { border-color: #9fd6bb; background: #f1fbf6; color: #14563d; }
+.sos-sync-note.is-error { border-color: #f0b9b9; background: #fff5f4; color: #8a2b2b; }
+.sos-sync-note button {
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: #1263df;
+  color: #fff;
+  font: 700 11px system-ui, sans-serif;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.sos-sync-note button:hover { background: #0e56c6; }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/admin-credentials';
 import type { AdminRecognitionItem } from '@/lib/recognitions';
 
 type Draft = Omit<AdminRecognitionItem, 'id'> & { id?: string };
@@ -9,7 +10,8 @@ const blank: Draft = { employeeName: '', rewardFor: '', imageUrl: null, artworkI
 export default function RecognitionManager() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [signedIn, setSignedIn] = useState(false);
-  const [passcode, setPasscode] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [items, setItems] = useState<AdminRecognitionItem[]>([]);
   const [draft, setDraft] = useState<Draft>(blank);
   const [message, setMessage] = useState('');
@@ -40,10 +42,12 @@ export default function RecognitionManager() {
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage('');
     try {
-      const response = await fetch('/api/admin/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passcode }) });
+      // Same server check the app's login dialog uses. A workspace passcode also works —
+      // the route takes either — but the demo credentials are what this deployment has.
+      const response = await fetch('/api/admin/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username.trim(), password }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Sign-in failed.');
-      setPasscode(''); setSignedIn(true);
+      setPassword(''); setSignedIn(true);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Sign-in failed.'); }
     finally { setBusy(false); }
   }
@@ -86,9 +90,13 @@ export default function RecognitionManager() {
     {configured === null && <p>Checking access…</p>}
     {configured === false && <p>The admin console is disabled. Configure SAFEX_ADMIN_PASSCODE on the server.</p>}
     {configured && !signedIn && <form className="recognition-admin-card" onSubmit={signIn}>
-      <label htmlFor="recognition-passcode">Admin workspace passcode</label>
-      <input id="recognition-passcode" type="password" minLength={12} required autoComplete="current-password" value={passcode} onChange={(event) => setPasscode(event.target.value)} />
+      <label htmlFor="recognition-username">Admin User ID</label>
+      <input id="recognition-username" required autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} />
+      <label htmlFor="recognition-password">Password</label>
+      <input id="recognition-password" type="password" minLength={6} required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
       <button type="submit" disabled={busy}>Sign in</button>
+      <button type="button" onClick={() => { setUsername(ADMIN_USERNAME); setPassword(ADMIN_PASSWORD); }}>Use demo credentials</button>
+      <small>Signed in to the app already? This page reuses that session.</small>
     </form>}
     {configured && signedIn && <>
       <form className="recognition-admin-card" onSubmit={save}>
