@@ -422,6 +422,43 @@ export default function SafetyOsApp({
       setDmHost(host);
     }
 
+    // The design's sidebar is a 224 px column (66 px below 1250 px) and it hides its own
+    // menu button, so every screen pays for navigation it may not be using. Here it becomes
+    // a drawer: closed by default, opened from the topbar, dismissed by the scrim, Escape or
+    // picking a destination. `mobile-nav-open` is the design's own class, so its script and
+    // styles keep working.
+    const app = container.querySelector<HTMLElement>('#app');
+    const scrim = document.createElement('div');
+    scrim.className = 'sos-nav-scrim';
+    scrim.setAttribute('aria-hidden', 'true');
+    app?.appendChild(scrim);
+
+    const closeNav = () => app?.classList.remove('mobile-nav-open');
+    const onScrimClick = () => closeNav();
+    const onNavPick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.nav-link')) closeNav();
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeNav();
+    };
+    if (app) {
+      scrim.addEventListener('click', onScrimClick);
+      app.addEventListener('click', onNavPick);
+    }
+    window.addEventListener('keydown', onEscape);
+
+    // The button keeps its `aria-expanded` honest whichever way the drawer was closed.
+    const menuButton = container.querySelector<HTMLElement>('#mobileMenu');
+    menuButton?.setAttribute('aria-controls', 'sidebar');
+    const syncMenu = () => menuButton?.setAttribute(
+      'aria-expanded',
+      String(Boolean(app?.classList.contains('mobile-nav-open')))
+    );
+    syncMenu();
+    const drawerObserver = app ? new MutationObserver(syncMenu) : null;
+    drawerObserver?.observe(app as HTMLElement, { attributes: true, attributeFilter: ['class'] });
+
     const onCaptureClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
@@ -466,6 +503,10 @@ export default function SafetyOsApp({
 
     return () => {
       container.removeEventListener('click', onCaptureClick, true);
+      scrim.removeEventListener('click', onScrimClick);
+      app?.removeEventListener('click', onNavPick);
+      window.removeEventListener('keydown', onEscape);
+      drawerObserver?.disconnect();
       for (const entry of recorder.attached) {
         entry.target.removeEventListener(entry.type, entry.listener, entry.options as never);
       }

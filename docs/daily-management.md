@@ -154,6 +154,16 @@ clears the name, so a saved plan never prints a person's name against a team-wid
 
 ## Phone layout
 
+The whole console now runs without a permanent sidebar: the topbar's menu button opens the
+navigation as a drawer over the page, and the content gets the full width back. On a phone
+the drawer closes on the scrim, on Escape, or as soon as a destination is picked.
+
+Every control is sized for a thumb: 16 px inputs (anything smaller makes iOS zoom the page
+on focus), 44 px minimum height on fields and buttons, and larger Y / N / N/A ticks. The
+submit bar is sticky at the bottom of the screen, so filing is always one tap away while the
+long form scrolls behind it. **Expand all** in the form header opens every module at once
+instead of eleven taps.
+
 Below 860 px every DM table becomes a stack of cards: the header row disappears and each
 cell carries its own label (`data-label`), so a nine-column PPE row is still readable on a
 360 px screen. Below 430 px the label moves above the field. The housekeeping checklist
