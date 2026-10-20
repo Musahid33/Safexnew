@@ -312,3 +312,49 @@ test('an archived plan without a signature prints "not on record", not a blank c
   assert.ok(text.includes('Signature (not on record)'));
   assert.ok(text.includes('Not accepted'));
 });
+
+
+test('photos attached to tools, equipment, housekeeping, interaction, incident and training print', async () => {
+  const plan = filledPlan();
+  plan.modules.equipment = [{ name: 'EOT crane', check: 'Guard', devices: 'Limit switch', status: 'OK', remarks: '', photo: TINY_JPEG }];
+  plan.modules.tools = [{
+    name: 'Torque wrench', toolId: 'TW-14', safe: 'Safe', description: 'Calibrated',
+    condition: 'Good', remarks: '', action: '', responsible: 'Ravi', photo: TINY_JPEG
+  }];
+  plan.modules.housekeeping = { checks: { '1': 'yes' }, observations: 'Scrap near bay 2', action: 'Bins placed', photo: TINY_JPEG };
+  plan.modules.interaction = {
+    team: [], topics: [], feedback: 'Crew asked for gloves',
+    escalated: false, followUp: false, targetDate: '', photo: TINY_JPEG
+  };
+  plan.modules.incident = {
+    location: 'Ramp 3', reportedBy: 'Ravi', reportNo: 'NM-11', date: '2026-10-21', time: '09:10',
+    categories: ['Near miss'], persons: [], description: 'Pallet shifted', action: 'Area barricaded',
+    investigation: false, photo: TINY_JPEG
+  };
+  plan.modules.training = {
+    employeeNo: 'EMP004', employee: 'Ravi Kumar', action: 'Refresher', observation: 'Harness use',
+    required: true, conducted: true, records: false, needType: 'PPE', photo: TINY_JPEG
+  };
+
+  const bytes = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  const text = pdfText(bytes);
+
+  assert.ok(text.includes('Equipment 1'), 'equipment photo is captioned');
+  assert.ok(text.includes('Tool 1'), 'tool photo is captioned');
+  assert.ok(text.includes('Housekeeping'), 'housekeeping photo is captioned');
+  assert.ok(text.includes('Safety interaction'), 'interaction photo is captioned');
+  assert.ok(text.includes('Incident / near miss'), 'incident photo is captioned');
+  assert.ok(text.includes('Training'), 'training photo is captioned');
+
+  // The same image bytes are embedded once and reused, so the growth is one image — but the
+  // document must still be bigger than the identical plan with the photo fields cleared.
+  const plain = JSON.parse(JSON.stringify(plan));
+  plain.modules.equipment.forEach((row) => { row.photo = ''; });
+  plain.modules.tools.forEach((row) => { row.photo = ''; });
+  plain.modules.housekeeping.photo = '';
+  plain.modules.interaction.photo = '';
+  plain.modules.incident.photo = '';
+  plain.modules.training.photo = '';
+  const withoutPhotos = await pdfModule.renderDmPdf(plain, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  assert.ok(bytes.length > withoutPhotos.length, 'the embedded photo adds weight');
+});

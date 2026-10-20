@@ -33,12 +33,12 @@ would lose a record. The PDF is stored and downloaded as `<reference>.pdf`.
 | 2 | Tool Box Talk (TBT) | attendees, conducted by, topics, previous incidents, hazards, procedures, theme, PPE, open forum, takeaways |
 | 3 | PPE checking | rows: **All (team)** or **Individual** (employee number ↔ name from the master), issue, every PPE item observed, remarks, photo |
 | 4 | Site walk-through | rows: area, observation type (`Safe act`, `Good Practices`, `Unsafe act`, `Unsafe condition`), severity 1–5 for unsafe only, details, immediate action taken, photo |
-| 5 | Equipment / machinery | rows: equipment, check, safety devices, status, action |
-| 6 | Tools & tackles | rows: tool, ID, safe/unsafe, condition, description, action, responsible |
-| 7 | Housekeeping (1S / 2S) | 23 criteria (8 × 1S, 15 × 2S) answered Y / N / N/A, plus observations and action |
-| 8 | Safety interaction | team rows (employee number ↔ name from the master), discussion topics, feedback, escalation, follow-up |
-| 9 | Incident / near-miss / hazard | location, reporter, report no, category, persons (employee master), description, action, investigation |
-| 10 | Training | employee number + employee (employee master), need identified, observation, action, three confirmations |
+| 5 | Equipment / machinery | rows: equipment, check, safety devices, status, action, photo |
+| 6 | Tools & tackles | rows: tool, ID, safe/unsafe, condition, description, action, responsible, photo |
+| 7 | Housekeeping (1S / 2S) | 23 criteria (8 × 1S, 15 × 2S) answered Y / N / N/A, plus observations, action and photo |
+| 8 | Safety interaction | team rows (employee number ↔ name from the master), discussion topics, feedback, escalation, follow-up, photo |
+| 9 | Incident / near-miss / hazard | location, reporter, report no, category, persons (employee master), description, action, investigation, photo |
+| 10 | Training | employee number + employee (employee master), need identified, observation, action, three confirmations, photo |
 | 11 | Admin & documentation | rows: SOP/JHA no, compliance, adequacy, action by, remarks |
 
 Constants and the plan type live in `lib/dm/plan.ts`, which is pure TypeScript — no React, no
@@ -131,6 +131,19 @@ The PDF carries the block at the foot of the last page: the declaration, the dra
 signature fitted into a 176 × 54 pt box, the supervisor's name and employee number, and the
 UTC time it was signed. After filing, the workspace shows **"Thank you Mr <supervisor> for
 submitting the DM"** with the DM number and the PDF link.
+
+## Photo evidence
+
+Every module that can carry evidence does: PPE (per row), site walk-through (per row),
+equipment (per row), tools (per row), housekeeping, safety interaction, incident / near
+miss and training. Each field offers **Camera** and **Gallery** separately, because a
+single `capture` input hides the gallery on Android.
+
+A plan may carry 24 photos, each up to 140 000 characters as a JPEG data URL, with 2 400 000
+characters across the plan; the browser compresses to about 120 000 before sending, and the
+server enforces the same ceilings in `normalisePlan`. A photo counts as an answer on its
+own — a near miss photographed with nothing typed still fills module 9 — and one embedded
+image is reused everywhere it appears instead of being stored twice in the PDF.
 
 ## Team-wide or individual observations
 
