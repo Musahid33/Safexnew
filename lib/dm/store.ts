@@ -152,7 +152,9 @@ export async function saveDmPlan(options: {
   companyName?: string | null;
   siteName?: string | null;
 }): Promise<DmSaveResult> {
-  const normalised = normalisePlan(options.input);
+  // Filing needs the sign-off; reading the archive does not, so a plan filed before the
+  // declaration existed still opens and reprints.
+  const normalised = normalisePlan(options.input, { requireSignOff: true });
   if (!normalised.ok) {
     return { ok: false, code: 'VALIDATION', error: normalised.errors.join(' ') };
   }

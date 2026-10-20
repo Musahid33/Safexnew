@@ -338,3 +338,59 @@ test('a walk-through observation records the immediate action taken', () => {
   assert.equal(actionOnly.ok, true);
   assert.equal(plan.filledModuleCount(actionOnly.plan), 1);
 });
+
+
+// A 1 × 1 PNG: enough to prove a drawn signature is carried and embedded.
+const TINY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+test('filing needs the declaration ticked and a drawn signature', () => {
+  const unsigned = plan.normalisePlan(filled(), { requireSignOff: true });
+  assert.equal(unsigned.ok, false);
+  assert.equal(unsigned.errors.length, 2);
+  assert.match(unsigned.errors.join(' '), /Tick the declaration/);
+  assert.match(unsigned.errors.join(' '), /Sign the plan/);
+
+  // Ticking the box alone is not a signature.
+  const declaredOnly = plan.normalisePlan({ ...filled(), signOff: { declared: true } }, { requireSignOff: true });
+  assert.equal(declaredOnly.ok, false);
+  assert.equal(declaredOnly.errors.length, 1);
+
+  const signed = plan.normalisePlan(
+    { ...filled(), signOff: { declared: true, signature: TINY_PNG } },
+    { requireSignOff: true }
+  );
+  assert.equal(signed.ok, true);
+  assert.equal(signed.plan.signOff.declared, true);
+  assert.equal(signed.plan.signOff.signature, TINY_PNG);
+  // The browser stamps the signing time; if it did not, the server does.
+  assert.ok(signed.plan.signOff.signedAt);
+});
+
+test('the archive still reads plans filed before the declaration existed', () => {
+  const archived = plan.normalisePlan(filled());
+  assert.equal(archived.ok, true);
+  assert.deepEqual(archived.plan.signOff, { declared: false, signature: '', signedAt: '' });
+  assert.ok(plan.normalisePlan(filled()).ok, 'reading never demands a signature');
+});
+
+test('only a PNG drawn signature is carried into the record', () => {
+  assert.equal(plan.signatureData('data:image/png;base64,AAAA'), 'data:image/png;base64,AAAA');
+  assert.equal(plan.signatureData('data:image/jpeg;base64,AAAA'), '');
+  assert.equal(plan.signatureData('javascript:alert(1)'), '');
+  assert.equal(plan.signatureData(42), '');
+  assert.equal(plan.signatureData('data:image/png;base64,' + 'A'.repeat(plan.MAX_SIGNATURE_CHARS)), '');
+
+  const asJpeg = plan.normalisePlan(
+    { ...filled(), signOff: { declared: true, signature: 'data:image/jpeg;base64,AAAA' } },
+    { requireSignOff: true }
+  );
+  assert.equal(asJpeg.ok, false);
+});
+
+test('the thank-you line names the supervisor', () => {
+  assert.equal(plan.thankYouLine('Musahid Ansari'), 'Thank you Mr Musahid Ansari for submitting the DM.');
+  assert.equal(plan.thankYouLine('  '), 'Thank you for submitting the DM.');
+  // A name that already carries a title is not given a second one.
+  assert.equal(plan.thankYouLine('Mr Ravi Kumar'), 'Thank you Mr Ravi Kumar for submitting the DM.');
+  assert.equal(plan.thankYouLine('Ms. Neha Singh'), 'Thank you Ms. Neha Singh for submitting the DM.');
+});

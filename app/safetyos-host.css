@@ -781,3 +781,181 @@
   .dm-hk tr { grid-template-columns: 1fr repeat(3, 40px); }
   .dm-photo { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---------- DM: declaration, signature and the thank-you banner ---------- */
+
+.dm-signoff {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid #d9e5f3;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfdff, #f4f8fd);
+}
+.dm-signoff-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.dm-signoff-eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: #7d8ca1;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.dm-signoff-head h3 { margin: 0; color: #182945; font-size: 14px; font-weight: 760; }
+.dm-signoff-head p { margin: 4px 0 0; color: #6f8095; font-size: 11px; line-height: 1.45; }
+.dm-signoff-state {
+  flex: none;
+  padding: 4px 9px;
+  border: 1px solid #e6d7b6;
+  border-radius: 999px;
+  background: #fff8e8;
+  color: #9a6b12;
+  font-size: 9.5px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.dm-signoff-state.is-ready { border-color: #bfe2cf; background: #ecf9f1; color: #16805b; }
+
+/* The checkbox is the size of a thumb, not a form-control default. */
+.dm-declare {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #dfe8f2;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.dm-declare.is-on { border-color: #a9cdf6; background: #f4f9ff; }
+.dm-declare input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: #1a67d8;
+  cursor: pointer;
+}
+.dm-declare span { display: block; min-width: 0; }
+.dm-declare strong { display: block; color: #23395a; font-size: 11.5px; font-weight: 620; line-height: 1.45; }
+.dm-declare small { display: block; margin-top: 4px; color: #7f8ea3; font-size: 10.5px; line-height: 1.4; }
+
+.dm-sign-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+.dm-sign-pad-wrap { min-width: 0; }
+.dm-sign-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #52637a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.dm-sign-label em { color: #8b97a8; font-style: normal; font-weight: 500; }
+
+.dm-signature { position: relative; }
+.dm-signature-pad {
+  display: block;
+  width: 100%;
+  height: 128px;
+  border: 1.5px dashed #b9cde4;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 31px, #eef4fb 31px 32px),
+    #fff;
+  touch-action: none;
+  cursor: crosshair;
+}
+.dm-signature.is-signed .dm-signature-pad { border-style: solid; border-color: #9dc3f0; cursor: default; }
+.dm-signature-hint {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #9aabc0;
+  font-size: 12px;
+  font-style: italic;
+  pointer-events: none;
+}
+.dm-signature-actions { display: flex; justify-content: flex-end; margin-top: 5px; }
+.dm-signature-actions .dm-ghost { height: 26px; padding: 0 9px; font-size: 10px; }
+
+.dm-sign-meta {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e2eaf4;
+  border-radius: 10px;
+  background: #fff;
+}
+.dm-sign-meta div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid #f0f4f9;
+}
+.dm-sign-meta div:last-child { border-bottom: 0; }
+.dm-sign-meta dt { color: #7d8ca1; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.dm-sign-meta dd { margin: 0; color: #23395a; font-size: 11px; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+
+.dm-banner-thanks { border-color: #bfe2cf; background: linear-gradient(100deg, #effaf3, #fbfefc); }
+.dm-banner-thanks strong { color: #146c4d; font-size: 13px; }
+.dm-banner-thanks p { margin: 3px 0 0; color: #5d7669; font-size: 10.5px; }
+
+.dm-summary-sign {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid #dbe9f7;
+  border-radius: 9px;
+  background: #f8fbff;
+}
+.dm-summary-sign strong { display: block; color: #21436b; font-size: 11px; }
+.dm-summary-sign small { display: block; margin-top: 2px; color: #7d8ca1; font-size: 9.5px; }
+.dm-summary-sign img {
+  flex: none;
+  max-width: 150px;
+  max-height: 48px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid #e5edf7;
+  border-radius: 6px;
+}
+.dm-summary-unsigned { margin: 10px 0 0; color: #8b97a8; font-size: 10px; font-style: italic; }
+
+@media (max-width: 860px) {
+  .dm-signoff { padding: 12px; }
+  .dm-signoff-head { flex-direction: column; gap: 8px; }
+  .dm-signoff-state { align-self: flex-start; }
+  .dm-sign-grid { grid-template-columns: 1fr; }
+  .dm-signature-pad { height: 150px; }
+  .dm-declare input { width: 24px; height: 24px; }
+  .dm-declare strong { font-size: 12.5px; }
+  .dm-declare small { font-size: 11px; }
+  .dm-signature-hint { top: 56px; font-size: 13px; }
+  .dm-signature-actions .dm-ghost { height: 32px; padding: 0 12px; font-size: 11.5px; }
+  .dm-sign-meta dd { font-size: 12px; }
+  .dm-summary-sign { flex-direction: column; align-items: flex-start; }
+  .dm-summary-sign img { max-width: 100%; max-height: 60px; }
+}
+
+@media (max-width: 430px) {
+  .dm-signoff-head p { font-size: 11.5px; }
+  .dm-signature-pad { height: 168px; }
+}

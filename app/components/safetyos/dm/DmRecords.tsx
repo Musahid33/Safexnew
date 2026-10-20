@@ -264,5 +264,21 @@ function PlanSummary({ plan }: { plan: DmPlan }) {
         <span>{value || 'No entry recorded.'}</span>
       </li>)}
     </ul>
+    {plan.signOff?.signature
+      ? <div className="dm-summary-sign">
+        <div>
+          <strong>Signed by {plan.supervisor || 'supervisor'}</strong>
+          <small>
+            {plan.signOff.signedAt
+              ? `Signed ${plan.signOff.signedAt.slice(0, 16).replace('T', ' ')} UTC`
+              : 'Signature on record'}
+            {plan.signOff.declared ? ' · declaration accepted' : ''}
+          </small>
+        </div>
+        {/* The drawn signature as it appears on the PDF. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- a data URL, not a Next image */}
+        <img src={plan.signOff.signature} alt={`Signature of ${plan.supervisor || 'the supervisor'}`} />
+      </div>
+      : <p className="dm-summary-unsigned">No signature on record — this plan was filed before the declaration was introduced.</p>}
   </div>;
 }

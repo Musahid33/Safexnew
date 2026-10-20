@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import {
-  COMPLIANCE_STATUS, EQUIPMENT_CHECKS, EQUIPMENT_STATUS, HOUSEKEEPING_ITEMS, INCIDENT_CATEGORIES,
+  COMPLIANCE_STATUS, DECLARATION_TEXT, DECLARATION_TEXT_HI,
+  EQUIPMENT_CHECKS, EQUIPMENT_STATUS, HOUSEKEEPING_ITEMS, INCIDENT_CATEGORIES,
   MODULE_TITLES, PERMIT_CHECKS, SHIFTS, SOP_ADEQUACY, TBT_TOPICS,
   TOOL_CONDITION, TOOL_SAFETY, TRAINING_NEEDS, severityApplies,
   type DmPlan, type Tick
@@ -10,6 +11,7 @@ import {
 import { findEmployee, type DirectoryEmployee } from '@/lib/dm/employees';
 import { Area, Field, Module, Pick, RowsTable, Toggle, type Column } from './ui';
 import { EmployeeDatalists, PersonTable, PpeTable, WalkTable } from './employees';
+import { SignaturePad } from './signature';
 
 /**
  * The Daily Management Plan form — the same eleven modules the supervisors already fill.
@@ -39,6 +41,18 @@ const TICKS: { value: Tick; label: string }[] = [
 export default function DmForm({ plan, onChange, onSubmit, onReset, saving, error, siteName, employees }: Props) {
   const [open, setOpen] = useState<number[]>([1]);
   const m = plan.modules;
+
+  // Filing is gated on the sign-off: a plan is only a record once the officer has attested
+  // it and signed. Both are enforced again on the server in `normalisePlan`.
+  const signed = plan.signOff.declared && Boolean(plan.signOff.signature);
+  const stepsLeft = [plan.signOff.declared, Boolean(plan.signOff.signature)]
+    .filter((done) => !done).length;
+  const signedAtLabel = plan.signOff.signedAt
+    ? `${plan.signOff.signedAt.slice(0, 16).replace('T', ' ')} UTC`
+    : 'Not signed yet';
+
+  const setSignOff = (patch: Partial<DmPlan['signOff']>) =>
+    onChange({ ...plan, signOff: { ...plan.signOff, ...patch } });
 
   const toggle = (index: number) => setOpen((current) => (
     current.includes(index) ? current.filter((entry) => entry !== index) : [...current, index]
@@ -339,17 +353,69 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
       />
     </Module>
 
+    <section className="dm-signoff" aria-labelledby="dm-signoff-title">
+      <header className="dm-signoff-head">
+        <div>
+          <span className="dm-signoff-eyebrow">Before you file</span>
+          <h3 id="dm-signoff-title">Declaration &amp; digital signature</h3>
+          <p>Dono zaroori hain — pehle declaration tick karein, phir apne haath se sign karein. Uske baad hi Submit chalega.</p>
+        </div>
+        <span className={`dm-signoff-state${signed ? ' is-ready' : ''}`}>
+          {signed ? 'Ready to file' : `${stepsLeft} step${stepsLeft === 1 ? '' : 's'} left`}
+        </span>
+      </header>
+
+      <label className={`dm-declare${plan.signOff.declared ? ' is-on' : ''}`}>
+        <input
+          type="checkbox"
+          checked={plan.signOff.declared}
+          disabled={saving}
+          onChange={(event) => setSignOff({ declared: event.target.checked })}
+        />
+        <span>
+          <strong>{DECLARATION_TEXT}</strong>
+          <small>{DECLARATION_TEXT_HI}</small>
+        </span>
+      </label>
+
+      <div className="dm-sign-grid">
+        <div className="dm-sign-pad-wrap">
+          <span className="dm-sign-label">Signature of supervisor <em>(haath se)</em></span>
+          <SignaturePad
+            value={plan.signOff.signature}
+            disabled={saving}
+            label={`Signature of ${plan.supervisor || 'the supervisor'}`}
+            onChange={(signature) => setSignOff({
+              signature,
+              // The stamp belongs to the stroke, so clearing the pad clears the time too.
+              signedAt: signature ? new Date().toISOString() : ''
+            })}
+          />
+        </div>
+        <dl className="dm-sign-meta">
+          <div><dt>Name</dt><dd>{plan.supervisor || '—'}</dd></div>
+          <div><dt>Emp. no.</dt><dd>{plan.supervisorNo || '—'}</dd></div>
+          <div><dt>Plan</dt><dd>{plan.date} · Shift {plan.shift}</dd></div>
+          <div><dt>Signed</dt><dd>{signedAtLabel}</dd></div>
+        </dl>
+      </div>
+    </section>
+
     {error && <p className="dm-error" role="alert">{error}</p>}
 
     <div className="dm-submit">
       <div>
-        <strong>Ready to file?</strong>
-        <small>The plan gets a DM-DD-MM-YY number and its PDF is archived in DM Records.</small>
+        <strong>{signed ? 'Ready to file?' : `Submit locked — ${stepsLeft} step${stepsLeft === 1 ? '' : 's'} left`}</strong>
+        <small>
+          {signed
+            ? 'The plan gets a DM-DD-MM-YY number and its signed PDF is archived in DM Records.'
+            : 'Declaration tick karein aur signature banayein, tab hi plan file hoga.'}
+        </small>
       </div>
       <div className="dm-submit-actions">
         <button type="button" className="dm-ghost" onClick={onReset} disabled={saving}>Clear form</button>
-        <button type="button" className="dm-primary" onClick={onSubmit} disabled={saving}>
-          {saving ? 'Filing…' : 'File DM & generate PDF'}
+        <button type="button" className="dm-primary" onClick={onSubmit} disabled={saving || !signed}>
+          {saving ? 'Filing…' : 'Submit DM & generate PDF'}
         </button>
       </div>
     </div>
