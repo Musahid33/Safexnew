@@ -120,7 +120,7 @@ export function RowsTable<T extends Record<string, unknown>>({
           {rows.length === 0 && <tr><td colSpan={columns.length + 2} className="dm-empty">No rows yet.</td></tr>}
           {rows.map((row, index) => <tr key={index}>
             <td className="dm-rownum">{index + 1}</td>
-            {columns.map((column) => <td key={column.key}>
+            {columns.map((column) => <td key={column.key} data-label={column.label}>
               {column.kind === 'check'
                 ? <input
                   type="checkbox"

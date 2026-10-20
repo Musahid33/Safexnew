@@ -652,3 +652,132 @@
 
 .dm-ppe-table { min-width: 940px; }
 .dm-walk-table { min-width: 820px; }
+
+/* ---------- DM: scope cell, team rows, and the stacked phone layout ---------- */
+
+.dm-workspace, .dm-workspace *, .dm-workspace *::before, .dm-workspace *::after { box-sizing: border-box; }
+.dm-workspace { min-width: 0; }
+
+/* "All (team)" and "Individual" read as two different kinds of row. */
+.dm-scope { font-weight: 600; color: #22395c; }
+.dm-scope.is-individual { border-color: #9dc3f0; background: #f3f8ff; }
+.dm-all-cell {
+  padding: 11px 8px;
+  color: #6b7f99;
+  font-size: 11.5px;
+  font-style: italic;
+}
+.dm-photo-actions { display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px; align-items: center; }
+
+/*
+ * Below tablet width a nine-column table is unreadable and horizontal scrolling in a
+ * stockyard is a data-entry bug waiting to happen. Every row becomes a card: the header
+ * row disappears and each cell carries its own label from `data-label`.
+ */
+@media (max-width: 860px) {
+  .dm-workspace { gap: 10px; font-size: 12.5px; }
+  .dm-card { padding: 12px; border-radius: 12px; }
+  .dm-card-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .dm-card-head h2 { font-size: 15.5px; }
+  .dm-card-head p { font-size: 11.5px; }
+  .dm-site-chip { align-self: flex-start; }
+
+  .dm-tabs { width: 100%; }
+  .dm-tabs button { flex: 1 1 0; padding: 8px 10px; text-align: center; }
+
+  .dm-grid { grid-template-columns: 1fr; gap: 10px; }
+  .dm-module-head { padding: 11px 12px; gap: 10px; }
+  .dm-module-body { padding: 12px 12px 4px; }
+  .dm-module-title { font-size: 12.5px; }
+
+  /* Tables -> cards */
+  .dm-rows-scroll { overflow: visible; border: 0; border-radius: 0; }
+  .dm-table, .dm-table tbody, .dm-table tr, .dm-table td { display: block; width: 100%; }
+  .dm-table { min-width: 0 !important; }
+  .dm-table thead { display: none; }
+  .dm-table tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e3ecf7;
+    border-radius: 10px;
+    background: #fdfefe;
+  }
+  .dm-table tr:last-child { margin-bottom: 0; }
+  .dm-table td {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 4px 0;
+    border: 0;
+  }
+  .dm-table td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    max-width: 130px;
+    color: #7d90a9;
+    font: 600 10px system-ui, sans-serif;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    line-height: 1.3;
+  }
+  .dm-table td[data-label=""]::before,
+  .dm-table td:not([data-label])::before { display: none; }
+  .dm-table td > input,
+  .dm-table td > select,
+  .dm-table td > .dm-cell-input { flex: 1 1 auto; min-width: 0; }
+  .dm-table .dm-rownum { display: none; }
+  .dm-table .dm-rowact { justify-content: flex-end; padding-top: 2px; }
+  .dm-table .dm-rowact::before { display: none; }
+  .dm-table .dm-remove { width: 32px; height: 32px; font-size: 16px; }
+  .dm-table .dm-empty { padding: 10px 0; text-align: center; }
+  .dm-all-cell { padding: 4px 0; }
+  .dm-ppe-items { flex: 1 1 auto; min-width: 0; }
+  .dm-photo { flex-direction: row; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+  .dm-photo-has { flex: 0 0 auto; }
+  .dm-photo-thumb { width: 40px; height: 40px; }
+
+  /* Housekeeping: criteria on one line, the three tick buttons under it */
+  .dm-hk { min-width: 0; }
+  .dm-hk tr {
+    display: grid;
+    grid-template-columns: 1fr repeat(3, 44px);
+    align-items: center;
+    gap: 4px;
+    padding: 9px 10px;
+  }
+  .dm-hk .dm-hk-criteria { grid-column: 1; display: block; padding: 0; line-height: 1.4; }
+  .dm-hk .dm-hk-criteria::before { display: none; }
+  .dm-hk .dm-hk-tick { display: flex; justify-content: center; padding: 0; }
+  .dm-hk .dm-hk-tick::before { display: none; }
+  .dm-hk .dm-hk-band td { grid-column: 1 / -1; display: block; margin: -9px -10px 2px; padding: 7px 10px; }
+  .dm-tick { width: 34px; height: 30px; }
+
+  /* Records */
+  .dm-records-toolbar { flex-direction: column; align-items: stretch; }
+  .dm-records-toolbar input { flex: 1 1 auto; width: 100%; }
+  .dm-records-actions { justify-content: flex-start; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+  .dm-records-table .dm-progress { width: 100%; }
+  .dm-record-detail > td { padding: 0; background: #fff; border: 0; }
+  .dm-detail-cell { display: block !important; }
+  .dm-summary ul { grid-template-columns: 1fr; }
+  .dm-summary-meta { gap: 4px; }
+
+  .dm-submit { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+  .dm-submit-actions { flex-direction: row; }
+  .dm-submit-actions .dm-ghost { flex: 0 0 auto; }
+  .dm-submit-actions .dm-primary { flex: 1 1 auto; }
+  .dm-banner { flex-direction: column; align-items: flex-start; }
+  .dm-banner-actions { width: 100%; }
+  .dm-banner-actions .dm-doc { flex: 1 1 auto; text-align: center; }
+  .dm-hint-note { font-size: 11px; }
+}
+
+/* Very narrow phones: the label sits above the field instead of beside it. */
+@media (max-width: 430px) {
+  .dm-table td { flex-direction: column; align-items: stretch; gap: 4px; }
+  .dm-table td::before { flex: 0 0 auto; max-width: none; }
+  .dm-table td.dm-rowact { align-items: flex-end; }
+  .dm-hk tr { grid-template-columns: 1fr repeat(3, 40px); }
+  .dm-photo { flex-direction: column; align-items: flex-start; }
+}

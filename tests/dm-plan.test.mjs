@@ -280,3 +280,61 @@ test('a photo on its own makes an observation count', () => {
   assert.equal(plan.filledModuleCount(empty), 1);
   assert.equal(plan.isEmptyPlan(empty), false);
 });
+
+test('a PPE observation covers the team unless one employee is named', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      ppe: [
+        // Nothing named: the team was observed, so the row stays scope "all".
+        { issue: 'Missing PPE', items: ['Safety Helmet'] },
+        // A name with no explicit scope is an individual observation (older payloads).
+        { employee: 'Ravi Kumar', employeeNo: 'EMP004', issue: 'PPE OK' },
+        // Explicit "all" clears whatever name was typed before the operator switched.
+        { scope: 'all', employee: 'Ravi Kumar', employeeNo: 'EMP004', items: ['Hand Gloves'] }
+      ]
+    }
+  });
+
+  assert.equal(result.ok, true);
+  const rows = result.plan.modules.ppe;
+  assert.equal(rows[0].scope, 'all');
+  assert.equal(rows[0].employee, '');
+  assert.equal(rows[1].scope, 'individual');
+  assert.equal(rows[1].employee, 'Ravi Kumar');
+  assert.equal(rows[2].scope, 'all');
+  assert.equal(rows[2].employee, '');
+  assert.equal(rows[2].employeeNo, '');
+  assert.deepEqual(rows[2].items, ['Hand Gloves']);
+});
+
+test('an individual PPE row keeps the employee number the master filled', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: { ppe: [{ scope: 'individual', employeeNo: 'EMP004', employee: 'Ravi Kumar', items: ['Safety Shoe'] }] }
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.modules.ppe[0].employeeNo, 'EMP004');
+});
+
+test('a walk-through observation records the immediate action taken', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      walkthrough: [{
+        area: 'Ramp 3', type: 'Unsafe condition', severity: '3',
+        details: 'Oil spill', action: 'Area cordoned and spill cleaned'
+      }]
+    }
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.modules.walkthrough[0].action, 'Area cordoned and spill cleaned');
+
+  // The action alone is an answer, even with no area or details typed yet.
+  const actionOnly = plan.normalisePlan({
+    ...filled(),
+    modules: { walkthrough: [{ type: 'Safe act', action: 'Housekeeping praised at the gate' }] }
+  });
+  assert.equal(actionOnly.ok, true);
+  assert.equal(plan.filledModuleCount(actionOnly.plan), 1);
+});

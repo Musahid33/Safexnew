@@ -82,15 +82,16 @@ export async function compressPhoto(file: File): Promise<string> {
 export type PhotoValue = string;
 
 export function PhotoField({
-  label = 'Photo', value, onChange, disabled
+  value, onChange, disabled
 }: {
-  label?: string;
   value: PhotoValue;
   onChange: (value: PhotoValue) => void;
   disabled?: boolean;
 }) {
-  const inputId = useId();
-  const input = useRef<HTMLInputElement | null>(null);
+  const cameraId = useId();
+  const galleryId = useId();
+  const camera = useRef<HTMLInputElement | null>(null);
+  const gallery = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -104,41 +105,62 @@ export function PhotoField({
       setError(cause instanceof Error ? cause.message : 'That photo could not be attached.');
     } finally {
       setBusy(false);
-      if (input.current) input.current.value = '';
+      if (camera.current) camera.current.value = '';
+      if (gallery.current) gallery.current.value = '';
     }
   }
 
   return <div className="dm-photo">
+    {/* Two inputs on purpose: `capture` forces the camera and hides the gallery on
+        Android, and no attribute makes the picker show both as separate choices. */}
     <input
-      id={inputId}
-      ref={input}
+      id={cameraId}
+      ref={camera}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      className="dm-photo-input"
+      disabled={disabled || busy}
+      onChange={(event) => void pick(event.target.files?.[0])}
+    />
+    <input
+      id={galleryId}
+      ref={gallery}
       type="file"
       accept="image/*"
       className="dm-photo-input"
       disabled={disabled || busy}
       onChange={(event) => void pick(event.target.files?.[0])}
     />
-    {value
-      ? <div className="dm-photo-has">
-        {/* eslint-disable-next-line @next/next/no-img-element -- a data URL preview, not a Next image */}
-        <img src={value} alt="Attached" className="dm-photo-thumb" />
-        <div className="dm-photo-actions">
-          <button type="button" className="dm-photo-add" onClick={() => input.current?.click()} disabled={busy}>
-            {busy ? 'Working…' : 'Change'}
-          </button>
-          <button type="button" className="dm-photo-remove" onClick={() => onChange('')} disabled={busy}>
-            Remove
-          </button>
-        </div>
-      </div>
-      : <button
+
+    {value && <div className="dm-photo-has">
+      {/* eslint-disable-next-line @next/next/no-img-element -- a data URL preview, not a Next image */}
+      <img src={value} alt="Attached" className="dm-photo-thumb" />
+    </div>}
+
+    <div className="dm-photo-actions">
+      <button
         type="button"
         className="dm-photo-add"
-        onClick={() => input.current?.click()}
+        title="Take a photo"
+        onClick={() => camera.current?.click()}
         disabled={disabled || busy}
-      >
-        {busy ? 'Compressing…' : `+ ${label}`}
-      </button>}
+      >{busy ? '…' : 'Camera'}</button>
+      <button
+        type="button"
+        className="dm-photo-add"
+        title="Choose from the gallery"
+        onClick={() => gallery.current?.click()}
+        disabled={disabled || busy}
+      >{busy ? '…' : 'Gallery'}</button>
+      {value && <button
+        type="button"
+        className="dm-photo-remove"
+        onClick={() => onChange('')}
+        disabled={busy}
+      >Remove</button>}
+    </div>
+
     {error && <small className="dm-photo-error" role="alert">{error}</small>}
   </div>;
 }

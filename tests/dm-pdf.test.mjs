@@ -71,7 +71,10 @@ function filledPlan(overrides = {}) {
     { employee: 'Sonu Yadav', employeeNo: 'EIPL-1108', issue: 'PPE OK', items: ['Safety Shoe'], remarks: '', photo: '' }
   ];
   base.modules.walkthrough = [
-    { area: 'Ramp 3', type: 'Unsafe condition', severity: '3', details: 'Oil spill near the ramp.', photo: '' }
+    {
+      area: 'Ramp 3', type: 'Unsafe condition', severity: '3', details: 'Oil spill near the ramp.',
+      action: 'Area cordoned and spill cleaned before the next pour.', photo: ''
+    }
   ];
   base.modules.equipment = [
     { name: 'Crane 2', check: 'Pre-use inspection', devices: 'Limit switch, horn', status: 'Deficiency', remarks: 'Brake slack — tagged out' }
@@ -170,6 +173,7 @@ test('a filled plan renders a real PDF with the reference on it', async () => {
   assert.ok(text.includes('Ramp 3'));
   // Severity and the multi-item PPE list are what the new columns exist for.
   assert.ok(text.includes('3 / 5'));
+  assert.ok(text.includes('Area cordoned and spill cleaned'), 'the immediate action is printed');
   assert.ok(text.includes('Safety Helmet, Hand Gloves'));
   assert.ok(text.includes('EIPL-1042'));
   // Every module band is printed, in order.
@@ -226,8 +230,8 @@ test('attached photos are printed with the observations', async () => {
     area: 'Ramp 3', type: 'Unsafe condition', severity: '3', details: 'Oil spill near the ramp.', photo: TINY_JPEG
   }];
   plan.modules.ppe = [{
-    employee: 'Ravi Kumar', employeeNo: 'EMP004', issue: 'Missing PPE', items: ['Safety Helmet'],
-    remarks: 'Issued from store', photo: TINY_JPEG
+    scope: 'individual', employee: 'Ravi Kumar', employeeNo: 'EMP004', issue: 'Missing PPE',
+    items: ['Safety Helmet'], remarks: 'Issued from store', photo: TINY_JPEG
   }];
 
   const withPhotos = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
@@ -267,4 +271,17 @@ test('an archived plan from before photos and severity still renders', async () 
   const document = await PDFDocument.load(bytes);
   assert.ok(document.getPageCount() >= 1);
   assert.ok(pdfText(bytes).includes('Helmet'));
+});
+
+test('a team-wide PPE observation prints as "All employees"', async () => {
+  const plan = filledPlan();
+  plan.modules.ppe = [{
+    scope: 'all', employee: '', employeeNo: '', issue: 'Missing PPE',
+    items: ['Safety Helmet', 'Hand Gloves'], remarks: 'Issued at the gate', photo: ''
+  }];
+
+  const bytes = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  const text = pdfText(bytes);
+  assert.ok(text.includes('All employees'));
+  assert.ok(text.includes('Safety Helmet, Hand Gloves'));
 });
