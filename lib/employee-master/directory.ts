@@ -5,6 +5,7 @@ import { getEmployeeMasterConfig } from './config';
 import {
   countEmployeesInDatabase,
   findEmployeeInDatabase,
+  getCompanyNameFromDatabase,
   isDatabaseDirectoryConfigured,
   isDatabaseDirectoryIntended,
   listEmployeesFromDatabase,
@@ -22,6 +23,8 @@ export type DirectoryStatus = {
   mode: DirectoryMode;
   sites: Site[];
   employeeCount: number;
+  /** Tenant branding for the passport. Null when the database cannot answer. */
+  companyName: string | null;
   dataIssueCount: number;
   /** A richer source was configured but could not be read. */
   degraded: boolean;
@@ -29,12 +32,13 @@ export type DirectoryStatus = {
 
 export async function getDirectoryStatus(): Promise<DirectoryStatus> {
   if (isDatabaseDirectoryConfigured()) {
-    const [sites, employeeCount] = await Promise.all([
+    const [sites, employeeCount, companyName] = await Promise.all([
       listSitesFromDatabase(),
-      countEmployeesInDatabase()
+      countEmployeesInDatabase(),
+      getCompanyNameFromDatabase()
     ]);
     if (sites && sites.length > 0 && employeeCount !== null && employeeCount > 0) {
-      return { mode: 'supabase', sites, employeeCount, dataIssueCount: 0, degraded: false };
+      return { mode: 'supabase', sites, employeeCount, companyName, dataIssueCount: 0, degraded: false };
     }
   }
 
@@ -53,6 +57,7 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
         mode: 'sheet',
         sites: sites.length ? sites : [WEST_BOKARO_SITE],
         employeeCount: snapshot.records.length,
+        companyName: null,
         dataIssueCount: snapshot.issues.length,
         degraded: isDatabaseDirectoryIntended()
       };
@@ -63,6 +68,7 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
     mode: 'unavailable',
     sites: [WEST_BOKARO_SITE],
     employeeCount: 0,
+    companyName: null,
     dataIssueCount: 0,
     degraded: true
   };

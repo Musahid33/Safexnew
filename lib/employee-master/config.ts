@@ -34,3 +34,15 @@ export function getEmployeeMasterConfig(): EmployeeMasterConfig {
     }
   };
 }
+
+/**
+ * Release the safety pass number in the public passport.
+ *
+ * Defaults to false: the pass number is a credential, and the repository ships with the
+ * privacy-first default. Set `SAFEX_PUBLIC_SAFETY_PASS=true` on the server only after the
+ * company has approved displaying it to anyone who knows an Employee ID. Never affects
+ * mobile number, blood group, address or date of birth — those stay server-side always.
+ */
+export function isPublicSafetyPassEnabled(): boolean {
+  return /^(1|true|yes|on)$/i.test(env('SAFEX_PUBLIC_SAFETY_PASS') ?? '');
+}

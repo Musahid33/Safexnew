@@ -27,6 +27,46 @@ GET /api/employees?siteId=wbd&empNo=<EMPLOYEE_ID>
 
 Protections include same-origin validation, no-store caching, a minimum query length for autocomplete, an 8-result cap, and a per-IP rate limit. Do not grant `anon` SELECT on `employees` or return the full Supabase row.
 
+## Employee Safety Passport
+
+`More → Search Employee Profile` looks up one exact Employee ID at the selected site and
+opens the passport page (`app/components/EmployeePassport.tsx`, styles in
+`app/components/employee-passport.css`). The layout follows the approved design:
+credential header, active badge, profile card, Personal Details, the eight-card Safety
+Record Summary, Latest Training Records, PPE, Download PNG / Download PDF and a QR footer.
+
+What is rendered from real data, and what is not:
+
+| Area | Source | Behaviour when unavailable |
+| --- | --- | --- |
+| Employee ID, name, designation | `public.employees` via `/api/employees` | — |
+| Department, skill grade | same (`department` is NULL for all imported rows today) | “Not on record” |
+| Company | `public.tenants.company_name` through `/api/bootstrap` | “Company not on record” |
+| Site / location | selected site context | “Site not selected” |
+| Safety Pass No. | `employees.safety_pass_no` | “Verified staff access required” unless `SAFEX_PUBLIC_SAFETY_PASS=true`, then “not on record” if empty |
+| Mobile, blood group, address, date of birth | never selected for public lookup | “Verified staff access required” |
+| Photo, email, joining date, pass validity | no column exists yet | “Not on record” |
+| Record counts and history | not connected to public lookup | `—`, and an empty-state record table with CSV export |
+
+The passport never invents an employee, photograph, count or history row. Record counts are
+deliberately withheld from public search because “this Employee ID filed six hazard reports”
+would identify a reporter; officers get them from the authenticated console instead.
+
+`safety_pass_no`, `skill_grade` and `department` are selected server-side by the lookup so
+the passport can render them, but the API still decides what is released. `toPublicEmployee`
+in `lib/employee-master/parse.ts` is the single place where that projection is defined, and
+a unit test pins its keys.
+
+### Opting in to the safety pass number
+
+```dotenv
+SAFEX_PUBLIC_SAFETY_PASS=true
+```
+
+Server-only, default `false`. It only adds `safetyPassNo`; mobile number, blood group,
+address and date of birth are never included. Enable it only after the company approves
+showing the credential to anyone who knows an Employee ID.
+
 ## Required deployment configuration
 
 The live API currently reports `directory: unavailable` from `/api/bootstrap` even though the database rows exist. The Vercel server environment must be pointed at the SafexNew project and the directory set to Supabase:

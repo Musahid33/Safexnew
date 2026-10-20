@@ -34,7 +34,12 @@ type EmployeeRow = {
 
 const SELECT_COLUMNS = 'id, employee_no, full_name, designation, department, site_id, active';
 
-let tenantCache: { id: string; slug: string; expiresAt: number } | null = null;
+// The public passport needs the safety credential number and skill grade to render the
+// same card as the admin console. They are selected here (server memory only) and the API
+// projection decides what is actually released to the browser.
+const PASSPORT_COLUMNS = 'id, employee_no, full_name, designation, department, site_id, active, safety_pass_no, skill_grade';
+
+let tenantCache: { id: string; slug: string; companyName: string | null; expiresAt: number } | null = null;
 const TENANT_TTL_MS = 300_000;
 
 const QUERY_TIMEOUT_MS = 4000;
@@ -107,7 +112,7 @@ async function resolveTenantId(admin: AdminClient): Promise<string | null> {
     return tenantCache.id;
   }
 
-  let query = admin.from('tenants').select('id, slug').eq('active', true).limit(2);
+  let query = admin.from('tenants').select('id, slug, company_name').eq('active', true).limit(2);
   if (slug) query = query.eq('slug', slug);
 
   const result = await withTimeout(query);
@@ -117,8 +122,26 @@ async function resolveTenantId(admin: AdminClient): Promise<string | null> {
   // Without a slug this is only safe when the project holds exactly one active tenant.
   if (!slug && data.length > 1) return null;
 
-  tenantCache = { id: data[0].id, slug: slug ?? '', expiresAt: now + TENANT_TTL_MS };
+  tenantCache = {
+    id: data[0].id,
+    slug: slug ?? '',
+    companyName: typeof data[0].company_name === 'string' ? data[0].company_name : null,
+    expiresAt: now + TENANT_TTL_MS
+  };
   return data[0].id;
+}
+
+/**
+ * Public branding for the passport footer: the tenant's own company name.
+ * Returns null when the database cannot answer, so the UI can omit the line instead of
+ * printing a demo company name over a real employee record.
+ */
+export async function getCompanyNameFromDatabase(): Promise<string | null> {
+  const admin = getAdminSupabase();
+  if (!admin) return null;
+  const tenantId = await resolveTenantId(admin);
+  if (!tenantId) return null;
+  return tenantCache?.id === tenantId ? tenantCache.companyName : null;
 }
 
 function toRecord(row: EmployeeRow): MasterEmployeeRecord {
@@ -211,7 +234,7 @@ export async function searchEmployeesInDatabase(
 
   let request = admin
     .from('employees')
-    .select(SELECT_COLUMNS)
+    .select(PASSPORT_COLUMNS)
     .eq('tenant_id', tenantId)
     .eq('active', true)
     .or(`employee_no.ilike.%${needle}%,full_name.ilike.%${needle}%`)
@@ -241,7 +264,7 @@ export async function findEmployeeInDatabase(
 
   let request = admin
     .from('employees')
-    .select(SELECT_COLUMNS)
+    .select(PASSPORT_COLUMNS)
     .eq('tenant_id', tenantId)
     .eq('active', true)
     .eq('employee_no', employeeNo.trim().toUpperCase())

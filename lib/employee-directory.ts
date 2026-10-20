@@ -4,7 +4,10 @@ import type { Employee } from './types';
 
 export type DirectoryMode = 'master';
 
-type PublicEmployeeLookup = Pick<Employee, 'empNo' | 'name' | 'designation'>;
+type PublicEmployeeLookup = Pick<
+  Employee,
+  'empNo' | 'name' | 'designation' | 'department' | 'skillGrade' | 'safetyPassNo' | 'active'
+>;
 
 export type EmployeeDirectory = {
   mode: DirectoryMode;
@@ -35,7 +38,13 @@ async function requestEmployees(params: URLSearchParams, signal?: AbortSignal): 
       empNo: employee.empNo,
       name: employee.name,
       designation: employee.designation,
-      siteId
+      siteId,
+      // Work context the server chose to release. `safetyPassNo` stays undefined when the
+      // deployment has not opted in, which the passport renders as "restricted".
+      department: employee.department ?? null,
+      skillGrade: employee.skillGrade ?? null,
+      safetyPassNo: employee.safetyPassNo,
+      active: employee.active !== false
     }));
 }
 
