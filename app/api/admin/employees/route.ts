@@ -3,6 +3,7 @@ import { isAdminApiConfigured, isAdminPiiEnabled, readSession } from '@/lib/admi
 import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
 import { listDirectory } from '@/lib/employee-master/directory';
 import type { MasterEmployeeRecord } from '@/lib/employee-master/parse';
+import { createEmployeeProfile } from '@/lib/employee-master/writes';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,9 +31,19 @@ type AdminEmployee = {
   department: string | null;
   siteId: string;
   skillGrade: string | null;
+  /** Work area — operational context, so it is not behind the PII flag. */
+  location?: string | null;
   safetyPassNo?: string | null;
   bloodGroup?: string | null;
   mobile?: string | null;
+  email?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  emergencyName?: string | null;
+  emergencyMobile?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  previousNames?: string[];
 };
 
 function project(record: MasterEmployeeRecord, includePii: boolean): AdminEmployee {
@@ -44,14 +55,25 @@ function project(record: MasterEmployeeRecord, includePii: boolean): AdminEmploy
     siteId: record.siteId,
     // Skill grade is an occupational competency, not personal data. A safety officer
     // needs it to know who may do what, so it is not behind the PII flag.
-    skillGrade: record.skillGrade
+    skillGrade: record.skillGrade,
+    location: record.workLocation ?? null
   };
   if (!includePii) return base;
+  // Everything below is personal data. The console can edit these fields only while the
+  // flag is on — that is what stops a save from blanking a value it was not allowed to read.
   return {
     ...base,
     safetyPassNo: record.safetyPassNo,
     bloodGroup: record.bloodGroup,
-    mobile: record.mobileE164
+    mobile: record.mobileE164,
+    email: record.email ?? null,
+    gender: record.gender ?? null,
+    dob: record.dob ?? null,
+    emergencyName: record.emergencyContactName ?? null,
+    emergencyMobile: record.emergencyContactMobile ?? null,
+    address: record.homeAddress ?? null,
+    notes: record.notes ?? null,
+    previousNames: record.previousNames ?? []
   };
 }
 
@@ -110,4 +132,55 @@ export async function GET(request: NextRequest) {
     },
     { headers: NO_STORE }
   );
+}
+
+/**
+ * Add an employee to the roster from the console's profile form.
+ *
+ * The console used to push the new person into its own array only, so the row existed until
+ * the page was reloaded. The row is created against the site the operator is signed in to:
+ * an employee number is unique per tenant, and a number without a site is not a roster row.
+ */
+export async function POST(request: NextRequest) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ ok: false, code: 'CROSS_ORIGIN_REJECTED' }, { status: 403, headers: NO_STORE });
+  }
+  if (!isAdminApiConfigured()) {
+    return NextResponse.json(
+      { ok: false, code: 'ADMIN_API_NOT_CONFIGURED', error: 'The admin API is disabled.' },
+      { status: 503, headers: NO_STORE }
+    );
+  }
+  if (readSession(request) === null) {
+    return NextResponse.json(
+      { ok: false, code: 'ADMIN_SESSION_REQUIRED', error: 'Sign in to change the employee master.' },
+      { status: 401, headers: NO_STORE }
+    );
+  }
+  if (!allowRequest(clientIp(request))) {
+    return NextResponse.json({ ok: false, code: 'RATE_LIMITED', error: 'Too many requests. Slow down.' }, { status: 429, headers: NO_STORE });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, code: 'BAD_REQUEST', error: 'Send a JSON body.' }, { status: 400, headers: NO_STORE });
+  }
+
+  const siteSlug = typeof body.siteId === 'string' ? body.siteId.trim().slice(0, 96) : '';
+  const fields = typeof body.fields === 'object' && body.fields !== null
+    ? body.fields as Parameters<typeof createEmployeeProfile>[0]['patch']
+    : {};
+
+  const result = await createEmployeeProfile({ siteSlug, patch: fields, includePii: isAdminPiiEnabled() });
+  if (!result.ok) {
+    const status = result.code === 'VALIDATION' ? 422
+      : result.code === 'DUPLICATE' ? 409
+        : result.code === 'PII_DISABLED' ? 403
+          : result.code === 'NO_SITE' ? 400
+            : 503;
+    return NextResponse.json({ ok: false, code: result.code, error: result.error }, { status, headers: NO_STORE });
+  }
+  return NextResponse.json({ ok: true, employeeNo: result.employeeNo }, { status: 201, headers: NO_STORE });
 }

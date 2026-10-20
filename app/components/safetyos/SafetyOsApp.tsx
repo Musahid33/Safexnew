@@ -45,12 +45,23 @@ type Props = {
   directoryMode: string;
 };
 
-/** Shape returned by /api/admin/employees. */
+/** Shape returned by /api/admin/employees. Personal fields only when PII is enabled. */
 type AdminEmployee = {
   empNo: string;
   name: string;
   designation: string;
   department: string | null;
+  location?: string | null;
+  mobile?: string | null;
+  bloodGroup?: string | null;
+  email?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  emergencyName?: string | null;
+  emergencyMobile?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  previousNames?: string[];
 };
 
 /** Shape the design's own directory code expects. */
@@ -59,6 +70,30 @@ type DesignEmployee = {
   name: string;
   designation: string;
   department: string;
+  location?: string;
+  mobile?: string;
+  bloodGroup?: string;
+  email?: string;
+  gender?: string;
+  dob?: string;
+  emergencyName?: string;
+  emergencyMobile?: string;
+  address?: string;
+  notes?: string;
+  photo?: string;
+  previousNames?: string[];
+};
+
+/**
+ * What the design reports after saving or deleting a profile.
+ *
+ * `previous` is the record as the roster loaded it, so a refused write can be undone
+ * exactly rather than approximately.
+ */
+type EmployeeChange = {
+  action: 'create' | 'update' | 'delete';
+  record: DesignEmployee;
+  previous: DesignEmployee | null;
 };
 
 type SessionState = { configured: boolean; signedIn: boolean; piiEnabled?: boolean };
@@ -83,6 +118,8 @@ declare global {
     __SAFEX_CASE_REPORTS__?: DesignCaseReport[];
     /** Called by the design after its status dropdown mutates a record. */
     __SAFEX_CASE_CHANGED__?: (record: DesignCaseReport, previousStatus: string) => unknown;
+    /** Called by the design after a profile is saved or removed; returns a promise. */
+    __SAFEX_EMPLOYEE_CHANGED__?: (change: EmployeeChange) => unknown;
   }
 }
 
@@ -109,10 +146,20 @@ export default function SafetyOsApp({
   const host = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<Phase>('checking');
   const [roster, setRoster] = useState<DesignEmployee[] | null>(null);
+  /**
+   * The array the design mounts with. A ref, because the console must not remount every
+   * time the roster is updated after a save — that would throw the operator back to the
+   * dashboard from the profile they just edited.
+   */
+  const rosterRef = useRef<DesignEmployee[] | null>(null);
+  /** Latest employee writer, so the seam the design holds stays stable across renders. */
+  const employeeWriter = useRef<(change: EmployeeChange) => unknown>(() => null);
   const [state, setState] = useState<DirectoryState>('unavailable');
   const [reports, setReports] = useState<DesignCaseReport[] | null>(null);
   const [reportState, setReportState] = useState<DirectoryState>('unavailable');
   const [note, setNote] = useState<HostNote | null>(null);
+  /** Kept from /api/admin/session: decides which profile fields may be written. */
+  const [piiEnabled, setPiiEnabled] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [gateUsername, setGateUsername] = useState('');
   const [gatePassword, setGatePassword] = useState('');
@@ -185,6 +232,74 @@ export default function SafetyOsApp({
     });
   }, []);
 
+  /**
+   * Write a profile change the console just made.
+   *
+   * The design mutates its own record first so the screen responds immediately; this puts
+   * the same change in the database and, if the server refuses it, restores the record the
+   * roster loaded. Resolving (rather than throwing) lets the design redraw either way.
+   */
+  const applyEmployeeChange = useCallback((change: EmployeeChange) => {
+    const { action, record } = change;
+    const label = (record.name ?? '').trim() || record.id;
+
+    const failure = (code: string, message: string) => {
+      restoreEmployeeChange(change);
+      setNote({ tone: 'error', text: `${label}: ${message} (${code})` });
+    };
+
+    setNote({ tone: 'pending', text: action === 'delete' ? `Removing ${label}…` : `Saving ${label}…` });
+
+    const request: Promise<Response> = action === 'delete'
+      ? fetch(`/api/admin/employees/${encodeURIComponent(record.id)}`, {
+        method: 'DELETE', credentials: 'same-origin'
+      })
+      : action === 'create'
+        ? fetch('/api/admin/employees', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ siteId: selectedSiteId, fields: employeeFields(record, true, piiEnabled) })
+        })
+        : fetch(`/api/admin/employees/${encodeURIComponent(change.previous?.id ?? record.id)}`, {
+          method: 'PATCH',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: employeeFields(record, change.previous?.id !== record.id, piiEnabled) })
+        });
+
+    return request.then(async (response) => {
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) {
+        failure(data?.code ?? `HTTP_${response.status}`, data?.error ?? 'the save was refused');
+        return;
+      }
+      // Keep both copies in step with what the database now holds, so a later remount of
+      // the console does not hand the design the roster as it was before this edit.
+      const key = change.previous?.id ?? record.id;
+      const applyTo = (current: DesignEmployee[] | null) => {
+        if (!current) return current;
+        if (action === 'delete') return current.filter((employee) => employee.id !== key);
+        if (action === 'create') return [...current, { ...record }];
+        return current.map((employee) => (employee.id === key ? { ...record } : employee));
+      };
+      setRoster(applyTo);
+      rosterRef.current = applyTo(rosterRef.current);
+      setNote({
+        tone: 'ok',
+        text: action === 'delete'
+          ? `${label} removed from the roster (history kept).`
+          : `${label} saved.${piiEnabled ? '' : ' Personal fields were not changed — PII release is off.'}`
+      });
+    }).catch((error: unknown) => {
+      failure('NETWORK', error instanceof Error ? error.message : 'the server could not be reached');
+    });
+  }, [piiEnabled, selectedSiteId]);
+
+  useEffect(() => {
+    employeeWriter.current = applyEmployeeChange;
+  }, [applyEmployeeChange]);
+
   /* 1. Decide whether the real employee master may be read, then fetch it. */
   useEffect(() => {
     let cancelled = false;
@@ -193,6 +308,8 @@ export default function SafetyOsApp({
     async function boot() {
       const session = await readSession();
       if (cancelled) return;
+
+      setPiiEnabled(Boolean(session?.piiEnabled));
 
       if (session?.configured && !session.signedIn) {
         // Auth exists but this browser has no session — ask for the admin credentials.
@@ -223,6 +340,7 @@ export default function SafetyOsApp({
       if (('error' in rosterResult && rosterResult.error === 'auth')
         || ('error' in reportsResult && reportsResult.error === 'auth')) {
         // Session cookie rejected (expired or cleared) — back to the gate.
+        rosterRef.current = null;
         setRoster(null);
         setState('unavailable');
         setReports(null);
@@ -240,12 +358,14 @@ export default function SafetyOsApp({
         // now. Open the console with an empty directory instead of a wall — the design's
         // own in-memory records still render, and the status line says the master is
         // unavailable. No synthetic employees are invented.
+        rosterRef.current = [];
         setRoster([]);
         setState('unavailable');
         setFailClosed(false);
         setPhase('ready');
         return;
       }
+      rosterRef.current = rosterResult.rows;
       setRoster(rosterResult.rows);
       setState(rosterResult.rows.length ? 'live' : 'empty');
       setFailClosed(false);
@@ -262,7 +382,10 @@ export default function SafetyOsApp({
     const container = host.current;
     if (!container) return;
 
-    window.__SAFEX_EMPLOYEES__ = roster ?? [];
+    // Copies, not the state objects: the design edits these in place, and a rejected save
+    // has to be undone in the array the design renders from.
+    window.__SAFEX_EMPLOYEES__ = (rosterRef.current ?? []).map((employee) => ({ ...employee }));
+    window.__SAFEX_EMPLOYEE_CHANGED__ = (change: EmployeeChange) => employeeWriter.current(change);
     // Case Management, the dashboard counters and analytics all read this array. Copies,
     // not the state objects: the design mutates a record when a status changes, and React
     // state is not the place for that mutation to happen behind our back.
@@ -331,13 +454,15 @@ export default function SafetyOsApp({
       }
       container.innerHTML = '';
       delete window.__SAFEX_EMPLOYEES__;
+      delete window.__SAFEX_EMPLOYEE_CHANGED__;
       delete window.__SAFEX_CASE_REPORTS__;
       delete window.__SAFEX_CASE_CHANGED__;
     };
-    // `roster` and `reports` are the seam payloads — fresh data means a fresh console.
-    // `state` is a dependency because the gate/fail-closed screens unmount the container:
-    // leaving them has to mount the design again.
-  }, [phase, state, roster, reports, failClosed, applyCaseStatus]);
+    // `reports` is a seam payload — fresh reports mean a fresh console. `state` and `phase`
+    // are dependencies because the gate/fail-closed screens unmount the container, and a
+    // refetch always passes through `phase: 'checking'`, so the roster is never stale here.
+    // The roster itself is read from the ref, so saving a profile does not remount.
+  }, [phase, state, reports, failClosed, applyCaseStatus]);
 
   /* 3. Keep the host context (site, officer, directory status) in the design's chrome. */
   useEffect(() => {
@@ -517,7 +642,20 @@ async function readRoster(siteId: string): Promise<RosterResult> {
           id: row.empNo,
           name: row.name,
           designation: row.designation ?? '',
-          department: row.department ?? ''
+          department: row.department ?? '',
+          location: row.location ?? '',
+          // Absent when PII release is off — the design fills its own blanks, and the write
+          // path leaves those fields alone rather than sending an empty string back.
+          mobile: row.mobile ?? '',
+          bloodGroup: row.bloodGroup ?? '',
+          email: row.email ?? '',
+          gender: row.gender ?? '',
+          dob: row.dob ?? '',
+          emergencyName: row.emergencyName ?? '',
+          emergencyMobile: row.emergencyMobile ?? '',
+          address: row.address ?? '',
+          notes: row.notes ?? '',
+          previousNames: row.previousNames ?? []
         });
       }
       if (collected.length >= Number(data.total ?? 0) || data.employees.length < PAGE_SIZE) break;
@@ -526,6 +664,57 @@ async function readRoster(siteId: string): Promise<RosterResult> {
   } catch {
     return { error: 'unavailable' };
   }
+}
+
+/**
+ * The writable part of a profile record.
+ *
+ * Only fields the operator could actually see are sent. With PII release off the roster
+ * never delivered the personal fields, so the form is empty — sending those empties back
+ * would erase the mobile number and blood group stored in the database.
+ */
+function employeeFields(record: DesignEmployee, includeEmployeeNo: boolean, includePii: boolean) {
+  const fields: Record<string, unknown> = {
+    name: record.name,
+    designation: record.designation,
+    department: record.department || null,
+    location: record.location || null
+  };
+  if (includeEmployeeNo) fields.employeeNo = record.id;
+  if (!includePii) return fields;
+  return {
+    ...fields,
+    mobile: record.mobile || null,
+    bloodGroup: record.bloodGroup || null,
+    email: record.email || null,
+    gender: record.gender || null,
+    dob: record.dob || null,
+    emergencyName: record.emergencyName || null,
+    emergencyMobile: record.emergencyMobile || null,
+    address: record.address || null,
+    notes: record.notes || null,
+    previousNames: record.previousNames ?? []
+  };
+}
+
+/** Undo the design's optimistic edit after the server refused it. */
+function restoreEmployeeChange({ action, record, previous }: EmployeeChange) {
+  const roster = typeof window === 'undefined' ? undefined : window.__SAFEX_EMPLOYEES__;
+  if (action === 'update' && previous) {
+    // Copy back over the same object so every reference the design holds stays valid.
+    for (const key of Object.keys(record) as (keyof DesignEmployee)[]) {
+      if (!(key in previous)) delete record[key];
+    }
+    Object.assign(record, previous);
+    return;
+  }
+  if (!Array.isArray(roster)) return;
+  if (action === 'create') {
+    const index = roster.indexOf(record);
+    if (index >= 0) roster.splice(index, 1);
+    return;
+  }
+  if (action === 'delete' && !roster.includes(record)) roster.unshift(record);
 }
 
 /**

@@ -30,9 +30,19 @@ type EmployeeRow = {
   blood_group?: string | null;
   home_address?: string | null;
   mobile_e164?: string | null;
+  email?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_mobile?: string | null;
+  work_location?: string | null;
+  notes?: string | null;
+  previous_names?: string[] | null;
 };
 
-const SELECT_COLUMNS = 'id, employee_no, full_name, designation, department, site_id, active';
+// Work location is not personal data, so it travels with the base projection: the console
+// shows it on the profile card even when PII release is off.
+const SELECT_COLUMNS = 'id, employee_no, full_name, designation, department, site_id, active, work_location';
 
 // The public passport needs the safety credential number and skill grade to render the
 // same card as the admin console. They are selected here (server memory only) and the API
@@ -206,7 +216,16 @@ function toRecord(row: EmployeeRow): MasterEmployeeRecord {
     bloodGroup: row.blood_group ?? null,
     mobileE164: row.mobile_e164 ?? null,
     active: row.active,
-    siteId: row.site_id
+    siteId: row.site_id,
+    workLocation: row.work_location ?? null,
+    email: row.email ?? null,
+    gender: row.gender ?? null,
+    dob: row.dob ?? null,
+    emergencyContactName: row.emergency_contact_name ?? null,
+    emergencyContactMobile: row.emergency_contact_mobile ?? null,
+    homeAddress: row.home_address ?? null,
+    notes: row.notes ?? null,
+    previousNames: row.previous_names ?? []
   };
 }
 
@@ -344,7 +363,8 @@ export function clearTenantCache(): void {
 // home_address is intentionally absent — nothing renders it yet, and the cheapest way to
 // not leak a field is to never select it.
 const PII_COLUMNS =
-  'id, employee_no, full_name, designation, department, site_id, active, safety_pass_no, skill_grade, blood_group, mobile_e164';
+  'id, employee_no, full_name, designation, department, site_id, active, safety_pass_no, skill_grade, blood_group, mobile_e164, '
+  + 'email, gender, dob, emergency_contact_name, emergency_contact_mobile, work_location, home_address, notes, previous_names';
 
 export type DbRosterPage = { records: MasterEmployeeRecord[]; total: number };
 

@@ -19,7 +19,10 @@
  *      verified operator session can hand the console the real employee master,
  *   3. the demo case-report array becomes `window.__SAFEX_CASE_REPORTS__ || []` so the
  *      console lists the reports workers actually submitted, and a status change calls
- *      `window.__SAFEX_CASE_CHANGED__(record, previousStatus)` so the host can persist it.
+ *      `window.__SAFEX_CASE_CHANGED__(record, previousStatus)` so the host can persist it,
+ *   4. employee profile save/delete call `window.__SAFEX_EMPLOYEE_CHANGED__` with the
+ *      record and its previous value, so the host can write the change and put the record
+ *      back if the server refuses it.
  *
  * Run it after editing the design; never hand-edit the generated files.
  *
@@ -154,6 +157,56 @@ script =
   script.slice(0, seamStart)
   + `      const employeeDirectory=(typeof window!=='undefined'&&Array.isArray(window.__SAFEX_EMPLOYEES__))?window.__SAFEX_EMPLOYEES__:[];`
   + script.slice(arrayEnd + 1); // drop the `;` that closed the original declaration
+
+/**
+ * EMPLOYEE PROFILE SEAM — profile edits are written by the host, not just remembered.
+ *
+ * The design only ever edited its own array: the form showed "Employee profile updated."
+ * and the change was gone on reload. These seams hand the saved / deleted record to the
+ * host, which writes it through the admin session and hands back a promise; the console
+ * re-renders when that promise settles, so a rejected write visibly returns to the stored
+ * value instead of leaving a row that claims to be saved.
+ */
+const defaultsAnchor = "employeeDirectory.forEach(emp=>Object.assign(emp,{mobile:'',email:'',gender:'',dob:'',bloodGroup:'',emergencyName:'',emergencyMobile:'',location:'',address:'',notes:'',photo:'',previousNames:[]}));";
+if (!script.includes(defaultsAnchor)) throw new Error('EMPLOYEE SEAM: could not find the profile defaults');
+
+script = script.replace(
+  defaultsAnchor,
+  // Fill only what is missing. The old code overwrote every field, which blanked the mobile
+  // number and blood group the roster had just supplied.
+  `employeeDirectory.forEach(emp=>{const __employeeDefaults={mobile:'',email:'',gender:'',dob:'',bloodGroup:'',emergencyName:'',emergencyMobile:'',location:'',address:'',notes:'',photo:'',previousNames:[]};Object.keys(__employeeDefaults).forEach(key=>{if(emp[key]===undefined||emp[key]===null)emp[key]=__employeeDefaults[key]})});
+      function notifyEmployeeChange(action,record,previous){try{if(typeof window!=='undefined'&&window.__SAFEX_EMPLOYEE_CHANGED__)return window.__SAFEX_EMPLOYEE_CHANGED__({action,record,previous:previous||null})}catch(error){console.error('Safex employee sync failed',error);return null}return null}`
+);
+
+const saveAnchor = "if(existing){if(existing.name&&existing.name.toLowerCase()!==name.toLowerCase()&&!previousNames.some(value=>value.toLowerCase()===existing.name.toLowerCase()))previousNames.push(existing.name);if(oldId!==employeeNo)rekeyEmployeeLogIds(oldId,employeeNo);Object.assign(existing,profile,{previousNames})}else{employeeDirectory.push({...profile,previousNames:[]})}";
+if (!script.includes(saveAnchor)) throw new Error('EMPLOYEE SEAM: could not find the profile save');
+script = script.replace(
+  saveAnchor,
+  `const __employeePrevious=existing?{...existing}:null;${saveAnchor}const __employeeRecord=existing||employeeDirectory[employeeDirectory.length-1];const __employeeSync=notifyEmployeeChange(existing?'update':'create',__employeeRecord,__employeePrevious);if(__employeeSync&&typeof __employeeSync.then===\"function\"){__employeeSync.then(()=>renderEmployeeProfilePage(),()=>renderEmployeeProfilePage())}`
+);
+
+const deleteAnchor = "const index=employeeDirectory.findIndex(item=>String(item.id)===String(id));if(index>=0)employeeDirectory.splice(index,1);";
+if (!script.includes(deleteAnchor)) throw new Error('EMPLOYEE SEAM: could not find the profile delete');
+script = script.replace(
+  deleteAnchor,
+  "const index=employeeDirectory.findIndex(item=>String(item.id)===String(id));const __employeeRemoved=index>=0?employeeDirectory.splice(index,1)[0]:null;const __employeeDelete=notifyEmployeeChange('delete',__employeeRemoved,null);if(__employeeDelete&&typeof __employeeDelete.then===\"function\"){__employeeDelete.then(()=>renderEmployeeProfilePage(),()=>renderEmployeeProfilePage())}"
+);
+
+// The mobile number is personal data and is withheld when PII release is off, so the form
+// arrives empty. Requiring it would make every profile edit fail for a reason that has
+// nothing to do with the field the operator changed.
+const mobileAnchor = "const mobilePattern=/^\\+?[\\d\\s().-]{7,20}$/;if(!mobilePattern.test(mobile)){toast('Enter a valid mobile number.');$('#epMobile').focus();return}";
+if (!script.includes(mobileAnchor)) throw new Error('EMPLOYEE SEAM: could not find the mobile validation');
+script = script.replace(
+  mobileAnchor,
+  "const mobilePattern=/^\\+?[\\d\\s().-]{7,20}$/;if(mobile&&!mobilePattern.test(mobile)){toast('Enter a valid mobile number.');$('#epMobile').focus();return}"
+);
+
+// The design said "updated" before the server had a say. The host reports the real result,
+// so the design's own toast only says that a save is under way.
+const saveToastAnchor = "toast(existing?'Employee profile updated.':'Employee profile added to the master directory.');";
+if (!script.includes(saveToastAnchor)) throw new Error('EMPLOYEE SEAM: could not find the profile save toast');
+script = script.replace(saveToastAnchor, "toast('Saving employee profile…');");
 
 /**
  * CASE-REPORT SEAM — the console's case list is fed by the host.

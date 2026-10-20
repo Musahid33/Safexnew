@@ -18,6 +18,19 @@ export type MasterEmployeeRecord = {
   mobileE164: string | null;
   active: boolean;
   siteId: string;
+  /**
+   * Profile fields the admin console edits. The synced sheet never supplies them, so they
+   * are optional: a record from the CSV source simply has none of them.
+   */
+  workLocation?: string | null;
+  email?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactMobile?: string | null;
+  homeAddress?: string | null;
+  notes?: string | null;
+  previousNames?: string[];
 };
 
 export type MasterIssue = {

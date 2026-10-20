@@ -93,4 +93,24 @@ The live employee API does not require a platform-admin UUID, but admin roster a
 
 - `directory: unavailable`: verify `SUPABASE_SERVICE_ROLE_KEY`, project URL, `SAFEX_EMPLOYEE_DIRECTORY_SOURCE=auto`, and tenant slug in Vercel; then redeploy. The service role is required because browser roles intentionally cannot read the employee table.
 - `directory: supabase` but no matches: verify the selected site is `wbd`, the Employee ID is entered exactly, and the employee is active.
-- A matching row can return only the limited public fields above. To correct an employee's record, use the authorized master-data process—not a browser write.
+- A matching row can return only the limited public fields above.
+
+## Editing the roster from the console
+
+The Admin / HSE console's **Employee Profile** screen writes through
+`/api/admin/employees` (`POST`, `PATCH /:employeeNo`, `DELETE /:employeeNo`). All three need
+the same verified operator session as the roster; there is no unauthenticated write path and
+no browser role that can touch `public.employees` directly.
+
+- **Which fields**: `full_name`, `designation`, `department`, `work_location` always;
+  `mobile_e164`, `blood_group`, `email`, `gender`, `dob`, emergency contact, `home_address`,
+  `notes` and `previous_names` only while `SAFEX_ADMIN_PII_ENABLED=true`.
+- **Why the flag matters for writes**: with PII off the roster never sends the personal
+  fields, so the profile form shows them empty. The API rejects those fields rather than
+  accepting the empties and erasing what is stored.
+- **Delete is a deactivation**: the row stays, `active=false`, so reports, training records
+  and recognitions keep pointing at it. The next sync may reactivate a person who is still
+  on the master sheet — remove them there first.
+- **Photos are not stored**: the design keeps a 2 MB data URL and says on screen that it is
+  a preview. Uploading them needs a storage bucket and a consent decision, not a text
+  column.
