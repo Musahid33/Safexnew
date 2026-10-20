@@ -31,14 +31,14 @@ would lose a record. The PDF is stored and downloaded as `<reference>.pdf`.
 |---|---|---|
 | 1 | Permit reviews | permit no / taken by / reviewed by, 5 review checks, observations, action |
 | 2 | Tool Box Talk (TBT) | attendees, conducted by, topics, previous incidents, hazards, procedures, theme, PPE, open forum, takeaways |
-| 3 | PPE checking | rows: observed employee, issue, PPE item, remarks |
-| 4 | Site walk-through | rows: time, area, observation type, details, photo taken |
+| 3 | PPE checking | rows: employee number + observed employee (from the master), issue, every PPE item observed, remarks, photo |
+| 4 | Site walk-through | rows: area, observation type (`Safe act`, `Good Practices`, `Unsafe act`, `Unsafe condition`), severity 1–5 for unsafe only, details, photo |
 | 5 | Equipment / machinery | rows: equipment, check, safety devices, status, action |
 | 6 | Tools & tackles | rows: tool, ID, safe/unsafe, condition, description, action, responsible |
 | 7 | Housekeeping (1S / 2S) | 23 criteria (8 × 1S, 15 × 2S) answered Y / N / N/A, plus observations and action |
-| 8 | Safety interaction | team rows, discussion topics, feedback, escalation, follow-up |
-| 9 | Incident / near-miss / hazard | location, reporter, report no, category, persons, description, action, investigation |
-| 10 | Training | employee, need identified, observation, action, three confirmations |
+| 8 | Safety interaction | team rows (employee number ↔ name from the master), discussion topics, feedback, escalation, follow-up |
+| 9 | Incident / near-miss / hazard | location, reporter, report no, category, persons (employee master), description, action, investigation |
+| 10 | Training | employee number + employee (employee master), need identified, observation, action, three confirmations |
 | 11 | Admin & documentation | rows: SOP/JHA no, compliance, adequacy, action by, remarks |
 
 Constants and the plan type live in `lib/dm/plan.ts`, which is pure TypeScript — no React, no
@@ -95,11 +95,37 @@ dashes, bullets and `₹` are folded to ASCII, and characters with no WinAnsi fo
 Devanagari) are dropped rather than throwing. Never pass raw user text straight to
 `drawText`.
 
-## Not in this phase
+## Photos
 
-Photos and the digital signature block are deferred; the form submits text only. Adding
-them means a Storage upload per image and an extra column for the signature path, not a
-schema change to `payload`.
+A photo can be attached to any PPE observation and any walk-through observation. The file
+is resized in the browser (longest edge 1000 px, JPEG, quality walked down until it fits)
+and stored in `payload` as a data URL — no extra bucket, no signed URLs, and the PDF can be
+rebuilt from the record alone.
+
+Limits, enforced on both sides: 12 photos per plan, 140 000 characters each, 1 500 000
+characters in total. The browser compresses first, so a normal field photo lands well under
+half of that; the server's limits are what stop a plan from becoming a JSON body the
+database refuses.
+
+Only `data:image/jpeg` and `data:image/png` are accepted. Anything else — a link, an HTML
+data URL, a file that failed to decode — is dropped, and the PDF skips an image it cannot
+read rather than failing the document.
+
+## Employee master lookups
+
+Wherever a person is named (PPE row, safety interaction, incident, training), the employee
+number and the name both work: type either one and the other fills from the employee
+master. An exact match wins; a prefix only counts when it identifies exactly one person, so
+"Ravi" with two Ravis on site resolves to nobody rather than the wrong person.
+
+The picker reads the same `public.employees` rows the console's Employee Profile screen
+does (`GET /api/admin/employees`, session-gated), so a corrected spelling in the master
+shows up in the next plan.
+
+## Digital signature
+
+The signature block is still text (`Signed: <supervisor>`) drawn on the PDF. A captured
+signature would need a Storage upload and one extra column; it is not in this phase.
 
 ## Testing
 

@@ -128,7 +128,11 @@ export async function getDmPlan(id: string): Promise<DmFetch> {
   if (!result || result.error) return { ok: false, code: 'UNAVAILABLE' };
   const row = (result.data ?? [])[0] as unknown as Row | undefined;
   if (!row) return { ok: false, code: 'NOT_FOUND' };
-  return { ok: true, record: { ...toSummary(row), plan: row.payload } };
+  // Plans filed before a field existed are brought up to the current shape on read, so an
+  // archived document can always be reprinted. A payload that no longer validates is shown
+  // as stored rather than refused.
+  const current = normalisePlan(row.payload);
+  return { ok: true, record: { ...toSummary(row), plan: current.ok ? current.plan : row.payload } };
 }
 
 export type DmSaveResult =

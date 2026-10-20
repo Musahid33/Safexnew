@@ -546,3 +546,109 @@
   .dm-submit { align-items: stretch; flex-direction: column; }
   .dm-submit-actions { justify-content: flex-end; }
 }
+
+/* ---------- DM form: employee pickers, PPE chips and photo attachments ----------
+   The tables here are wider than a phone, so each one scrolls inside its own frame
+   instead of widening the whole page. Cells use one input class so a row stays aligned. */
+
+.dm-cell-input {
+  width: 100%;
+  min-width: 84px;
+  padding: 6px 7px;
+  border: 1px solid #dbe5f2;
+  border-radius: 6px;
+  background: #fff;
+  color: #122a4d;
+  font: 400 12px system-ui, sans-serif;
+}
+.dm-cell-input:focus { outline: 2px solid #7fb0f0; outline-offset: 1px; border-color: #1263df; }
+.dm-cell-input.is-missing { border-color: #e2b34b; background: #fffdf6; }
+.dm-na { display: inline-block; padding: 6px 8px; color: #a8b8cc; font: 600 12px system-ui, sans-serif; }
+
+/* PPE items: chips plus a small add-select, so one row can list several items. */
+.dm-ppe-items { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 150px; }
+.dm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 4px 3px 8px;
+  border: 1px solid #cfdcec;
+  border-radius: 999px;
+  background: #f4f8fd;
+  color: #22395c;
+  font: 600 10.5px system-ui, sans-serif;
+  white-space: nowrap;
+}
+.dm-chip button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #6b7f99;
+  font: 700 12px system-ui, sans-serif;
+  line-height: 1;
+  cursor: pointer;
+}
+.dm-chip button:hover { background: #dbe9fb; color: #0e56c6; }
+.dm-chip-add {
+  padding: 3px 6px;
+  border: 1px dashed #b9cde6;
+  border-radius: 999px;
+  background: #fff;
+  color: #1263df;
+  font: 600 10.5px system-ui, sans-serif;
+  cursor: pointer;
+}
+
+/* Photo attachment inside a table cell. */
+.dm-photo { display: flex; flex-direction: column; gap: 4px; min-width: 104px; }
+.dm-photo-input { display: none; }
+.dm-photo-has { display: flex; align-items: flex-start; gap: 6px; }
+.dm-photo-thumb {
+  width: 46px;
+  height: 46px;
+  border: 1px solid #dbe5f2;
+  border-radius: 7px;
+  object-fit: cover;
+  background: #f4f8fd;
+}
+.dm-photo-actions { display: flex; flex-direction: column; gap: 3px; }
+.dm-photo-add {
+  padding: 5px 8px;
+  border: 1px dashed #b9cde6;
+  border-radius: 7px;
+  background: #fbfdff;
+  color: #1263df;
+  font: 600 10.5px system-ui, sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dm-photo-add:hover:not(:disabled) { background: #eef5fd; border-color: #1263df; }
+.dm-photo-add:disabled { opacity: .6; cursor: progress; }
+.dm-photo-remove {
+  padding: 3px 8px;
+  border: 1px solid #e5d5d5;
+  border-radius: 7px;
+  background: #fff7f7;
+  color: #b4443f;
+  font: 600 10px system-ui, sans-serif;
+  cursor: pointer;
+}
+.dm-photo-remove:hover { background: #fdeceb; }
+.dm-photo-error { color: #a3372f; font-size: 10px; line-height: 1.35; }
+
+.dm-hint-note {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border: 1px solid #f0dcb4;
+  border-radius: 9px;
+  background: #fffaf0;
+  color: #8a6320;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.dm-ppe-table { min-width: 940px; }
+.dm-walk-table { min-width: 820px; }

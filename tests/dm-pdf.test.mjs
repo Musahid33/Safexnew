@@ -67,11 +67,11 @@ function filledPlan(overrides = {}) {
     conductedBy: 'Musahid Ansari'
   };
   base.modules.ppe = [
-    { employee: 'Ravi Kumar', issue: 'Missing PPE', item: 'Helmet', remarks: 'Issued from store' },
-    { employee: 'Sonu Yadav', issue: 'PPE OK', item: 'Safety shoes', remarks: '' }
+    { employee: 'Ravi Kumar', employeeNo: 'EIPL-1042', issue: 'Missing PPE', items: ['Safety Helmet', 'Hand Gloves'], remarks: 'Issued from store', photo: '' },
+    { employee: 'Sonu Yadav', employeeNo: 'EIPL-1108', issue: 'PPE OK', items: ['Safety Shoe'], remarks: '', photo: '' }
   ];
   base.modules.walkthrough = [
-    { time: '09:15', area: 'Ramp 3', type: 'Unsafe act / condition', details: 'Oil spill near the ramp.', photo: true }
+    { area: 'Ramp 3', type: 'Unsafe condition', severity: '3', details: 'Oil spill near the ramp.', photo: '' }
   ];
   base.modules.equipment = [
     { name: 'Crane 2', check: 'Pre-use inspection', devices: 'Limit switch, horn', status: 'Deficiency', remarks: 'Brake slack — tagged out' }
@@ -105,6 +105,7 @@ function filledPlan(overrides = {}) {
     investigation: true
   };
   base.modules.training = {
+    employeeNo: 'EIPL-1042',
     employee: 'Ravi Kumar',
     action: 'Refresher scheduled',
     observation: 'Anchor point used without inspection.',
@@ -167,6 +168,10 @@ test('a filled plan renders a real PDF with the reference on it', async () => {
   assert.ok(text.includes('DAILY MANAGEMENT PLAN'));
   assert.ok(text.includes('Musahid Ansari'));
   assert.ok(text.includes('Ramp 3'));
+  // Severity and the multi-item PPE list are what the new columns exist for.
+  assert.ok(text.includes('3 / 5'));
+  assert.ok(text.includes('Safety Helmet, Hand Gloves'));
+  assert.ok(text.includes('EIPL-1042'));
   // Every module band is printed, in order.
   planModule.MODULE_TITLES.forEach((title, index) => {
     assert.ok(text.includes(title.replace(/[&]/g, '&').slice(0, 18)), `module ${index + 1} is printed`);
@@ -211,4 +216,55 @@ test('an empty plan still produces a document rather than an error', async () =>
   const document = await PDFDocument.load(bytes);
   assert.ok(document.getPageCount() >= 1);
   assert.ok(pdfText(bytes).includes('DM-02-11-26'));
+});
+
+const TINY_JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
+
+test('attached photos are printed with the observations', async () => {
+  const plan = filledPlan();
+  plan.modules.walkthrough = [{
+    area: 'Ramp 3', type: 'Unsafe condition', severity: '3', details: 'Oil spill near the ramp.', photo: TINY_JPEG
+  }];
+  plan.modules.ppe = [{
+    employee: 'Ravi Kumar', employeeNo: 'EMP004', issue: 'Missing PPE', items: ['Safety Helmet'],
+    remarks: 'Issued from store', photo: TINY_JPEG
+  }];
+
+  const withPhotos = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  const text = pdfText(withPhotos);
+  assert.ok(text.includes('Photographs'), 'evidence gets its own caption');
+  assert.ok(text.includes('PPE 1'));
+
+  // The same image bytes are embedded once, not once per occurrence.
+  const withoutPhotos = filledPlan();
+  withoutPhotos.modules.walkthrough = plan.modules.walkthrough.map((row) => ({ ...row, photo: '' }));
+  withoutPhotos.modules.ppe = plan.modules.ppe.map((row) => ({ ...row, photo: '' }));
+  const plain = await pdfModule.renderDmPdf(withoutPhotos, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  assert.ok(withPhotos.length > plain.length, 'a photo adds bytes to the document');
+});
+
+test('a damaged photo is skipped, not fatal', async () => {
+  const plan = filledPlan();
+  plan.modules.walkthrough = [{
+    // Correctly shaped data URL, unusable bytes inside.
+    area: 'Ramp 3', type: 'Unsafe act', severity: '2', details: 'Blocked walkway',
+    photo: `data:image/jpeg;base64,${'A'.repeat(400)}`
+  }];
+
+  const bytes = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  const document = await PDFDocument.load(bytes);
+  assert.ok(document.getPageCount() >= 1);
+  assert.ok(pdfText(bytes).includes('DM-21-10-26'));
+});
+
+test('an archived plan from before photos and severity still renders', async () => {
+  const legacy = filledPlan();
+  // The shape stored by the first release of the form.
+  legacy.modules.walkthrough = [{ time: '09:15', area: 'Ramp 3', type: 'Unsafe act / condition', details: 'Oil spill', photo: true }];
+  legacy.modules.ppe = [{ employee: 'Ravi Kumar', issue: 'Missing PPE', item: 'Helmet', remarks: '' }];
+
+  const bytes = await pdfModule.renderDmPdf(legacy, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  const document = await PDFDocument.load(bytes);
+  assert.ok(document.getPageCount() >= 1);
+  assert.ok(pdfText(bytes).includes('Helmet'));
 });

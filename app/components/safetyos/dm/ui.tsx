@@ -11,7 +11,7 @@ import { useId, type ReactNode } from 'react';
  */
 
 export function Field({
-  label, value, onChange, type = 'text', placeholder, hint, wide, maxLength
+  label, value, onChange, type = 'text', placeholder, hint, wide, maxLength, list
 }: {
   label: string;
   value: string;
@@ -21,6 +21,8 @@ export function Field({
   hint?: string;
   wide?: boolean;
   maxLength?: number;
+  /** Id of a datalist the input suggests from — the shared employee master lists. */
+  list?: string;
 }) {
   const id = useId();
   return <label className={`dm-field${wide ? ' is-wide' : ''}`} htmlFor={id}>
@@ -31,6 +33,7 @@ export function Field({
       value={value}
       placeholder={placeholder}
       maxLength={maxLength}
+      list={list}
       onChange={(event) => onChange(event.target.value)}
     />
     {hint && <small>{hint}</small>}

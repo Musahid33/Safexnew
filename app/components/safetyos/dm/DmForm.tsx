@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import {
   COMPLIANCE_STATUS, EQUIPMENT_CHECKS, EQUIPMENT_STATUS, HOUSEKEEPING_ITEMS, INCIDENT_CATEGORIES,
-  MODULE_TITLES, PERMIT_CHECKS, PPE_ISSUES, PPE_ITEMS, SHIFTS, SOP_ADEQUACY, TBT_TOPICS,
-  TOOL_CONDITION, TOOL_SAFETY, TRAINING_NEEDS, WALKTHROUGH_TYPES,
+  MODULE_TITLES, PERMIT_CHECKS, SHIFTS, SOP_ADEQUACY, TBT_TOPICS,
+  TOOL_CONDITION, TOOL_SAFETY, TRAINING_NEEDS, severityApplies,
   type DmPlan, type Tick
 } from '@/lib/dm/plan';
+import { findEmployee, type DirectoryEmployee } from '@/lib/dm/employees';
 import { Area, Field, Module, Pick, RowsTable, Toggle, type Column } from './ui';
+import { EmployeeDatalists, PersonTable, PpeTable, WalkTable } from './employees';
 
 /**
  * The Daily Management Plan form — the same eleven modules the supervisors already fill.
@@ -24,6 +26,8 @@ type Props = {
   saving: boolean;
   error: string;
   siteName: string;
+  /** The employee master, for the number ↔ name lookups. */
+  employees: DirectoryEmployee[];
 };
 
 const TICKS: { value: Tick; label: string }[] = [
@@ -32,7 +36,7 @@ const TICKS: { value: Tick; label: string }[] = [
   { value: 'na', label: 'N/A' }
 ];
 
-export default function DmForm({ plan, onChange, onSubmit, onReset, saving, error, siteName }: Props) {
+export default function DmForm({ plan, onChange, onSubmit, onReset, saving, error, siteName, employees }: Props) {
   const [open, setOpen] = useState<number[]>([1]);
   const m = plan.modules;
 
@@ -47,7 +51,7 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     switch (index) {
       case 1: return m.permits.permitNo ? `Permit ${m.permits.permitNo}` : 'No permit recorded';
       case 2: return m.tbt.attendees ? `${m.tbt.attendees} attendees` : 'Not filled';
-      case 3: return `${m.ppe.filter((row) => row.employee || row.remarks).length} observation(s)`;
+      case 3: return `${m.ppe.filter((row) => row.employee || row.remarks || row.items.length).length} observation(s)`;
       case 4: return `${m.walkthrough.filter((row) => row.area || row.details).length} observation(s)`;
       case 5: return `${m.equipment.filter((row) => row.name).length} equipment row(s)`;
       case 6: return `${m.tools.filter((row) => row.name || row.toolId).length} tool row(s)`;
@@ -59,19 +63,6 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     }
   };
 
-  const ppeColumns: Column<DmPlan['modules']['ppe'][number]>[] = [
-    { key: 'employee', label: 'Observed employee' },
-    { key: 'issue', label: 'Issue', kind: 'select', options: PPE_ISSUES },
-    { key: 'item', label: 'PPE', kind: 'select', options: PPE_ITEMS },
-    { key: 'remarks', label: 'Remarks' }
-  ];
-  const walkColumns: Column<DmPlan['modules']['walkthrough'][number]>[] = [
-    { key: 'time', label: 'Time', width: '90px' },
-    { key: 'area', label: 'Location / area' },
-    { key: 'type', label: 'Observation type', kind: 'select', options: WALKTHROUGH_TYPES },
-    { key: 'details', label: 'Details' },
-    { key: 'photo', label: 'Photo', kind: 'check', width: '60px' }
-  ];
   const equipmentColumns: Column<DmPlan['modules']['equipment'][number]>[] = [
     { key: 'name', label: 'Equipment / machinery' },
     { key: 'check', label: 'Check', kind: 'select', options: EQUIPMENT_CHECKS },
@@ -95,12 +86,6 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     { key: 'actionBy', label: 'Action by' },
     { key: 'remarks', label: 'Actions / remarks' }
   ];
-  const personColumns: Column<DmPlan['modules']['interaction']['team'][number]>[] = [
-    { key: 'name', label: 'Employee name' },
-    { key: 'number', label: 'Emp. no.' },
-    { key: 'designation', label: 'Designation' }
-  ];
-
   const setTick = (id: string, value: Tick) => {
     const checks = { ...m.housekeeping.checks };
     if (value === '') delete checks[id];
@@ -109,6 +94,7 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
   };
 
   return <div className="dm-form">
+    <EmployeeDatalists employees={employees} />
     <section className="dm-card">
       <header className="dm-card-head">
         <div>
@@ -174,23 +160,11 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     </Module>
 
     <Module index={3} title={MODULE_TITLES[2]} summary={summary(3)} open={open.includes(3)} onToggle={() => toggle(3)}>
-      <RowsTable
-        columns={ppeColumns}
-        rows={m.ppe}
-        onChange={(ppe) => setModules('ppe', ppe)}
-        blank={() => ({ employee: '', issue: PPE_ISSUES[0], item: PPE_ITEMS[0], remarks: '' })}
-        addLabel="Add PPE observation"
-      />
+      <PpeTable employees={employees} rows={m.ppe} onChange={(ppe) => setModules('ppe', ppe)} />
     </Module>
 
     <Module index={4} title={MODULE_TITLES[3]} summary={summary(4)} open={open.includes(4)} onToggle={() => toggle(4)}>
-      <RowsTable
-        columns={walkColumns}
-        rows={m.walkthrough}
-        onChange={(walkthrough) => setModules('walkthrough', walkthrough)}
-        blank={() => ({ time: '', area: '', type: WALKTHROUGH_TYPES[0], details: '', photo: false })}
-        addLabel="Add walk-through entry"
-      />
+      <WalkTable rows={m.walkthrough} onChange={(walkthrough) => setModules('walkthrough', walkthrough)} />
     </Module>
 
     <Module index={5} title={MODULE_TITLES[4]} summary={summary(5)} open={open.includes(5)} onToggle={() => toggle(5)}>
@@ -251,11 +225,10 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
     </Module>
 
     <Module index={8} title={MODULE_TITLES[7]} summary={summary(8)} open={open.includes(8)} onToggle={() => toggle(8)}>
-      <RowsTable
-        columns={personColumns}
+      <PersonTable
+        employees={employees}
         rows={m.interaction.team}
         onChange={(team) => setModules('interaction', { ...m.interaction, team })}
-        blank={() => ({ name: '', number: '', designation: '' })}
         addLabel="Add person"
       />
       <fieldset className="dm-choices">
@@ -302,11 +275,10 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
           })}
         />)}
       </fieldset>
-      <RowsTable
-        columns={personColumns}
+      <PersonTable
+        employees={employees}
         rows={m.incident.persons}
         onChange={(persons) => setModules('incident', { ...m.incident, persons })}
-        blank={() => ({ name: '', number: '', designation: '' })}
         addLabel="Add person involved"
       />
       <div className="dm-grid">
@@ -318,7 +290,34 @@ export default function DmForm({ plan, onChange, onSubmit, onReset, saving, erro
 
     <Module index={10} title={MODULE_TITLES[9]} summary={summary(10)} open={open.includes(10)} onToggle={() => toggle(10)}>
       <div className="dm-grid">
-        <Field label="Employee" value={m.training.employee} onChange={(employee) => setModules('training', { ...m.training, employee })} />
+        <Field
+          label="Employee no."
+          value={m.training.employeeNo}
+          maxLength={40}
+          list="dm-employee-no"
+          onChange={(employeeNo) => {
+            const hit = findEmployee(employees, employeeNo, 'empNo');
+            setModules('training', {
+              ...m.training,
+              employeeNo,
+              employee: hit ? hit.name : m.training.employee
+            });
+          }}
+        />
+        <Field
+          label="Employee"
+          value={m.training.employee}
+          maxLength={120}
+          list="dm-employee-name"
+          onChange={(employee) => {
+            const hit = findEmployee(employees, employee, 'name');
+            setModules('training', {
+              ...m.training,
+              employee,
+              employeeNo: hit ? hit.empNo : m.training.employeeNo
+            });
+          }}
+        />
         <Pick label="Training need identified" value={m.training.needType} options={['', ...TRAINING_NEEDS]} onChange={(needType) => setModules('training', { ...m.training, needType })} />
         <Area label="Observation" value={m.training.observation} onChange={(observation) => setModules('training', { ...m.training, observation })} />
         <Area label="Action taken" value={m.training.action} onChange={(action) => setModules('training', { ...m.training, action })} />

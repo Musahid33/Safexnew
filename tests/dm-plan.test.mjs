@@ -155,3 +155,128 @@ test("a new plan starts with today's date and the eleven modules present", () =>
   // Two independently created rows must not share an object.
   assert.notEqual(base.modules.ppe[0], plan.emptyPlan('2026-10-21').modules.ppe[0]);
 });
+
+// A 1x1 JPEG, small enough to sit in a payload and real enough for pdf-lib.
+const TINY_JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
+
+test('the walk-through types are the four the site uses', () => {
+  assert.deepEqual(plan.WALKTHROUGH_TYPES, ['Safe act', 'Good Practices', 'Unsafe act', 'Unsafe condition']);
+  assert.equal(plan.severityApplies('Unsafe act'), true);
+  assert.equal(plan.severityApplies('Unsafe condition'), true);
+  assert.equal(plan.severityApplies('Safe act'), false);
+  assert.equal(plan.severityApplies('Good Practices'), false);
+});
+
+test('severity survives only on unsafe observations', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      walkthrough: [
+        { area: 'Ramp 3', type: 'Unsafe act', severity: '4', details: 'No harness at height' },
+        { area: 'Store', type: 'Safe act', severity: '2', details: 'Cordon respected' },
+        { area: 'Gate', type: 'Good Practices', severity: '5', details: 'Walkway freshly painted' }
+      ]
+    }
+  });
+
+  assert.equal(result.ok, true);
+  const rows = result.plan.modules.walkthrough;
+  assert.equal(rows[0].severity, '4');
+  // A stray number on a safe act is removed, not printed as if the act were a risk.
+  assert.equal(rows[1].severity, '');
+  assert.equal(rows[2].severity, '');
+});
+
+test('an unsafe observation without severity is refused', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      walkthrough: [{ area: 'Ramp 3', type: 'Unsafe condition', severity: '', details: 'Oil spill' }]
+    }
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes('severity')));
+
+  // A severity outside 1–5 is the same as none.
+  const invalid = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      walkthrough: [{ area: 'Ramp 3', type: 'Unsafe condition', severity: '9', details: 'Oil spill' }]
+    }
+  });
+  assert.equal(invalid.ok, false);
+});
+
+test('a row that is still being typed does not block the plan', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      // The rest of the plan is filled; only this row is still blank.
+      tbt: { attendees: '18' },
+      walkthrough: [{ area: '', type: 'Unsafe act', severity: '', details: '' }]
+    }
+  });
+  assert.equal(result.ok, true);
+});
+
+test('PPE observations keep every item, and read the old single item', () => {
+  const result = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      ppe: [
+        { employee: 'Ravi Kumar', employeeNo: 'EMP004', items: ['Safety Helmet', 'Hand Gloves'], issue: 'Missing PPE' },
+        { employee: 'Sonu Yadav', item: 'Safety Shoe', issue: 'PPE OK' }
+      ]
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.plan.modules.ppe[0].items, ['Safety Helmet', 'Hand Gloves']);
+  // The field used to be a single `item`; an older payload still prints its PPE.
+  assert.deepEqual(result.plan.modules.ppe[1].items, ['Safety Shoe']);
+  assert.equal(result.plan.modules.ppe[0].employeeNo, 'EMP004');
+});
+
+test('photos must be real images and stay inside the payload budget', () => {
+  const accepted = plan.normalisePlan({
+    ...filled(),
+    modules: { walkthrough: [{ area: 'Ramp', type: 'Safe act', details: 'Good', photo: TINY_JPEG }] }
+  });
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.plan.modules.walkthrough[0].photo, TINY_JPEG);
+
+  const rejected = plan.normalisePlan({
+    ...filled(),
+    modules: {
+      walkthrough: [
+        { area: 'A', type: 'Safe act', photo: 'https://example.com/a.jpg' },
+        { area: 'B', type: 'Safe act', photo: 'data:text/html;base64,PHNjcmlwdD4=' },
+        { area: 'C', type: 'Safe act', photo: `data:image/jpeg;base64,${'A'.repeat(200_000)}` }
+      ]
+    }
+  });
+  assert.equal(rejected.ok, true);
+  // Fake, wrong-typed and oversized images are all dropped rather than stored.
+  assert.deepEqual(rejected.plan.modules.walkthrough.map((row) => row.photo), ['', '', '']);
+});
+
+test('more photos than a shift can attach is a clear refusal', () => {
+  const rows = Array.from({ length: 13 }, (_, index) => ({
+    area: `Area ${index}`,
+    type: 'Safe act',
+    details: '',
+    photo: TINY_JPEG
+  }));
+  const result = plan.normalisePlan({ ...filled(), modules: { walkthrough: rows } });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes('photos')));
+});
+
+test('a photo on its own makes an observation count', () => {
+  const empty = plan.emptyPlan('2026-10-21');
+  assert.equal(plan.filledModuleCount(empty), 0);
+
+  empty.modules.walkthrough = [{ area: '', type: 'Unsafe act', severity: '2', details: '', photo: TINY_JPEG }];
+  assert.equal(plan.filledModuleCount(empty), 1);
+  assert.equal(plan.isEmptyPlan(empty), false);
+});

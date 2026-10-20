@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { emptyPlan, type DmPlan } from '@/lib/dm/plan';
+import { emptyPlan, severityApplies, type DmPlan } from '@/lib/dm/plan';
+import { directoryFromApi, type DirectoryEmployee } from '@/lib/dm/employees';
 import DmForm from './DmForm';
 import DmRecords from './DmRecords';
 
@@ -28,6 +29,42 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
   const [error, setError] = useState('');
   const [filed, setFiled] = useState<Filed | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  /** The employee master, so a number or a name in the form resolves to the other. */
+  const [employees, setEmployees] = useState<DirectoryEmployee[]>([]);
+  const [directoryNote, setDirectoryNote] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const found: unknown[] = [];
+        // The console's roster endpoint pages at 50; the DM form needs the whole master,
+        // so it walks the pages once and keeps the three fields the pickers use.
+        for (let page = 0; page < 8; page += 1) {
+          const params = new URLSearchParams({ limit: '50', offset: String(page * 50) });
+          if (siteId && siteId !== 'all') params.set('siteId', siteId);
+          const response = await fetch(`/api/admin/employees?${params}`, {
+            credentials: 'same-origin',
+            cache: 'no-store'
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok || !data?.ok) throw new Error(data?.error ?? 'Employee master is not reachable.');
+          found.push(...(Array.isArray(data.employees) ? data.employees : []));
+          if (!data.total || found.length >= Number(data.total)) break;
+        }
+        if (!cancelled) {
+          setEmployees(directoryFromApi(found));
+          setDirectoryNote('');
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setEmployees([]);
+          setDirectoryNote(cause instanceof Error ? cause.message : 'Employee master is not reachable.');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [siteId]);
 
   // The officer's own name and the site are the two things every plan starts with.
   useEffect(() => {
@@ -38,6 +75,15 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
     setError('');
     if (!plan.date) { setError('Pick the plan date.'); return; }
     if (!plan.supervisor.trim()) { setError('Supervisor name is required.'); return; }
+    // An unsafe observation without a severity cannot be triaged, so it is caught here
+    // before the plan is filed and a numbered document is built around it.
+    const unrated = plan.modules.walkthrough.findIndex((row) => severityApplies(row.type)
+      && !row.severity && Boolean(row.area || row.details));
+    if (unrated >= 0) {
+      setError(`Site walk-through row ${unrated + 1}: unsafe observation hai — severity (1-5) chuniye.`);
+      setTab('conduct');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -78,6 +124,9 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
     </nav>
 
     {tab === 'conduct' && <>
+      {directoryNote && <p className="dm-hint-note">
+        Employee master load nahi hua ({directoryNote}). Employee number/naam se auto-fill band hai — naam type kar sakte hain.
+      </p>}
       {filed && <div className="dm-banner" role="status">
         <div>
           <strong>{filed.reference}</strong> filed. The plan is locked and its PDF is in DM Records.
@@ -90,6 +139,7 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
       <DmForm
         plan={plan}
         siteName={siteName}
+        employees={employees}
         saving={saving}
         error={error}
         onChange={setPlan}
