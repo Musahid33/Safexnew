@@ -40,8 +40,26 @@ test('parser keeps active named employees and public projection omits personal f
   assert.equal(parsed.records.length, 1);
   assert.equal(parsed.records[0].siteId, 'west-bokaro');
   assert.equal(parsed.records[0].mobileE164, '+919876543210');
-  assert.deepEqual(Object.keys(toPublicEmployee(parsed.records[0])).sort(), ['designation', 'empNo', 'id', 'name', 'siteId']);
+  assert.deepEqual(Object.keys(toPublicEmployee(parsed.records[0])).sort(), ['designation', 'empNo', 'name']);
   assert.equal(parseEmployeeMaster('<html>Unavailable</html>', { defaultSiteId: 'west-bokaro' }).records.length, 0);
+});
+
+test('import keeps blank-status rows inactive and withholds shared mobiles', () => {
+  const { parseEmployeeMaster } = loader()('lib/employee-master/parse.ts');
+  const source = [
+    'Employee ID,Name,Designation,Mobile,Status',
+    'SHARED-01,Worker One,Operator,9876543210,Active',
+    'SHARED-02,Worker Two,Helper,9876543210,Active',
+    'BLANK-01,Unconfirmed Worker,Helper,,',
+    'INACTIVE-01,Former Worker,Helper,,Inactive'
+  ].join('\n');
+  const parsed = parseEmployeeMaster(source, { defaultSiteId: 'wbd', activeOnly: false });
+  assert.equal(parsed.records.length, 4);
+  assert.equal(parsed.records.find((record) => record.employeeNo === 'BLANK-01').active, false);
+  assert.equal(parsed.records.find((record) => record.employeeNo === 'INACTIVE-01').active, false);
+  assert.equal(parsed.records.find((record) => record.employeeNo === 'SHARED-01').mobileE164, null);
+  assert.equal(parsed.records.find((record) => record.employeeNo === 'SHARED-02').mobileE164, null);
+  assert.ok(parsed.issues.some((issue) => issue.field === 'mobile' && issue.severity === 'error'));
 });
 
 test('sheet lookup scopes employees and outage never fabricates records', async () => {
@@ -54,14 +72,14 @@ test('sheet lookup scopes employees and outage never fabricates records', async 
     const load = loader({ 'node:fs/promises': { readFile: async () => { throw new Error('No file'); } } });
     const source = load('lib/employee-master/source.ts');
     globalThis.fetch = async () => new Response(csv);
-    assert.equal((await source.searchEmployeeMaster('west-bokaro', 'Test')).length, 1);
+    assert.equal((await source.searchEmployeeMaster('wbd', 'Test')).length, 1);
     assert.equal((await source.searchEmployeeMaster('other-site', 'Test')).length, 0);
-    assert.equal(await source.findEmployeeByNumber('west-bokaro', 'EMP-DEMO-01'), null);
-    assert.equal((await source.findEmployeeByNumber('west-bokaro', 'test-01')).employeeNo, 'TEST-01');
+    assert.equal(await source.findEmployeeByNumber('wbd', 'EMP-DEMO-01'), null);
+    assert.equal((await source.findEmployeeByNumber('wbd', 'test-01')).employeeNo, 'TEST-01');
     source.clearEmployeeMasterCache();
     globalThis.fetch = async () => { throw new Error('Network unavailable'); };
     assert.equal(await source.getEmployeeMaster(), null);
-    assert.deepEqual(await source.searchEmployeeMaster('west-bokaro', 'Test'), []);
+    assert.deepEqual(await source.searchEmployeeMaster('wbd', 'Test'), []);
   } finally {
     globalThis.fetch = oldFetch;
     if (oldUrl === undefined) delete process.env.SAFEX_EMPLOYEE_MASTER_CSV_URL;
@@ -97,4 +115,28 @@ test('design has no seeded roster, linked history, or fake lookup fallback', () 
   const script = loader()('app/components/safetyos/generated/script.ts').DESIGN_SCRIPT;
   assert.ok(script.includes('window.__SAFEX_EMPLOYEES__:[]'));
   new Function(script); // Parse the regenerated standalone script as JavaScript.
+});
+
+test('legacy sheet mode hands off to Supabase when no sheet source remains', () => {
+  const names = [
+    'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'SAFEX_EMPLOYEE_DIRECTORY_SOURCE', 'SAFEX_EMPLOYEE_MASTER_CSV_URL', 'SAFEX_EMPLOYEE_MASTER_FILE'
+  ];
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  try {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-server-key';
+    process.env.SAFEX_EMPLOYEE_DIRECTORY_SOURCE = 'sheet';
+    delete process.env.SAFEX_EMPLOYEE_MASTER_CSV_URL;
+    delete process.env.SAFEX_EMPLOYEE_MASTER_FILE;
+    const source = loader({ '@/lib/supabase/admin': { getAdminSupabase: () => null } })('lib/employee-master/db-source.ts');
+    assert.equal(source.isDatabaseDirectoryIntended(), true);
+    process.env.SAFEX_EMPLOYEE_MASTER_CSV_URL = 'https://example.com/master.csv';
+    assert.equal(source.isDatabaseDirectoryIntended(), false);
+  } finally {
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
 });

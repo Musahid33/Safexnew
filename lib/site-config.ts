@@ -1,7 +1,7 @@
 import type { Site } from './types';
 
 export const WEST_BOKARO_SITE: Site = {
-  id: 'west-bokaro', name: 'West Bokaro (WBD)', region: 'Jharkhand', sosNumber: null
+  id: 'wbd', name: 'West Bokaro (WBD)', region: 'Jharkhand', sosNumber: null
 };
 
 /** Preserve the configured directory key and emergency contact; never relabel another site. */

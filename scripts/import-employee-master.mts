@@ -120,7 +120,6 @@ function toRow(record: MasterEmployeeRecord, tenantId: string, siteId: string) {
     mobile_e164: record.mobileE164,
     safety_pass_no: record.safetyPassNo,
     skill_grade: record.skillGrade,
-    blood_group: record.bloodGroup,
     active: record.active,
     source: 'employee_master_sync',
     synced_at: new Date().toISOString()
@@ -134,11 +133,12 @@ async function main() {
   console.log('─'.repeat(52));
 
   const { text, label } = await loadSourceText();
-  const siteSlug = env('SAFEX_EMPLOYEE_MASTER_SITE_ID') ?? 'kedla';
+  const siteSlug = env('SAFEX_EMPLOYEE_MASTER_SITE_ID') ?? 'wbd';
   const siteName = env('SAFEX_EMPLOYEE_MASTER_SITE_NAME') ?? siteSlug;
   const siteRegion = env('SAFEX_EMPLOYEE_MASTER_SITE_REGION') ?? '';
 
-  const parsed = parseEmployeeMaster(text, { defaultSiteId: siteSlug });
+  // Imports preserve explicit inactive/blank-status rows; public lookups still filter active only.
+  const parsed = parseEmployeeMaster(text, { defaultSiteId: siteSlug, activeOnly: false });
   let records = parsed.records;
   if (options.limit) records = records.slice(0, options.limit);
 

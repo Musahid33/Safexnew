@@ -29,7 +29,7 @@ type EmployeeRow = {
   skill_grade?: string | null;
   blood_group?: string | null;
   home_address?: string | null;
-  phone_e164?: string | null;
+  mobile_e164?: string | null;
 };
 
 const SELECT_COLUMNS = 'id, employee_no, full_name, designation, department, site_id, active';
@@ -74,11 +74,20 @@ async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
 /** Credentials exist and the operator has not forced another source. */
 export function isDatabaseDirectoryIntended(): boolean {
   const mode = (process.env.SAFEX_EMPLOYEE_DIRECTORY_SOURCE ?? 'auto').toLowerCase();
-  if (mode !== 'auto' && mode !== 'supabase') return false;
-  return Boolean(
+  const databaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL
     && process.env.SUPABASE_SERVICE_ROLE_KEY
   );
+  if (!databaseConfigured) return false;
+
+  // `sheet` was the starter's old deployment setting. Once the sheet URL is removed
+  // after import, let the configured database take over rather than leaving lookup down.
+  const sheetConfigured = Boolean(
+    process.env.SAFEX_EMPLOYEE_MASTER_CSV_URL?.trim()
+    || process.env.SAFEX_EMPLOYEE_MASTER_FILE?.trim()
+  );
+  if (mode === 'sheet') return !sheetConfigured;
+  return mode === 'auto' || mode === 'supabase';
 }
 
 /** Intended *and* we are not inside a cool-off after a failure. */
@@ -121,7 +130,7 @@ function toRecord(row: EmployeeRow): MasterEmployeeRecord {
     skillGrade: row.skill_grade ?? null,
     safetyPassNo: row.safety_pass_no ?? null,
     bloodGroup: row.blood_group ?? null,
-    mobileE164: row.phone_e164 ?? null,
+    mobileE164: row.mobile_e164 ?? null,
     active: row.active,
     siteId: row.site_id
   };
@@ -235,7 +244,7 @@ export async function findEmployeeInDatabase(
     .select(SELECT_COLUMNS)
     .eq('tenant_id', tenantId)
     .eq('active', true)
-    .ilike('employee_no', employeeNo.trim())
+    .eq('employee_no', employeeNo.trim().toUpperCase())
     .limit(1);
 
   if (siteRef) {
@@ -261,7 +270,7 @@ export function clearTenantCache(): void {
 // home_address is intentionally absent — nothing renders it yet, and the cheapest way to
 // not leak a field is to never select it.
 const PII_COLUMNS =
-  'id, employee_no, full_name, designation, department, site_id, active, safety_pass_no, skill_grade, blood_group, phone_e164';
+  'id, employee_no, full_name, designation, department, site_id, active, safety_pass_no, skill_grade, blood_group, mobile_e164';
 
 export type DbRosterPage = { records: MasterEmployeeRecord[]; total: number };
 

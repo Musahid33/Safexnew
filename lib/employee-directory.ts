@@ -4,6 +4,8 @@ import type { Employee } from './types';
 
 export type DirectoryMode = 'master';
 
+type PublicEmployeeLookup = Pick<Employee, 'empNo' | 'name' | 'designation'>;
+
 export type EmployeeDirectory = {
   mode: DirectoryMode;
   minQueryLength: number;
@@ -17,8 +19,24 @@ async function requestEmployees(params: URLSearchParams, signal?: AbortSignal): 
     if (response.status === 429) throw new Error('LOOKUP_RATE_LIMITED');
     throw new Error('LOOKUP_FAILED');
   }
-  const payload = await response.json() as { employees?: Employee[] };
-  return Array.isArray(payload.employees) ? payload.employees : [];
+  const payload = await response.json() as { employees?: PublicEmployeeLookup[] };
+  if (!Array.isArray(payload.employees)) return [];
+
+  // Site and React-key metadata are derived client-side. The API exposes only the three
+  // requested employee fields: Employee ID, name and designation.
+  const siteId = params.get('siteId') ?? '';
+  return payload.employees
+    .filter((employee) => employee
+      && typeof employee.empNo === 'string'
+      && typeof employee.name === 'string'
+      && typeof employee.designation === 'string')
+    .map((employee) => ({
+      id: `emp-${employee.empNo.toLowerCase()}`,
+      empNo: employee.empNo,
+      name: employee.name,
+      designation: employee.designation,
+      siteId
+    }));
 }
 
 export const MASTER_DIRECTORY: EmployeeDirectory = {

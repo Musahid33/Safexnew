@@ -165,16 +165,6 @@ export function normalizeEmployeeMaster(rows: string[][], options: NormalizeOpti
       continue;
     }
 
-    const statusRaw = pick(row, 'status');
-    const active = statusRaw === '' ? true : /^(active|yes|y|true|1)$/i.test(statusRaw);
-    if (options.activeOnly !== false && !active) { skipped += 1; continue; }
-
-    const designation = pick(row, 'designation');
-    if (!designation) issues.push({ employeeNo, field: 'designation', severity: 'warning', message: 'Designation is blank; the report form will show no role.' });
-
-    const { grade, corrected } = normalizeSkillGrade(pick(row, 'skillGrade'));
-    if (corrected) issues.push({ employeeNo, field: 'skillGrade', severity: 'warning', message: `Skill grade spelling corrected to "${grade}".` });
-
     const mobileCell = pick(row, 'mobile');
     const { e164, reason } = normalizeIndianMobile(mobileCell);
     if (!e164 && mobileCell) {
@@ -183,6 +173,16 @@ export function normalizeEmployeeMaster(rows: string[][], options: NormalizeOpti
       issues.push({ employeeNo, field: 'mobile', severity: 'warning', message: 'No mobile recorded; OTP sign-in will not work for this employee.' });
     }
     if (e164) phones.set(e164, [...(phones.get(e164) ?? []), employeeNo]);
+
+    const statusRaw = pick(row, 'status');
+    const active = statusRaw === '' ? false : /^(active|yes|y|true|1)$/i.test(statusRaw);
+    if (options.activeOnly !== false && !active) { skipped += 1; continue; }
+
+    const designation = pick(row, 'designation');
+    if (!designation) issues.push({ employeeNo, field: 'designation', severity: 'warning', message: 'Designation is blank; the report form will show no role.' });
+
+    const { grade, corrected } = normalizeSkillGrade(pick(row, 'skillGrade'));
+    if (corrected) issues.push({ employeeNo, field: 'skillGrade', severity: 'warning', message: `Skill grade spelling corrected to "${grade}".` });
 
     const duplicateAt = seen.get(employeeNo);
     if (duplicateAt !== undefined) {
@@ -201,16 +201,20 @@ export function normalizeEmployeeMaster(rows: string[][], options: NormalizeOpti
       safetyPassNo: pick(row, 'safetyPassNo') || null,
       bloodGroup: pick(row, 'bloodGroup') || null,
       mobileE164: e164,
-      active: true,
+      active,
       siteId: pick(row, 'site') || options.defaultSiteId
     });
   }
 
   for (const [phone, ids] of phones) {
     if (ids.length > 1) {
+      const duplicateIds = new Set(ids);
+      for (const record of records) {
+        if (duplicateIds.has(record.employeeNo)) record.mobileE164 = null;
+      }
       issues.push({
         employeeNo: ids.join(', '), field: 'mobile', severity: 'error',
-        message: `Shared mobile ${phone.slice(0, 5)}*****${phone.slice(-2)} — OTP cannot identify a single employee.`
+        message: `Shared mobile ${phone.slice(0, 5)}*****${phone.slice(-2)} — OTP cannot identify a single employee; the number was withheld.`
       });
     }
   }
@@ -225,10 +229,8 @@ export function parseEmployeeMaster(text: string, options: NormalizeOptions): Pa
 /** The only employee shape a browser is ever allowed to receive. */
 export function toPublicEmployee(record: MasterEmployeeRecord) {
   return {
-    id: `emp-${record.employeeNo.toLowerCase()}`,
     empNo: record.employeeNo,
     name: record.fullName,
-    designation: record.designation,
-    siteId: record.siteId
+    designation: record.designation
   };
 }
