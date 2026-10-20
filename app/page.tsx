@@ -125,6 +125,17 @@ export default function SafexHome() {
   // Site list and employee directory come from the server: the real employee master when
   // one is configured; otherwise lookups report unavailable.
   const { ready: directoryReady, sites, directory, companyName, directoryMode, employeeCount, degraded } = useSafexBootstrap();
+  // Brand the page with whatever the server actually knows. DEMO_TENANT is only the
+  // fallback used before bootstrap answers.
+  const brandCompanyName = companyName || DEMO_TENANT.companyName;
+  // The ribbon must not claim a live employee master the deployment is not serving.
+  const directoryRibbon = !directoryReady
+    ? 'checking the employee master'
+    : directoryMode === 'supabase'
+      ? 'employee master uses real data'
+      : directoryMode === 'sheet'
+        ? 'employee master uses a site roster snapshot'
+        : 'employee master is not connected';
   const locale = LANGUAGE_LOCALE[language];
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [page, setPage] = useState<PageKey>('home');
@@ -165,6 +176,7 @@ export default function SafexHome() {
   const [vaultCategoryId, setVaultCategoryId] = useState<VaultCategoryId | null>(null);
   const [feedDetail, setFeedDetail] = useState<HomeFeedItem | null>(null);
   const [reportSyncEnabled, setReportSyncEnabled] = useState(false);
+  const [syncStatusKnown, setSyncStatusKnown] = useState(false);
   const [queuedReportCount, setQueuedReportCount] = useState(0);
   // Starts `true` so the server-rendered markup and the first client render agree; the
   // effect below corrects it immediately when the device is actually offline.
@@ -326,9 +338,13 @@ export default function SafexHome() {
   useEffect(() => {
     let active = true;
     fetch('/api/health', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).then((health) => {
-      if (active) setReportSyncEnabled(Boolean(health?.reportSubmissionEnabled));
+      if (!active) return;
+      setReportSyncEnabled(Boolean(health?.reportSubmissionEnabled));
+      setSyncStatusKnown(true);
     }).catch(() => {
-      if (active) setReportSyncEnabled(false);
+      if (!active) return;
+      setReportSyncEnabled(false);
+      setSyncStatusKnown(true);
     });
     return () => { active = false; };
   }, []);
@@ -623,7 +639,7 @@ export default function SafexHome() {
   const nextEventStatus = nextUpcomingEvent ? getUpcomingEventStatus(nextUpcomingEvent.date) : null;
 
   const siteSelectionDialog = siteReady && siteDialog ? (
-    <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{DEMO_TENANT.companyName.trim().charAt(0) || 'S'}</span><span><b>{DEMO_TENANT.companyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button><div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>
+    <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{brandCompanyName.trim().charAt(0) || 'S'}</span><span><b>{brandCompanyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button><div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>
   ) : null;
 
   // The Admin / HSE Manager dashboard is the uploaded SafetyOS console itself. It is
@@ -648,14 +664,14 @@ export default function SafexHome() {
 
   return (
     <div className="safex-app">
-      <div className="demo-ribbon"><span className="demo-dot" /> {T(reportSyncEnabled ? 'Sample feeds only · employee master uses real data · new reports sync when online' : 'Sample feeds only · employee master uses real data · report sync is not configured')}</div>
+      <div className="demo-ribbon"><span className="demo-dot" /> {T(`Sample feeds only · ${directoryRibbon} · ${!syncStatusKnown ? 'checking report sync' : reportSyncEnabled ? 'new reports sync when online' : 'report sync is not configured'}`)}</div>
       <div className="site-header-shell">
         <header className="topbar">
           <div className="topbar-inner">
             <div className="topbar-brand-row">
               <button className="brand-button" onClick={() => setPage('home')} aria-label={T('Safex Home')}>
-                <span className="topbar-company-logo" aria-hidden="true">{DEMO_TENANT.companyName.trim().charAt(0) || 'S'}</span>
-                <span className="topbar-company-name">{DEMO_TENANT.companyName}</span>
+                <span className="topbar-company-logo" aria-hidden="true">{brandCompanyName.trim().charAt(0) || 'S'}</span>
+                <span className="topbar-company-name">{brandCompanyName}</span>
               </button>
             </div>
 
@@ -832,7 +848,7 @@ export default function SafexHome() {
 
         {page === 'more' && <MoreMenuPage
           title={T('more')}
-          companyName={DEMO_TENANT.companyName}
+          companyName={brandCompanyName}
           onInstall={() => setPage('install')}
           onCompanyAbout={() => setPage('company')}
           onSearchEmployee={() => setProfileSearchOpen(true)}
@@ -942,7 +958,7 @@ export default function SafexHome() {
       </div>}
 
       {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} directory={directory} language={language} onLanguageChange={setLanguage} voiceEnabled={DEMO_TENANT.features.voiceReporting} syncEnabled={reportSyncEnabled} onClose={() => setReportType(null)} onSubmit={submitReport} />}
-      {profileSearchOpen && <ProfileSearchDialog site={currentSite} companyName={companyName} directory={directory} onClose={() => setProfileSearchOpen(false)} />}
+      {profileSearchOpen && <ProfileSearchDialog site={currentSite} companyName={companyName} directory={directory} directoryMode={directoryMode} employeeCount={employeeCount} onClose={() => setProfileSearchOpen(false)} />}
       {officerAccessOpen && <OfficerAccessDialog onClose={() => setOfficerAccessOpen(false)} onDemoLogin={completeDemoAdminLogin} />}
       {moreInfoKind && <MoreInfoDialog kind={moreInfoKind} company={DEMO_TENANT} onClose={() => setMoreInfoKind(null)} onLogin={() => { setMoreInfoKind(null); setOfficerAccessOpen(true); }} />}
 

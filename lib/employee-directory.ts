@@ -29,15 +29,18 @@ async function requestEmployees(params: URLSearchParams, signal?: AbortSignal): 
   // requested employee fields: Employee ID, name and designation.
   const siteId = params.get('siteId') ?? '';
   return payload.employees
+    // A missing designation must not hide a real employee: strip the row's identity fields
+    // only. Designation is display text, so an empty value degrades to "not recorded".
     .filter((employee) => employee
       && typeof employee.empNo === 'string'
+      && employee.empNo.length > 0
       && typeof employee.name === 'string'
-      && typeof employee.designation === 'string')
+      && employee.name.length > 0)
     .map((employee) => ({
       id: `emp-${employee.empNo.toLowerCase()}`,
       empNo: employee.empNo,
       name: employee.name,
-      designation: employee.designation,
+      designation: employee.designation ?? '',
       siteId,
       // Work context the server chose to release. `safetyPassNo` stays undefined when the
       // deployment has not opted in, which the passport renders as "restricted".

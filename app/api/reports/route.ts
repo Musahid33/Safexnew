@@ -202,7 +202,10 @@ export async function POST(request: NextRequest) {
   const host = requestHost(request);
   if (!host || host.length > 253 || host === 'localhost') return jsonError(404, 'TENANT_NOT_FOUND', 'No verified tenant is configured for this host.');
   const { data: domain, error: domainError } = await admin.from('tenant_domains').select('tenant_id').eq('domain', host).not('verified_at', 'is', null).maybeSingle();
-  if (domainError || !domain?.tenant_id) return jsonError(404, 'TENANT_NOT_FOUND', 'No verified tenant is configured for this host.');
+  // A database/network failure is not the same as "this host has no tenant": reporting it as
+  // 404 sends operators hunting for a missing domain row when the backend is simply down.
+  if (domainError) return jsonError(503, 'TENANT_LOOKUP_UNAVAILABLE', 'Tenant verification is temporarily unavailable. This report remains queued on this device.');
+  if (!domain?.tenant_id) return jsonError(404, 'TENANT_NOT_FOUND', 'No verified tenant is configured for this host.');
 
   const rateLimit = await consumeRateLimit(admin, request, host, domain.tenant_id);
   if (rateLimit === null) return jsonError(503, 'REPORT_RATE_LIMIT_UNAVAILABLE', 'Secure report submission is not fully configured. This report remains queued on this device.');
