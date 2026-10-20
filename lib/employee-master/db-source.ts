@@ -104,8 +104,11 @@ export function isDatabaseDirectoryConfigured(): boolean {
  * Resolve the tenant this deployment serves. Host-based resolution needs verified
  * `tenant_domains` rows; until those exist an explicit slug keeps the scoping honest
  * instead of silently reading across tenants.
+ *
+ * Shared with the admin reports endpoint (lib/admin-reports.ts): both must scope by the
+ * same tenant, so this stays the single implementation.
  */
-async function resolveTenantId(admin: AdminClient): Promise<string | null> {
+export async function resolveTenantId(admin: AdminClient): Promise<string | null> {
   const slug = process.env.SAFEX_TENANT_SLUG?.trim();
   const now = Date.now();
   if (tenantCache && tenantCache.expiresAt > now && tenantCache.slug === (slug ?? '')) {
@@ -252,8 +255,8 @@ export async function countEmployeesInDatabase(): Promise<number | null> {
   return result.error ? null : result.count ?? 0;
 }
 
-/** Translate the app's site slug into the UUID the employees table stores. */
-async function resolveSiteId(admin: AdminClient, tenantId: string, siteRef: string): Promise<string | null> {
+/** Translate the app's site slug into the UUID the reports/employees tables store. */
+export async function resolveSiteId(admin: AdminClient, tenantId: string, siteRef: string): Promise<string | null> {
   if (!siteRef) return null;
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(siteRef);
   const result = await withTimeout(admin

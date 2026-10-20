@@ -16,7 +16,10 @@
  *   1. every CSS selector is scoped under `.sos` so the design cannot collide with the
  *      worker app's globals.css (both define .app, .page, .sidebar, .modal, --line, --green),
  *   2. the demo employee array becomes `window.__SAFEX_EMPLOYEES__ || []` so the
- *      verified operator session can hand the console the real employee master.
+ *      verified operator session can hand the console the real employee master,
+ *   3. the demo case-report array becomes `window.__SAFEX_CASE_REPORTS__ || []` so the
+ *      console lists the reports workers actually submitted, and a status change calls
+ *      `window.__SAFEX_CASE_CHANGED__(record, previousStatus)` so the host can persist it.
  *
  * Run it after editing the design; never hand-edit the generated files.
  *
@@ -151,6 +154,32 @@ script =
   script.slice(0, seamStart)
   + `      const employeeDirectory=(typeof window!=='undefined'&&Array.isArray(window.__SAFEX_EMPLOYEES__))?window.__SAFEX_EMPLOYEES__:[];`
   + script.slice(arrayEnd + 1); // drop the `;` that closed the original declaration
+
+/**
+ * CASE-REPORT SEAM — the console's case list is fed by the host.
+ *
+ * `caseReports` is the array every screen reads (Case Management, Dashboard, Analytics,
+ * Export). The design seeds it empty; the host fills it from /api/admin/reports. Direct
+ * entry and delete still mutate it locally, which is why the host blocks those two actions
+ * for server-backed records instead of letting the console show unsaved changes.
+ */
+const reportsAnchor = 'const caseReports=[];';
+if (!script.includes(reportsAnchor)) throw new Error('REPORT SEAM: could not find `const caseReports=[];`');
+script = script.replace(
+  reportsAnchor,
+  `const caseReports=(typeof window!=='undefined'&&Array.isArray(window.__SAFEX_CASE_REPORTS__))?window.__SAFEX_CASE_REPORTS__:[];
+      function notifyCaseChange(record,previousStatus){try{if(typeof window!=='undefined'&&window.__SAFEX_CASE_CHANGED__)return window.__SAFEX_CASE_CHANGED__(record,previousStatus)}catch(error){console.error('Safex case sync failed',error);return null}return null}`
+);
+
+// The inline status dropdown is the one edit the console can persist, so it reports the
+// old value too: the host needs it to put the row back if the server refuses.
+const statusAnchor = 'record.status=select.value;renderCaseManagement();';
+if (!script.includes(statusAnchor)) throw new Error('REPORT SEAM: could not find the status-change handler');
+script = script.replace(
+  statusAnchor,
+  'const __previousStatus=record.status;record.status=select.value;const __caseSync=notifyCaseChange(record,__previousStatus);renderCaseManagement();if(__caseSync&&typeof __caseSync.then==="function"){__caseSync.then(()=>renderCaseManagement(),()=>renderCaseManagement())}'
+);
+
 
 writeFileSync(
   resolve(OUT_DIR, 'script.ts'),

@@ -6,6 +6,10 @@ import '@/app/safetyos-host.css';
 import { DESIGN_MARKUP } from './generated/markup';
 import { DESIGN_SCRIPT } from './generated/script';
 import type { Site } from '@/lib/types';
+import {
+  CASE_STATUS, CASE_STATUS_DB, toCaseReport,
+  type AdminReport, type DesignCaseReport
+} from '@/lib/case-report-view';
 
 /**
  * The Admin / HSE Manager dashboard — the uploaded SafetyOS console, running as designed.
@@ -22,6 +26,9 @@ import type { Site } from '@/lib/types';
  *    while starting are recorded and removed again on unmount;
  *  - the roster arrives through the design's employee seam, and only after the same
  *    server-verified operator session that guards /api/admin/employees;
+ *  - Case Management, the dashboard KPIs and the analytics counts read the design's
+ *    case-report seam, filled from /api/admin/reports — the reports workers actually
+ *    submitted — and a status change is written back through that session;
  *  - "Log out", the location selector and the sidebar status line are wired back to the
  *    host, so the console behaves as a screen of this app rather than a separate page.
  */
@@ -56,8 +63,11 @@ type DesignEmployee = {
 
 type SessionState = { configured: boolean; signedIn: boolean; piiEnabled?: boolean };
 type RosterResult = { rows: DesignEmployee[] } | { error: 'auth' | 'unavailable' };
+type ReportsResult = { rows: DesignCaseReport[]; total: number } | { error: 'auth' | 'unavailable' };
 type Phase = 'checking' | 'locked' | 'ready';
 type DirectoryState = 'live' | 'empty' | 'unavailable';
+/** Short-lived message about a write the console attempted. */
+type HostNote = { tone: 'pending' | 'ok' | 'error'; text: string };
 
 type HostContext = {
   siteName: string;
@@ -70,11 +80,18 @@ type HostContext = {
 declare global {
   interface Window {
     __SAFEX_EMPLOYEES__?: DesignEmployee[];
+    __SAFEX_CASE_REPORTS__?: DesignCaseReport[];
+    /** Called by the design after its status dropdown mutates a record. */
+    __SAFEX_CASE_CHANGED__?: (record: DesignCaseReport, previousStatus: string) => unknown;
   }
 }
 
 const PAGE_SIZE = 50;
 const MAX_ROSTER = 2000;
+const REPORT_PAGE_SIZE = 100;
+const MAX_REPORTS = 500;
+/** How long a write message stays on screen before it clears itself. */
+const NOTE_TTL_MS = 7000;
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'SO';
@@ -93,6 +110,9 @@ export default function SafetyOsApp({
   const [phase, setPhase] = useState<Phase>('checking');
   const [roster, setRoster] = useState<DesignEmployee[] | null>(null);
   const [state, setState] = useState<DirectoryState>('unavailable');
+  const [reports, setReports] = useState<DesignCaseReport[] | null>(null);
+  const [reportState, setReportState] = useState<DirectoryState>('unavailable');
+  const [note, setNote] = useState<HostNote | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [gateUsername, setGateUsername] = useState('');
   const [gatePassword, setGatePassword] = useState('');
@@ -114,12 +134,56 @@ export default function SafetyOsApp({
     statusLabel: describeDirectory(state, roster?.length ?? 0, directoryMode)
   };
 
+  // A write message is small feedback, not a permanent status line.
+  useEffect(() => {
+    if (!note) return;
+    const timer = setTimeout(() => setNote(null), NOTE_TTL_MS);
+    return () => clearTimeout(timer);
+  }, [note]);
+
   // Handlers are read at click time, so a new inline callback from the parent never
   // remounts the console (which would throw away the design's in-memory workspace).
   const handlers = useRef({ canChangeSite, onChangeSite, onExit });
   useEffect(() => {
     handlers.current = { canChangeSite, onChangeSite, onExit };
   }, [canChangeSite, onChangeSite, onExit]);
+
+  const retry = useCallback(() => {
+    setPhase('checking');
+    setReloadToken((token) => token + 1);
+  }, []);
+
+  /**
+   * Persist a status change the operator made in the design's dropdown.
+   *
+   * Returns a promise so the console re-renders once the write settles: on failure the
+   * record is put back and the table redrawn, rather than a row that claims a status the
+   * database never accepted.
+   */
+  const applyCaseStatus = useCallback((record: DesignCaseReport, previousStatus: string) => {
+    const nextStatus = CASE_STATUS_DB[record.status];
+    if (!nextStatus) {
+      record.status = previousStatus;
+      setNote({ tone: 'error', text: `“${record.status}” is not a status this dashboard stores.` });
+      return null;
+    }
+
+    setNote({ tone: 'pending', text: `Saving ${record.id}…` });
+    return fetch('/api/admin/reports', {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reportRef: record.id, status: nextStatus })
+    }).then(async (response) => {
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${response.status}`);
+      setNote({ tone: 'ok', text: `${record.id} saved · ${CASE_STATUS[nextStatus]}` });
+    }).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : 'network error';
+      record.status = previousStatus;
+      setNote({ tone: 'error', text: `${record.id} was not saved — ${reason}. Status kept as ${previousStatus}.` });
+    });
+  }, []);
 
   /* 1. Decide whether the real employee master may be read, then fetch it. */
   useEffect(() => {
@@ -148,17 +212,30 @@ export default function SafetyOsApp({
         return;
       }
 
-      const result = await readRoster(selectedSiteId);
+      // Both screens the console backs with real data are loaded together: a console that
+      // shows the live roster but demo reports would be worse than one that says so.
+      const [rosterResult, reportsResult] = await Promise.all([
+        readRoster(selectedSiteId),
+        readReports(selectedSiteId)
+      ]);
       if (cancelled) return;
-      if ('error' in result) {
-        if (result.error === 'auth') {
-          // Session cookie rejected (expired or cleared) — back to the gate.
-          setRoster(null);
-          setState('unavailable');
-          setFailClosed(false);
-          setPhase('locked');
-          return;
-        }
+
+      if (('error' in rosterResult && rosterResult.error === 'auth')
+        || ('error' in reportsResult && reportsResult.error === 'auth')) {
+        // Session cookie rejected (expired or cleared) — back to the gate.
+        setRoster(null);
+        setState('unavailable');
+        setReports(null);
+        setReportState('unavailable');
+        setFailClosed(false);
+        setPhase('locked');
+        return;
+      }
+
+      setReports('error' in reportsResult ? [] : reportsResult.rows);
+      setReportState('error' in reportsResult ? 'unavailable' : reportsResult.rows.length ? 'live' : 'empty');
+
+      if ('error' in rosterResult) {
         // Signed in, but the employee master source is not configured or reachable right
         // now. Open the console with an empty directory instead of a wall — the design's
         // own in-memory records still render, and the status line says the master is
@@ -169,8 +246,8 @@ export default function SafetyOsApp({
         setPhase('ready');
         return;
       }
-      setRoster(result.rows);
-      setState(result.rows.length ? 'live' : 'empty');
+      setRoster(rosterResult.rows);
+      setState(rosterResult.rows.length ? 'live' : 'empty');
       setFailClosed(false);
       setPhase('ready');
     }
@@ -186,6 +263,11 @@ export default function SafetyOsApp({
     if (!container) return;
 
     window.__SAFEX_EMPLOYEES__ = roster ?? [];
+    // Case Management, the dashboard counters and analytics all read this array. Copies,
+    // not the state objects: the design mutates a record when a status changes, and React
+    // state is not the place for that mutation to happen behind our back.
+    window.__SAFEX_CASE_REPORTS__ = (reports ?? []).map((report) => ({ ...report }));
+    window.__SAFEX_CASE_CHANGED__ = applyCaseStatus;
     container.innerHTML = DESIGN_MARKUP;
     applyContext(container, context.current);
 
@@ -212,6 +294,25 @@ export default function SafetyOsApp({
         handlers.current.onExit();
         return;
       }
+      // A worker's report is the record of what they saw. The console may move its status
+      // (that is persisted), but editing or deleting the report text here would quietly
+      // rewrite that record, and a report created in the console would never reach the
+      // database. Block both and say why instead of letting the screen lie.
+      const blocked = target.closest<HTMLElement>('[data-case-action="edit"], [data-case-action="delete"], #caseNewReport');
+      if (blocked) {
+        event.preventDefault();
+        event.stopPropagation();
+        const action = blocked.getAttribute('data-case-action');
+        setNote({
+          tone: 'error',
+          text: action === 'delete'
+            ? 'Reports are kept for the audit trail once submitted — close the report instead of deleting it.'
+            : action === 'edit'
+              ? 'Only the status can be changed here. The report text stays exactly as the worker submitted it.'
+              : 'New reports are filed from the worker app so they carry the reporting employee and site. Status changes here are saved.'
+        });
+        return;
+      }
       if (target.closest('#locationButton')) {
         event.preventDefault();
         event.stopPropagation();
@@ -230,11 +331,13 @@ export default function SafetyOsApp({
       }
       container.innerHTML = '';
       delete window.__SAFEX_EMPLOYEES__;
+      delete window.__SAFEX_CASE_REPORTS__;
+      delete window.__SAFEX_CASE_CHANGED__;
     };
-    // `roster` is the seam payload — a new roster means a fresh console. `state` is a
-    // dependency because the gate/fail-closed screens unmount the container:
+    // `roster` and `reports` are the seam payloads — fresh data means a fresh console.
+    // `state` is a dependency because the gate/fail-closed screens unmount the container:
     // leaving them has to mount the design again.
-  }, [phase, state, roster, failClosed]);
+  }, [phase, state, roster, reports, failClosed, applyCaseStatus]);
 
   /* 3. Keep the host context (site, officer, directory status) in the design's chrome. */
   useEffect(() => {
@@ -269,10 +372,6 @@ export default function SafetyOsApp({
     }
   }
 
-  const retry = useCallback(() => {
-    setPhase('checking');
-    setReloadToken((token) => token + 1);
-  }, []);
 
   if (phase === 'checking') {
     return (
@@ -342,6 +441,14 @@ export default function SafetyOsApp({
   }
 
   return <><div className="sos" id="safetyos-console" ref={host} data-site={selectedSiteId} />
+    {(note || reportState === 'unavailable') && <div
+      className={`sos-sync-note ${note ? `is-${note.tone}` : 'is-error'}`}
+      role="status"
+      aria-live="polite"
+    >
+      <span>{note ? note.text : 'Reports could not be loaded from the database, so Case Management is empty. Status changes are unavailable until it is reachable.'}</span>
+      {!note && <button type="button" onClick={retry}>Try again</button>}
+    </div>}
     {state === 'unavailable' && <div className="sos-master-note" role="status">
       <span>Employee master not connected — the directory is showing 0 employees. Sign-in is active; configure the employee source to load real records.</span>
       <button type="button" onClick={retry}>Try again</button>
@@ -416,6 +523,34 @@ async function readRoster(siteId: string): Promise<RosterResult> {
       if (collected.length >= Number(data.total ?? 0) || data.employees.length < PAGE_SIZE) break;
     }
     return { rows: collected };
+  } catch {
+    return { error: 'unavailable' };
+  }
+}
+
+/**
+ * Walk /api/admin/reports and translate each row into the design's case shape.
+ *
+ * The console's own fields and the database's do not line up one-to-one, so the mapping is
+ * explicit rather than a spread: a new database column should be a deliberate decision here.
+ * Fields the design shows but the database does not store (owner, follow-up) stay empty
+ * instead of being filled with invented values.
+ */
+async function readReports(siteId: string): Promise<ReportsResult> {
+  const collected: DesignCaseReport[] = [];
+  try {
+    for (let offset = 0; offset < MAX_REPORTS; offset += REPORT_PAGE_SIZE) {
+      const params = new URLSearchParams({ limit: String(REPORT_PAGE_SIZE), offset: String(offset) });
+      if (siteId && siteId !== 'all') params.set('siteId', siteId);
+      const response = await fetch(`/api/admin/reports?${params}`, { credentials: 'same-origin', cache: 'no-store' });
+      if (response.status === 401) return { error: 'auth' };
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok || !Array.isArray(data.reports)) return { error: 'unavailable' };
+      for (const report of data.reports as AdminReport[]) collected.push(toCaseReport(report));
+      const total = Number(data.total ?? 0);
+      if (collected.length >= total || data.reports.length < REPORT_PAGE_SIZE) break;
+    }
+    return { rows: collected, total: collected.length };
   } catch {
     return { error: 'unavailable' };
   }
