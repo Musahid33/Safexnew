@@ -128,14 +128,6 @@ export default function SafexHome() {
   // Brand the page with whatever the server actually knows. DEMO_TENANT is only the
   // fallback used before bootstrap answers.
   const brandCompanyName = companyName || DEMO_TENANT.companyName;
-  // The ribbon must not claim a live employee master the deployment is not serving.
-  const directoryRibbon = !directoryReady
-    ? 'checking the employee master'
-    : directoryMode === 'supabase'
-      ? 'employee master uses real data'
-      : directoryMode === 'sheet'
-        ? 'employee master uses a site roster snapshot'
-        : 'employee master is not connected';
   const locale = LANGUAGE_LOCALE[language];
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [page, setPage] = useState<PageKey>('home');
@@ -176,7 +168,6 @@ export default function SafexHome() {
   const [vaultCategoryId, setVaultCategoryId] = useState<VaultCategoryId | null>(null);
   const [feedDetail, setFeedDetail] = useState<HomeFeedItem | null>(null);
   const [reportSyncEnabled, setReportSyncEnabled] = useState(false);
-  const [syncStatusKnown, setSyncStatusKnown] = useState(false);
   const [queuedReportCount, setQueuedReportCount] = useState(0);
   // Starts `true` so the server-rendered markup and the first client render agree; the
   // effect below corrects it immediately when the device is actually offline.
@@ -338,13 +329,9 @@ export default function SafexHome() {
   useEffect(() => {
     let active = true;
     fetch('/api/health', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).then((health) => {
-      if (!active) return;
-      setReportSyncEnabled(Boolean(health?.reportSubmissionEnabled));
-      setSyncStatusKnown(true);
+      if (active) setReportSyncEnabled(Boolean(health?.reportSubmissionEnabled));
     }).catch(() => {
-      if (!active) return;
-      setReportSyncEnabled(false);
-      setSyncStatusKnown(true);
+      if (active) setReportSyncEnabled(false);
     });
     return () => { active = false; };
   }, []);
@@ -664,7 +651,6 @@ export default function SafexHome() {
 
   return (
     <div className="safex-app">
-      <div className="demo-ribbon"><span className="demo-dot" /> {T(`Sample feeds only · ${directoryRibbon} · ${!syncStatusKnown ? 'checking report sync' : reportSyncEnabled ? 'new reports sync when online' : 'report sync is not configured'}`)}</div>
       <div className="site-header-shell">
         <header className="topbar">
           <div className="topbar-inner">

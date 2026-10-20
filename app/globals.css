@@ -52,7 +52,6 @@ button { color: inherit; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus), transparent 45%); outline-offset: 2px; }
 
 .safex-app { min-height: 100vh; padding-bottom: calc(124px + env(safe-area-inset-bottom)); }
-.demo-ribbon { min-height: 28px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #fff2d8; color: #744c00; padding: 5px 12px; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .015em; }
 .sync-status-banner { width: min(100% - 32px, 1180px); min-height: 68px; display: flex; align-items: center; gap: 11px; margin: 10px auto 0; border: 1px solid #c7d8ef; border-radius: 15px; background: #f3f8ff; color: #173654; padding: 10px 13px; box-shadow: 0 3px 10px rgba(15,37,64,.04); }
 .sync-status-banner.offline, .sync-status-banner.backend-unconfigured, .sync-status-banner.attention { border-color: #efd49c; background: #fff8e8; color: #725000; }
 .sync-status-banner.needs-attention, .sync-status-banner.storage-error, .sync-status-banner.error { border-color: #efb6b6; background: #fff3f2; color: #8a2828; }
@@ -72,7 +71,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .sync-status-copy small { color: inherit; opacity: .82; font-size: 9px; line-height: 1.4; }
 .sync-status-action { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; flex: none; border: 1px solid currentColor; border-radius: 9px; background: transparent; color: inherit; padding: 0 11px; font-size: 9px; font-weight: 850; cursor: pointer; }
 .sync-status-action:disabled { opacity: .5; cursor: not-allowed; }
-.demo-dot, .live-dot, .connection-dot, .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #e08a00; display: inline-block; flex: none; }
+.live-dot, .connection-dot, .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #e08a00; display: inline-block; flex: none; }
 .site-header-shell { position: sticky; top: 0; z-index: 25; background: var(--primary); box-shadow: 0 2px 12px rgba(0,0,0,.12); }
 .topbar { position: relative; display: block; background: var(--primary); color: #fff; }
 .topbar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 16px 10px; }
@@ -662,7 +661,6 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
   .training-count-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .training-section { padding: 11px; }
   .brand-copy b { max-width: 145px; font-size: 13px; }
-  .demo-ribbon { font-size: 9px; }
   .topbar { min-height: 56px; gap: 6px; padding: 6px 10px; }
   .brand-lockup { max-width: calc(100% - 120px); gap: 1px; }
   .brand-button { gap: 8px; }
@@ -1974,13 +1972,11 @@ textarea.form-control { min-height: 128px; }
 }
 
 /* Device-specific form sizing and remaining small-text cleanup. */
-.demo-ribbon { min-height: 32px; font-size: 12px; line-height: 1.35; }
 .install-company-kicker { font-size: 12px; }
 .site-modal .form-control { min-height: 52px; font-size: 16px; }
 .account-login-form > label { font-size: 14px; line-height: 1.35; }
 .account-country-wrap select { min-height: 44px; font-size: 16px; }
 @media (max-width: 520px) {
-  .demo-ribbon { padding: 6px 12px; font-size: 11px; }
   .account-country-wrap select { font-size: 16px; }
 }
 
