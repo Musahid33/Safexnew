@@ -18,6 +18,7 @@ export async function GET() {
     {
       directory: status.mode,
       sites: selectableSites(status.sites),
+      companyName: status.companyName,
       employeeCount: status.employeeCount,
       dataIssueCount: status.dataIssueCount,
       degraded: status.degraded

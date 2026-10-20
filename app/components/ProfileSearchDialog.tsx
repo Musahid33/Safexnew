@@ -7,10 +7,10 @@ import type { Employee, Site } from '@/lib/types';
 import { useI18n } from './I18nProvider';
 import EmployeePassport from './EmployeePassport';
 
-type Props = { site: Site | null; directory: EmployeeDirectory; onClose: () => void };
+type Props = { site: Site | null; companyName?: string | null; directory: EmployeeDirectory; onClose: () => void };
 type UiMessage = { key: string; params?: Record<string, string | number> };
 
-export default function ProfileSearchDialog({ site, directory, onClose }: Props) {
+export default function ProfileSearchDialog({ site, companyName, directory, onClose }: Props) {
   const { T } = useI18n();
   const [employeeId, setEmployeeId] = useState('');
   const [result, setResult] = useState<Employee | null>(null);
@@ -38,13 +38,21 @@ export default function ProfileSearchDialog({ site, directory, onClose }: Props)
     }
   }
 
-  if (result) return <EmployeePassport employee={result} site={site} onBack={() => { setResult(null); setEmployeeId(''); setMessage(null); }} onClose={onClose} />;
+  if (result) {
+    return <EmployeePassport
+      employee={result}
+      site={site}
+      companyName={companyName}
+      onBack={() => { setResult(null); setEmployeeId(''); setMessage(null); }}
+      onClose={onClose}
+    />;
+  }
 
   return <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="profile-search-title"><div className="modal profile-search-modal">
     <div className="modal-header"><div><span className="eyebrow">{T('EMPLOYEE DIRECTORY')}</span><h2 id="profile-search-title">{T('Search Employee Profile')}</h2></div><button className="close-button" type="button" onClick={onClose} aria-label={T('Close employee profile')}><X /></button></div>
     <p>{site ? T('Search employees by Employee ID for the selected site: {site}.', { site: site.name }) : T('Search employees by Employee ID for the selected site.')}</p>
     <form className="profile-search-form" onSubmit={search}><label htmlFor="profile-search-code" className="field-label">{T('Employee ID')}</label><div className="search-box"><Search size={17} /><input id="profile-search-code" value={employeeId} onChange={(event) => { setEmployeeId(event.target.value.toUpperCase()); setMessage(null); }} placeholder={T('Enter Employee ID')} autoComplete="off" required /></div><button type="submit" className="primary-button full-button" disabled={searching}>{T(searching ? 'Searching…' : 'Search Employees')}</button></form>
     {message && <div className="inline-notice warning" role="status">{T(message.key, message.params)}</div>}
-    <div className="modal-footnote">{T('Lookup runs on the server and is limited to the selected site. Only Employee ID, name and designation are returned.')}</div>
+    <div className="modal-footnote">{T('Lookup runs on the server and is limited to the selected site. The passport shows Employee ID, name, designation, department and skill grade; contact and health details are withheld.')}</div>
   </div></div>;
 }

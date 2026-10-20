@@ -40,8 +40,51 @@ test('parser keeps active named employees and public projection omits personal f
   assert.equal(parsed.records.length, 1);
   assert.equal(parsed.records[0].siteId, 'west-bokaro');
   assert.equal(parsed.records[0].mobileE164, '+919876543210');
-  assert.deepEqual(Object.keys(toPublicEmployee(parsed.records[0])).sort(), ['designation', 'empNo', 'name']);
+  // The passport may render work context, but contact and health fields never leave the server.
+  assert.deepEqual(
+    Object.keys(toPublicEmployee(parsed.records[0])).sort(),
+    ['active', 'department', 'designation', 'empNo', 'name', 'skillGrade']
+  );
+  assert.equal('safetyPassNo' in toPublicEmployee(parsed.records[0]), false);
+  assert.equal('mobileE164' in toPublicEmployee(parsed.records[0]), false);
+  assert.equal('bloodGroup' in toPublicEmployee(parsed.records[0]), false);
   assert.equal(parseEmployeeMaster('<html>Unavailable</html>', { defaultSiteId: 'west-bokaro' }).records.length, 0);
+});
+
+test('safety pass number is released only when the deployment opts in', () => {
+  const { parseEmployeeMaster, toPublicEmployee } = loader()('lib/employee-master/parse.ts');
+  const source = [
+    'Employee ID,Name,Designation,Safety Pass No,Status',
+    'PASS-01,Pass Holder,Rigger,SP-WBD-2026-000123,Active'
+  ].join('\n');
+  const parsed = parseEmployeeMaster(source, { defaultSiteId: 'wbd' });
+  assert.equal(parsed.records[0].safetyPassNo, 'SP-WBD-2026-000123');
+  assert.equal('safetyPassNo' in toPublicEmployee(parsed.records[0]), false);
+  const revealed = toPublicEmployee(parsed.records[0], { revealSafetyPass: true });
+  assert.equal(revealed.safetyPassNo, 'SP-WBD-2026-000123');
+  // Opting in to the pass number must not widen the rest of the projection.
+  assert.equal('mobileE164' in revealed, false);
+  assert.equal('bloodGroup' in revealed, false);
+});
+
+test('public safety pass flag defaults to off and accepts explicit opt-in values', () => {
+  const config = loader()('lib/employee-master/config.ts');
+  const previous = process.env.SAFEX_PUBLIC_SAFETY_PASS;
+  try {
+    delete process.env.SAFEX_PUBLIC_SAFETY_PASS;
+    assert.equal(config.isPublicSafetyPassEnabled(), false);
+    for (const value of ['false', '0', 'no', '']) {
+      process.env.SAFEX_PUBLIC_SAFETY_PASS = value;
+      assert.equal(config.isPublicSafetyPassEnabled(), false, value);
+    }
+    for (const value of ['true', 'YES', 'on', '1']) {
+      process.env.SAFEX_PUBLIC_SAFETY_PASS = value;
+      assert.equal(config.isPublicSafetyPassEnabled(), true, value);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.SAFEX_PUBLIC_SAFETY_PASS;
+    else process.env.SAFEX_PUBLIC_SAFETY_PASS = previous;
+  }
 });
 
 test('import keeps blank-status rows inactive and withholds shared mobiles', () => {

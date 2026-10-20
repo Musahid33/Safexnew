@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isPublicSafetyPassEnabled } from '@/lib/employee-master/config';
 import { findInDirectory, searchDirectory } from '@/lib/employee-master/directory';
 import { toPublicEmployee } from '@/lib/employee-master/parse';
 import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
@@ -14,8 +15,10 @@ export const dynamic = 'force-dynamic';
  *  - a minimum query length so it cannot be walked with an empty search,
  *  - a hard result cap,
  *  - a per-IP budget so the directory cannot be scraped row by row,
- *  - and a response projected down to Employee ID / name / designation. Registered mobile
- *    numbers, addresses and blood groups never leave the server.
+ *  - and a response projected down to the passport fields: Employee ID, name, designation,
+ *    department, skill grade and active state. Registered mobile numbers, addresses, blood
+ *    groups and dates of birth never leave the server. The safety pass number is included
+ *    only when the deployment opts in with SAFEX_PUBLIC_SAFETY_PASS=true.
  */
 
 const MIN_QUERY_LENGTH = 2;
@@ -39,11 +42,13 @@ export async function GET(request: NextRequest) {
   const employeeNo = (params.get('empNo') ?? '').trim().slice(0, 80);
   const query = (params.get('q') ?? '').trim().slice(0, 80);
 
+  const projection = { revealSafetyPass: isPublicSafetyPassEnabled() };
+
   if (employeeNo) {
     const { mode, record } = await findInDirectory(siteId, employeeNo);
     if (mode === 'unavailable') return unavailable();
     return NextResponse.json(
-      { ok: true, source: mode, employees: record ? [toPublicEmployee(record)] : [] },
+      { ok: true, source: mode, employees: record ? [toPublicEmployee(record, projection)] : [] },
       { headers: NO_STORE }
     );
   }
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
   const { mode, records } = await searchDirectory(siteId, query, MAX_RESULTS);
   if (mode === 'unavailable') return unavailable();
   return NextResponse.json(
-    { ok: true, source: mode, employees: records.map(toPublicEmployee) },
+    { ok: true, source: mode, employees: records.map((record) => toPublicEmployee(record, projection)) },
     { headers: NO_STORE }
   );
 }

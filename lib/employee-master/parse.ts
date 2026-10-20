@@ -226,11 +226,28 @@ export function parseEmployeeMaster(text: string, options: NormalizeOptions): Pa
   return normalizeEmployeeMaster(parseDelimited(text), options);
 }
 
-/** The only employee shape a browser is ever allowed to receive. */
-export function toPublicEmployee(record: MasterEmployeeRecord) {
-  return {
+/**
+ * The only employee shape a browser is ever allowed to receive.
+ *
+ * Mobile number, blood group, home address and date of birth are never part of this shape.
+ * The safety pass number is a credential, so it is released only when the deployment has
+ * explicitly opted in (`SAFEX_PUBLIC_SAFETY_PASS=true`); otherwise the key is omitted
+ * entirely so a client cannot mistake "hidden" for "not recorded".
+ */
+export type PublicEmployeeOptions = { revealSafetyPass?: boolean };
+
+export function toPublicEmployee(record: MasterEmployeeRecord, options: PublicEmployeeOptions = {}) {
+  const profile = {
     empNo: record.employeeNo,
     name: record.fullName,
-    designation: record.designation
+    designation: record.designation,
+    department: record.department,
+    // Skill grade is an occupational competency, not personal data — the same rule the
+    // admin roster applies to it. Safe to show in a public passport.
+    skillGrade: record.skillGrade,
+    active: record.active
   };
+  return options.revealSafetyPass
+    ? { ...profile, safetyPassNo: record.safetyPassNo }
+    : profile;
 }

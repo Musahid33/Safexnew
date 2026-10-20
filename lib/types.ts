@@ -13,6 +13,16 @@ export type Employee = {
   name: string;
   designation: string;
   siteId: string;
+  /** Non-sensitive work context released by the server lookup. Absent when unavailable. */
+  department?: string | null;
+  skillGrade?: string | null;
+  /**
+   * Safety credential number. Only present when the deployment has explicitly opted in
+   * with the server-only SAFEX_PUBLIC_SAFETY_PASS flag; never returned by default.
+   */
+  safetyPassNo?: string | null;
+  /** The public lookup only matches active employees; carried through for the badge. */
+  active?: boolean;
 };
 export type SafetyReport = {
   id: string;
