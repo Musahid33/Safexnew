@@ -15,6 +15,29 @@ export type Tick = 'yes' | 'no' | 'na' | '';
 
 export type DmPerson = { name: string; number: string; designation: string };
 
+/**
+ * What the operator signs before filing.
+ *
+ * The declaration and the signature are part of the record, not decoration: the PDF prints
+ * both, and the server refuses a plan that has neither. The signature is a hand-drawn PNG
+ * taken from the canvas in the form, so it works with a fingertip on a phone and a mouse on
+ * a desktop.
+ */
+export type DmSignOff = {
+  /** The declaration checkbox — the operator attests the plan is true. */
+  declared: boolean;
+  /** `data:image/png;base64,…`; empty until something is drawn. */
+  signature: string;
+  /** When it was signed, ISO 8601. */
+  signedAt: string;
+};
+
+export const DECLARATION_TEXT =
+  'I declare that all the information recorded in this Daily Management Plan is true and correct to the best of my knowledge.';
+
+export const DECLARATION_TEXT_HI =
+  'Meri jaankari ke hisaab se is DM me likhi saari jaankari sahi aur sach hai.';
+
 export type DmPlan = {
   /** YYYY-MM-DD. */
   date: string;
@@ -22,6 +45,8 @@ export type DmPlan = {
   supervisor: string;
   supervisorNo: string;
   location: string;
+  /** Declaration + hand-drawn signature. Required to file, printed on the PDF. */
+  signOff: DmSignOff;
   modules: {
     permits: {
       permitNo: string;
@@ -220,6 +245,24 @@ const MAX_PHOTOS = 12;
 const MAX_PHOTO_CHARS = 140_000;
 const MAX_PHOTO_TOTAL_CHARS = 1_500_000;
 
+/**
+ * A hand-drawn signature is a few strokes, so it compresses far below a photo. The cap is
+ * still enforced here: the canvas is the client's, and anything can arrive in a POST body.
+ */
+export const MAX_SIGNATURE_CHARS = 120_000;
+
+export function signatureData(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const data = value.trim();
+  if (!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(data)) return '';
+  return data.length <= MAX_SIGNATURE_CHARS ? data : '';
+}
+
+const isoStamp = (value: unknown): string => {
+  const stamp = typeof value === 'string' ? value.trim().slice(0, 40) : '';
+  return stamp && !Number.isNaN(Date.parse(stamp)) ? stamp : '';
+};
+
 export function photoData(value: unknown): string {
   if (typeof value !== 'string') return '';
   const data = value.trim();
@@ -244,6 +287,7 @@ export function emptyPlan(date = new Date().toISOString().slice(0, 10)): DmPlan 
     supervisor: '',
     supervisorNo: '',
     location: '',
+    signOff: { declared: false, signature: '', signedAt: '' },
     modules: {
       permits: { permitNo: '', takenBy: '', reviewedBy: '', checks: PERMIT_CHECKS.map(() => false), observations: '', actions: '' },
       tbt: {
@@ -273,6 +317,16 @@ export function referenceFor(dateIso: string): string {
   return `DM-${day}-${month}-${year.slice(2)}`;
 }
 
+/** The line the workspace shows once a plan is filed, with the supervisor's name. */
+export function thankYouLine(supervisor: string): string {
+  const name = supervisor.trim();
+  if (!name) return 'Thank you for submitting the DM.';
+  // A name that already carries a title is left alone; "Mr Mr Ravi" reads like a bug.
+  return /^(mr|mrs|ms|dr)\.?\s/i.test(name)
+    ? `Thank you ${name} for submitting the DM.`
+    : `Thank you Mr ${name} for submitting the DM.`;
+}
+
 /** "DM-21-10-26" → "21-10-26" for an already-suffixed reference. */
 export function displayReference(reference: string): string {
   return reference;
@@ -289,7 +343,7 @@ export type PlanValidation =
  * under Tools & Tackles — so only the header is required, plus at least one filled module,
  * because an empty plan that still produces a numbered PDF is just noise in the archive.
  */
-export function normalisePlan(input: unknown): PlanValidation {
+export function normalisePlan(input: unknown, options: { requireSignOff?: boolean } = {}): PlanValidation {
   const errors: string[] = [];
   const source = (input ?? {}) as Record<string, unknown>;
   const base = emptyPlan(typeof source.date === 'string' ? source.date : undefined);
@@ -308,6 +362,29 @@ export function normalisePlan(input: unknown): PlanValidation {
     errors.push('A valid plan date is required.');
   }
   if (!plan.supervisor) errors.push('Supervisor name is required.');
+
+  // The sign-off travels inside the payload, so the printed document, the stored record and
+  // the archive all carry the same declaration and the same drawn signature.
+  const signOffIn = (source.signOff ?? {}) as Record<string, unknown>;
+  plan.signOff = {
+    declared: Boolean(signOffIn.declared),
+    signature: signatureData(signOffIn.signature),
+    signedAt: isoStamp(signOffIn.signedAt)
+  };
+
+  // Only the submit path asks for the sign-off: archived plans filed before it existed are
+  // still readable and reprintable, they simply show an unsigned declaration block.
+  if (options.requireSignOff) {
+    if (!plan.signOff.declared) {
+      errors.push('Tick the declaration before filing — the plan is filed as true to the best of your knowledge.');
+    }
+    if (!plan.signOff.signature) {
+      errors.push('Sign the plan — draw your signature in the box before filing.');
+    }
+    if (plan.signOff.signature && !plan.signOff.signedAt) {
+      plan.signOff.signedAt = new Date().toISOString();
+    }
+  }
 
   // 1 — permits
   const permits = (modulesIn.permits ?? {}) as Record<string, unknown>;

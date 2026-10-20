@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { emptyPlan, severityApplies, type DmPlan } from '@/lib/dm/plan';
+import { emptyPlan, severityApplies, thankYouLine, type DmPlan } from '@/lib/dm/plan';
 import { directoryFromApi, type DirectoryEmployee } from '@/lib/dm/employees';
 import DmForm from './DmForm';
 import DmRecords from './DmRecords';
@@ -20,7 +20,7 @@ type Props = {
   officerName: string;
 };
 
-type Filed = { id: string; reference: string };
+type Filed = { id: string; reference: string; supervisor: string };
 
 export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
   const [tab, setTab] = useState<'conduct' | 'records'>('conduct');
@@ -75,6 +75,18 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
     setError('');
     if (!plan.date) { setError('Pick the plan date.'); return; }
     if (!plan.supervisor.trim()) { setError('Supervisor name is required.'); return; }
+    // The declaration and the signature are the officer's attestation. Checked here so the
+    // message is in the form's own language, and again on the server, which is the real gate.
+    if (!plan.signOff.declared) {
+      setError('Declaration tick karein — "sab kuch sach hai" wala checkbox zaroori hai.');
+      setTab('conduct');
+      return;
+    }
+    if (!plan.signOff.signature) {
+      setError('Signature banayein — bina haath se sign kiye DM file nahi hoga.');
+      setTab('conduct');
+      return;
+    }
     // An unsafe observation without a severity cannot be triaged, so it is caught here
     // before the plan is filed and a numbered document is built around it.
     const unrated = plan.modules.walkthrough.findIndex((row) => severityApplies(row.type)
@@ -97,7 +109,7 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
       if (!response.ok || !data?.ok) {
         throw new Error(data?.error ?? 'The plan could not be filed.');
       }
-      setFiled({ id: data.record.id, reference: data.record.reference });
+      setFiled({ id: data.record.id, reference: data.record.reference, supervisor: plan.supervisor });
       setPlan(emptyPlan());
       setRefreshKey((key) => key + 1);
     } catch (cause) {
@@ -127,9 +139,12 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
       {directoryNote && <p className="dm-hint-note">
         Employee master load nahi hua ({directoryNote}). Employee number/naam se auto-fill band hai — naam type kar sakte hain.
       </p>}
-      {filed && <div className="dm-banner" role="status">
+      {filed && <div className="dm-banner dm-banner-thanks" role="status" aria-live="polite">
         <div>
-          <strong>{filed.reference}</strong> filed. The plan is locked and its PDF is in DM Records.
+          <strong>{thankYouLine(filed.supervisor)}</strong>
+          <p>
+            <b>{filed.reference}</b> signed, filed and locked. Signed PDF DM Records me archive hai.
+          </p>
         </div>
         <div className="dm-banner-actions">
           <a className="dm-doc" href={pdfHref(filed.id)}>Download PDF ↓</a>
@@ -144,7 +159,7 @@ export default function DmWorkspace({ siteId, siteName, officerName }: Props) {
         error={error}
         onChange={setPlan}
         onSubmit={() => void submit()}
-        onReset={() => { setPlan(emptyPlan()); setError(''); }}
+        onReset={() => { setPlan(emptyPlan()); setError(''); setFiled(null); }}
       />
     </>}
 

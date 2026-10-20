@@ -150,6 +150,12 @@ async function filledPlan() {
   plan.modules.tbt.attendees = '18';
   plan.modules.tbt.theme = 'Work at height';
   plan.modules.ppe = [{ employee: 'Ravi Kumar', issue: 'Missing PPE', item: 'Helmet', remarks: '' }];
+  // Filing requires the declaration and the drawn signature, so the fixture is signed.
+  plan.signOff = {
+    declared: true,
+    signature: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    signedAt: '2026-10-21T04:12:00.000Z'
+  };
   return plan;
 }
 
@@ -309,4 +315,18 @@ test('an unknown record is a 404, not an empty document', async () => {
   assert.equal(pdf.ok, false);
   assert.equal(pdf.code, 'NOT_FOUND');
   assert.ok(nodeRequire('pdf-lib'));
+});
+
+
+test('an unsigned plan never reaches the database', async () => {
+  const client = fakeClient();
+  const store = loadStore(client);
+  const plan = await filledPlan();
+  plan.signOff = { declared: false, signature: '', signedAt: '' };
+
+  const result = await store.saveDmPlan({ siteSlug: 'wbd', input: plan });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'VALIDATION');
+  assert.match(result.error, /declaration/i);
+  assert.equal(client.inserts.length, 0);
 });

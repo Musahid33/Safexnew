@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import {
-  HOUSEKEEPING_ITEMS, MODULE_TITLES, PERMIT_CHECKS, displayReference, type DmPlan
+  DECLARATION_TEXT, HOUSEKEEPING_ITEMS, MODULE_TITLES, PERMIT_CHECKS, displayReference, type DmPlan
 } from './plan';
 
 /**
@@ -388,6 +388,77 @@ function renderModules(ctx: Ctx, plan: DmPlan, photos: Map<string, PhotoImage>):
   } else textBlock(ctx, 'No administrative observations recorded.', { size: 8, color: MUTED });
 }
 
+/** The drawn signature, kept in the same shape the photo grid uses. */
+async function embedSignature(pdf: PDFDocument, data: unknown): Promise<PhotoImage | null> {
+  const decoded = dataUrlBytes(data);
+  if (!decoded || decoded.jpeg) return null;
+  try {
+    const image = await pdf.embedPng(decoded.bytes);
+    return { image, width: image.width, height: image.height };
+  } catch {
+    // A corrupt signature must not cost the operator the whole document.
+    return null;
+  }
+}
+
+const SIGNATURE_WIDTH = 176;
+const SIGNATURE_HEIGHT = 54;
+
+/**
+ * The attestation block at the foot of the document: the declaration, the hand-drawn
+ * signature, and the name and time it was signed. A plan filed before the pad existed still
+ * prints the block, marked "not on record" — the document never claims a signature it does
+ * not have.
+ */
+function drawSignOff(ctx: Ctx, plan: DmPlan, signature: PhotoImage | null): void {
+  ensure(ctx, 132);
+  ctx.y -= 18;
+  ctx.page.drawLine({ start: { x: MARGIN, y: ctx.y }, end: { x: A4.width - MARGIN, y: ctx.y }, thickness: 0.6, color: RULE });
+  ctx.y -= 13;
+
+  ctx.page.drawText('DECLARATION', { x: MARGIN, y: ctx.y - 7, size: 7, font: ctx.bold, color: MUTED });
+  ctx.y -= 14;
+  textBlock(ctx, DECLARATION_TEXT, { size: 8, color: MUTED });
+  ctx.y -= 6;
+
+  const top = ctx.y;
+  if (signature) {
+    // Fit, never stretch: a long signature keeps its proportions inside the box.
+    const scale = Math.min(SIGNATURE_WIDTH / signature.width, SIGNATURE_HEIGHT / signature.height);
+    ctx.page.drawImage(signature.image, {
+      x: MARGIN,
+      y: top - signature.height * scale,
+      width: signature.width * scale,
+      height: signature.height * scale
+    });
+  }
+  ctx.page.drawLine({
+    start: { x: MARGIN, y: top - SIGNATURE_HEIGHT - 4 },
+    end: { x: MARGIN + SIGNATURE_WIDTH, y: top - SIGNATURE_HEIGHT - 4 },
+    thickness: 0.7, color: INK
+  });
+  ctx.page.drawText(sanitize(signature ? 'Signature of supervisor' : 'Signature (not on record)'), {
+    x: MARGIN, y: top - SIGNATURE_HEIGHT - 15, size: 7, font: ctx.regular, color: MUTED
+  });
+
+  const columnX = MARGIN + 214;
+  const rows: [string, string][] = [
+    ['Name', plan.supervisor || '—'],
+    ['Employee no.', plan.supervisorNo || '—'],
+    ['Signed on', plan.signOff.signedAt
+      ? `${plan.signOff.signedAt.slice(0, 16).replace('T', ' ')} UTC`
+      : 'Not on record'],
+    ['Declaration', plan.signOff.declared ? 'Accepted' : 'Not accepted']
+  ];
+  rows.forEach(([label, value], index) => {
+    const y = top - 12 - index * 15;
+    ctx.page.drawText(sanitize(`${label}:`), { x: columnX, y, size: 7.5, font: ctx.bold, color: MUTED });
+    ctx.page.drawText(sanitize(value), { x: columnX + 64, y, size: 8.5, font: ctx.regular, color: INK });
+  });
+
+  ctx.y = top - SIGNATURE_HEIGHT - 26;
+}
+
 /** Render the plan to PDF bytes. Deterministic for a given plan and metadata. */
 export async function renderDmPdf(plan: DmPlan, meta: DmPdfMeta): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
@@ -426,13 +497,8 @@ export async function renderDmPdf(plan: DmPlan, meta: DmPdfMeta): Promise<Uint8A
 
   renderModules(ctx, plan, await embedPhotos(pdf, plan));
 
-  // Signature block + footer
-  ensure(ctx, 70);
-  ctx.y -= 26;
-  ctx.page.drawLine({ start: { x: MARGIN, y: ctx.y }, end: { x: A4.width - MARGIN, y: ctx.y }, thickness: 0.6, color: RULE });
-  ctx.y -= 14;
-  textBlock(ctx, 'Declaration: I hereby declare that the information recorded above is correct to the best of my knowledge.', { size: 8, color: MUTED });
-  textBlock(ctx, `Signed: ${plan.supervisor || '—'}`, { size: 9, bold: true });
+  // Declaration and hand-drawn signature, then the footer on every page.
+  drawSignOff(ctx, plan, await embedSignature(pdf, plan.signOff.signature));
 
   const pages = pdf.getPages();
   const generated = meta.generatedAt ?? new Date();

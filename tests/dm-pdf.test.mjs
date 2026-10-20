@@ -40,6 +40,9 @@ const planModule = loader()('lib/dm/plan.ts');
 const pdfModule = loader({ 'pdf-lib': nodeRequire('pdf-lib') })('lib/dm/pdf.ts');
 const { PDFDocument } = nodeRequire('pdf-lib');
 
+// A 1 × 1 PNG standing in for a hand-drawn signature.
+const TINY_SIGNATURE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
 function filledPlan(overrides = {}) {
   const base = planModule.emptyPlan('2026-10-21');
   base.shift = 'A';
@@ -284,4 +287,28 @@ test('a team-wide PPE observation prints as "All employees"', async () => {
   const text = pdfText(bytes);
   assert.ok(text.includes('All employees'));
   assert.ok(text.includes('Safety Helmet, Hand Gloves'));
+});
+
+
+test('the declaration and the hand-drawn signature are printed', async () => {
+  const plan = filledPlan();
+  const plain = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+
+  plan.signOff = { declared: true, signature: TINY_SIGNATURE, signedAt: '2026-10-21T04:12:00.000Z' };
+  const signed = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  const text = pdfText(signed);
+
+  assert.ok(text.includes('DECLARATION'), 'the declaration is printed');
+  assert.ok(text.includes('Signature of supervisor'), 'the signature is captioned');
+  assert.ok(text.includes('2026-10-21 04:12 UTC'), 'the signing time is printed');
+  assert.ok(signed.length > plain.length, 'the drawn signature adds bytes to the document');
+});
+
+test('an archived plan without a signature prints "not on record", not a blank claim', async () => {
+  const plan = filledPlan();
+  plan.signOff = { declared: false, signature: '', signedAt: '' };
+  const bytes = await pdfModule.renderDmPdf(plan, { reference: 'DM-21-10-26', siteName: 'West Bokaro' });
+  const text = pdfText(bytes);
+  assert.ok(text.includes('Signature (not on record)'));
+  assert.ok(text.includes('Not accepted'));
 });

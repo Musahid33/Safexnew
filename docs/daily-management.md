@@ -111,6 +111,27 @@ Only `data:image/jpeg` and `data:image/png` are accepted. Anything else — a li
 data URL, a file that failed to decode — is dropped, and the PDF skips an image it cannot
 read rather than failing the document.
 
+## Declaration and signature
+
+A plan cannot be filed without the officer's sign-off, and the sign-off is part of the
+record rather than a separate form:
+
+1. **Declaration** — a required checkbox: *"I declare that all the information recorded in
+   this Daily Management Plan is true and correct to the best of my knowledge."* The Hindi
+   line under it says the same thing for the supervisors who read it that way.
+2. **Signature** — signed by hand in a canvas: a finger on the phone, a mouse on the
+   desktop. Only a real stroke counts; a stray tap is not a signature. `Clear signature`
+   wipes the pad and the signing time with it.
+3. **Submit** stays disabled until both are done, and the server enforces the same two
+   rules in `normalisePlan(..., { requireSignOff: true })`, so a hand-made POST cannot file
+   an unsigned plan. Archived plans filed before this existed still open and reprint — their
+   PDF prints "Signature (not on record)" rather than a blank claim.
+
+The PDF carries the block at the foot of the last page: the declaration, the drawn
+signature fitted into a 176 × 54 pt box, the supervisor's name and employee number, and the
+UTC time it was signed. After filing, the workspace shows **"Thank you Mr <supervisor> for
+submitting the DM"** with the DM number and the PDF link.
+
 ## Team-wide or individual observations
 
 A PPE row says who it covers. **All (team)** is the default: the observation is about the
