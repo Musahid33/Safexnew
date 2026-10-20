@@ -525,6 +525,13 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .training-material-placeholder { min-height: 155px; display: grid; justify-items: center; align-content: center; gap: 8px; margin-top: 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--surface-2); color: var(--focus); }
 .training-material-placeholder b { color: var(--text); font-size: 11px; }
 .training-material-placeholder small { color: var(--muted); font-size: 9px; }
+.directory-source { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 13px; border: 1px solid #cfe3d6; border-radius: 10px; background: #f1faf4; color: #1d6b47; padding: 8px 11px; font-size: 10.5px; line-height: 1.4; }
+.directory-source b { font-weight: 800; }
+.directory-source span:last-child { color: #4f7a64; }
+.directory-source-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #178a52; box-shadow: 0 0 0 3px rgba(23, 138, 82, .16); }
+.directory-source.is-unavailable { border-color: #f0d9ad; background: #fffaf0; color: #8a5a05; }
+.directory-source.is-unavailable .directory-source-dot { background: #d38700; box-shadow: 0 0 0 3px rgba(211, 135, 0, .16); }
+.directory-source.is-unavailable span:last-child { color: #8a6a2e; }
 .profile-search-modal { width: min(100%, 490px); }
 .profile-search-modal > p, .officer-access-modal .modal-header p { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .profile-search-form { margin-top: 12px; }

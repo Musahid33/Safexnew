@@ -1,7 +1,7 @@
 import 'server-only';
 import { WEST_BOKARO_SITE } from '@/lib/site-config';
 import type { Site } from '@/lib/types';
-import { getEmployeeMasterConfig } from './config';
+import { getBrandingCompanyName, getEmployeeMasterConfig } from './config';
 import {
   countEmployeesInDatabase,
   findEmployeeInDatabase,
@@ -38,7 +38,14 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
       getCompanyNameFromDatabase()
     ]);
     if (sites && sites.length > 0 && employeeCount !== null && employeeCount > 0) {
-      return { mode: 'supabase', sites, employeeCount, companyName, dataIssueCount: 0, degraded: false };
+      return {
+        mode: 'supabase',
+        sites,
+        employeeCount,
+        companyName: companyName ?? getBrandingCompanyName(),
+        dataIssueCount: 0,
+        degraded: false
+      };
     }
   }
 
@@ -57,7 +64,7 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
         mode: 'sheet',
         sites: sites.length ? sites : [WEST_BOKARO_SITE],
         employeeCount: snapshot.records.length,
-        companyName: null,
+        companyName: getBrandingCompanyName(),
         dataIssueCount: snapshot.issues.length,
         degraded: isDatabaseDirectoryIntended()
       };
@@ -68,7 +75,7 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
     mode: 'unavailable',
     sites: [WEST_BOKARO_SITE],
     employeeCount: 0,
-    companyName: null,
+    companyName: getBrandingCompanyName(),
     dataIssueCount: 0,
     degraded: true
   };

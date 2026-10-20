@@ -135,7 +135,7 @@ test('sheet lookup scopes employees and outage never fabricates records', async 
 test('directory reports unavailable for all entry points without a real source', async () => {
   const directory = loader({
     './db-source': { isDatabaseDirectoryConfigured: () => false, isDatabaseDirectoryIntended: () => false },
-    './config': { getEmployeeMasterConfig: () => ({ enabled: false }) },
+    './config': { getEmployeeMasterConfig: () => ({ enabled: false }), getBrandingCompanyName: () => null },
     'node:fs/promises': { readFile: async () => { throw new Error('No file'); } }
   })('lib/employee-master/directory.ts');
   const status = await directory.getDirectoryStatus();
@@ -145,6 +145,19 @@ test('directory reports unavailable for all entry points without a real source',
   assert.equal((await directory.searchDirectory('west-bokaro', 'Test')).mode, 'unavailable');
   assert.equal((await directory.findInDirectory('west-bokaro', 'TEST-01')).mode, 'unavailable');
   assert.equal((await directory.listDirectory('west-bokaro', { limit: 50, offset: 0 })).mode, 'unavailable');
+  assert.equal(status.companyName, null);
+});
+
+test('passport company name falls back to the configured public brand', async () => {
+  const directory = loader({
+    './db-source': { isDatabaseDirectoryConfigured: () => false, isDatabaseDirectoryIntended: () => false },
+    './config': {
+      getEmployeeMasterConfig: () => ({ enabled: false }),
+      getBrandingCompanyName: () => 'Emveess Infraventures Pvt.Ltd'
+    },
+    'node:fs/promises': { readFile: async () => { throw new Error('No file'); } }
+  })('lib/employee-master/directory.ts');
+  assert.equal((await directory.getDirectoryStatus()).companyName, 'Emveess Infraventures Pvt.Ltd');
 });
 
 test('design has no seeded roster, linked history, or fake lookup fallback', () => {

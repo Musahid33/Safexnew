@@ -46,3 +46,12 @@ export function getEmployeeMasterConfig(): EmployeeMasterConfig {
 export function isPublicSafetyPassEnabled(): boolean {
   return /^(1|true|yes|on)$/i.test(env('SAFEX_PUBLIC_SAFETY_PASS') ?? '');
 }
+
+/**
+ * Public company name used on the Employee Safety Passport when the database cannot be
+ * reached (sheet/file directory sources, or an outage). Public branding only — never set a
+ * private value here. The database's `tenants.company_name` wins whenever it is available.
+ */
+export function getBrandingCompanyName(): string | null {
+  return env('SAFEX_TENANT_COMPANY_NAME');
+}
