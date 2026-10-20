@@ -1,7 +1,7 @@
 import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import type { MasterEmployeeRecord } from './parse';
-import type { Site } from '@/lib/types';
+import type { DirectoryUnavailableReason, Site } from '@/lib/types';
 
 /**
  * Supabase-backed employee directory.
@@ -129,6 +129,54 @@ async function resolveTenantId(admin: AdminClient): Promise<string | null> {
     expiresAt: now + TENANT_TTL_MS
   };
   return data[0].id;
+}
+
+type DatabaseDirectoryProblem = Extract<
+  DirectoryUnavailableReason,
+  'database_unreachable' | 'tenant_unresolved' | 'no_sites' | 'empty_directory'
+>;
+
+/**
+ * Explain why the database directory answered "nothing", instead of guessing. Runs only on
+ * the failure path, so a healthy deployment pays nothing for it.
+ *
+ * Returns null when the database looks healthy — the caller then treats the failure as a
+ * transient one rather than inventing a configuration error.
+ */
+export async function probeDatabaseDirectory(): Promise<DatabaseDirectoryProblem | null> {
+  const admin = getAdminSupabase();
+  if (!admin) return 'database_unreachable';
+
+  const slug = process.env.SAFEX_TENANT_SLUG?.trim();
+  const tenants = await withTimeout(admin
+    .from('tenants')
+    .select('id, slug')
+    .eq('active', true)
+    .limit(2));
+  if (!tenants || tenants.error) return 'database_unreachable';
+  if (!tenants.data || tenants.data.length === 0) return 'tenant_unresolved';
+  // Without a slug this is only safe when the project holds exactly one active tenant.
+  if (!slug && tenants.data.length > 1) return 'tenant_unresolved';
+
+  const tenantId = tenants.data[0].id;
+  const sites = await withTimeout(admin
+    .from('sites')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('active', true)
+    .limit(1));
+  if (!sites || sites.error) return 'database_unreachable';
+  if (!sites.data || sites.data.length === 0) return 'no_sites';
+
+  const count = await withTimeout(admin
+    .from('employees')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('active', true));
+  if (!count || count.error) return 'database_unreachable';
+  if (!count.count) return 'empty_directory';
+
+  return null;
 }
 
 /**

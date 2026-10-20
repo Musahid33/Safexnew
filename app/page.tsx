@@ -124,7 +124,7 @@ export default function SafexHome() {
   const { language, setLanguage, T } = useI18n();
   // Site list and employee directory come from the server: the real employee master when
   // one is configured; otherwise lookups report unavailable.
-  const { ready: directoryReady, sites, directory, companyName, directoryMode, employeeCount, degraded } = useSafexBootstrap();
+  const { ready: directoryReady, sites, directory, companyName, directoryMode, directoryReason, employeeCount, degraded } = useSafexBootstrap();
   // Brand the page with whatever the server actually knows. DEMO_TENANT is only the
   // fallback used before bootstrap answers.
   const brandCompanyName = companyName || DEMO_TENANT.companyName;
@@ -958,7 +958,7 @@ export default function SafexHome() {
       </div>}
 
       {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} directory={directory} language={language} onLanguageChange={setLanguage} voiceEnabled={DEMO_TENANT.features.voiceReporting} syncEnabled={reportSyncEnabled} onClose={() => setReportType(null)} onSubmit={submitReport} />}
-      {profileSearchOpen && <ProfileSearchDialog site={currentSite} companyName={companyName} directory={directory} directoryMode={directoryMode} employeeCount={employeeCount} onClose={() => setProfileSearchOpen(false)} />}
+      {profileSearchOpen && <ProfileSearchDialog site={currentSite} companyName={companyName} directory={directory} directoryMode={directoryMode} directoryReason={directoryReason} employeeCount={employeeCount} onClose={() => setProfileSearchOpen(false)} />}
       {officerAccessOpen && <OfficerAccessDialog onClose={() => setOfficerAccessOpen(false)} onDemoLogin={completeDemoAdminLogin} />}
       {moreInfoKind && <MoreInfoDialog kind={moreInfoKind} company={DEMO_TENANT} onClose={() => setMoreInfoKind(null)} onLogin={() => { setMoreInfoKind(null); setOfficerAccessOpen(true); }} />}
 

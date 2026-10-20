@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { Search, X } from 'lucide-react';
 import type { EmployeeDirectory } from '@/lib/employee-directory';
-import type { Employee, Site } from '@/lib/types';
+import type { DirectoryUnavailableReason, Employee, Site } from '@/lib/types';
 import { useI18n } from './I18nProvider';
 import EmployeePassport from './EmployeePassport';
 
@@ -13,6 +13,8 @@ type Props = {
   directory: EmployeeDirectory;
   /** Which source answered, so a test never confuses "not found" with "wrong source". */
   directoryMode?: 'supabase' | 'sheet' | 'unavailable';
+  /** Server-side cause when the directory is down; drives an actionable hint. */
+  directoryReason?: DirectoryUnavailableReason | null;
   employeeCount?: number;
   onClose: () => void;
 };
@@ -22,9 +24,22 @@ const SOURCE_LABEL: Record<'supabase' | 'sheet' | 'unavailable', string> = {
   sheet: 'Employee master snapshot',
   unavailable: 'Directory unavailable'
 };
+
+/**
+ * One sentence per real cause. "Keys are not configured" was misleading when the server
+ * key existed but the database was unreachable, so each failure now names itself.
+ */
+const UNAVAILABLE_HINT: Record<DirectoryUnavailableReason, string> = {
+  keys_missing: 'server-side Supabase keys are not configured on this deployment',
+  database_unreachable: 'the server could not reach the employee database',
+  tenant_unresolved: 'this deployment is not mapped to exactly one tenant',
+  no_sites: 'the tenant has no active site configured',
+  empty_directory: 'the tenant has no active employees loaded',
+  snapshot_unreadable: 'the roster snapshot file could not be read'
+};
 type UiMessage = { key: string; params?: Record<string, string | number> };
 
-export default function ProfileSearchDialog({ site, companyName, directory, directoryMode, employeeCount = 0, onClose }: Props) {
+export default function ProfileSearchDialog({ site, companyName, directory, directoryMode, directoryReason, employeeCount = 0, onClose }: Props) {
   const { T } = useI18n();
   const [employeeId, setEmployeeId] = useState('');
   const [result, setResult] = useState<Employee | null>(null);
@@ -74,7 +89,7 @@ export default function ProfileSearchDialog({ site, companyName, directory, dire
       <span className="directory-source-dot" aria-hidden="true" />
       <b>{SOURCE_LABEL[directoryMode]}</b>
       {directoryMode !== 'unavailable' && <span>· {employeeCount.toLocaleString('en-IN')} active employees at this site</span>}
-      {directoryMode === 'unavailable' && <span>· server-side Supabase keys are not configured on this deployment</span>}
+      {directoryMode === 'unavailable' && <span>· {directoryReason ? UNAVAILABLE_HINT[directoryReason] : 'no employee source answered'}</span>}
     </div>}
     <div className="modal-footnote">{T('Lookup runs on the server and is limited to the selected site. The passport shows Employee ID, name, designation, department and skill grade; contact and health details are withheld.')}</div>
   </div></div>;

@@ -21,7 +21,9 @@ export async function GET() {
       companyName: status.companyName,
       employeeCount: status.employeeCount,
       dataIssueCount: status.dataIssueCount,
-      degraded: status.degraded
+      degraded: status.degraded,
+      // Machine-readable cause for `/api/bootstrap` readers and the profile dialog hint.
+      directoryReason: status.reason
     },
     { headers: { 'Cache-Control': 'no-store' } }
   );
