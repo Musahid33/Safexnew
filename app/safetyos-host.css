@@ -153,3 +153,61 @@
   cursor: pointer;
 }
 .sos-sync-note button:hover { background: #0e56c6; }
+
+/* ---------- DM page: the company's Daily Management Plan app inside the console ----------
+   The design leaves DM as a placeholder, so this panel is host chrome and lives outside
+   safetyos.css. It fills the page area and lets the DMP app scroll in its own frame. */
+.sos-dm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: calc(100vh - 210px);
+  font: 400 13px/1.5 system-ui, sans-serif;
+  color: #1e3252;
+}
+.sos-dm-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #dbe5f2;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 10px #142a5012;
+}
+.sos-dm-eyebrow { font: 700 9px system-ui, sans-serif; letter-spacing: .12em; color: #6b7f99; }
+.sos-dm-bar h2 { margin: 3px 0 4px; font-size: 17px; line-height: 1.25; color: #122a4d; }
+.sos-dm-bar p { margin: 0; max-width: 62ch; color: #5a6d87; font-size: 12px; }
+.sos-dm-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sos-dm-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border-radius: 8px;
+  background: #1263df; color: #fff; font: 700 12px system-ui, sans-serif;
+  text-decoration: none; white-space: nowrap;
+}
+.sos-dm-primary:hover, .sos-dm-primary:focus-visible { background: #0e56c6; color: #fff; text-decoration: none; }
+.sos-dm-button {
+  padding: 8px 12px; border: 1px solid #cfdcec; border-radius: 8px;
+  background: #f4f8fd; color: #22395c; font: 600 12px system-ui, sans-serif; cursor: pointer;
+}
+.sos-dm-button:hover { background: #e8f1fc; }
+.sos-dm-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 68vh;
+  border: 1px solid #dbe5f2;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+.sos-dm-frame iframe { display: block; width: 100%; height: 100%; min-height: 68vh; border: 0; background: #fff; }
+.sos-dm-frame:fullscreen { border-radius: 0; }
+.sos-dm-frame:fullscreen iframe { min-height: 100vh; }
+.sos-dm-loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: #6b7f99; font: 500 12px system-ui, sans-serif; background: #f8fbff;
+}
+.sos-dm-hint { margin: 0; color: #6b7f99; font-size: 11px; line-height: 1.6; }
+.sos-dm-hint code { padding: 1px 4px; border-radius: 4px; background: #eef3fa; font-size: 10px; }

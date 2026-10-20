@@ -10,6 +10,7 @@ import {
   CASE_STATUS, CASE_STATUS_DB, toCaseReport,
   type AdminReport, type DesignCaseReport
 } from '@/lib/case-report-view';
+import { mountDmPage, resolveDmpUrl } from '@/lib/dm-embed';
 
 /**
  * The Admin / HSE Manager dashboard — the uploaded SafetyOS console, running as designed.
@@ -30,7 +31,9 @@ import {
  *    case-report seam, filled from /api/admin/reports — the reports workers actually
  *    submitted — and a status change is written back through that session;
  *  - "Log out", the location selector and the sidebar status line are wired back to the
- *    host, so the console behaves as a screen of this app rather than a separate page.
+ *    host, so the console behaves as a screen of this app rather than a separate page;
+ *  - the design's empty DM page hosts the company's Daily Management Plan app, so
+ *    supervisors fill the real DMP form instead of a placeholder.
  */
 
 type Props = {
@@ -122,6 +125,12 @@ declare global {
     __SAFEX_EMPLOYEE_CHANGED__?: (change: EmployeeChange) => unknown;
   }
 }
+
+// Configured per deployment; the default is the company's DMP system. The URL is only ever
+// written into an iframe/link, never treated as a credential — the DMP login happens inside
+// the Google app.
+const DMP_URL = resolveDmpUrl(process.env.NEXT_PUBLIC_DMP_URL);
+const DMP_EMBEDDED = (process.env.NEXT_PUBLIC_DMP_EMBED ?? 'on').trim().toLowerCase() !== 'off';
 
 const PAGE_SIZE = 50;
 const MAX_ROSTER = 2000;
@@ -404,6 +413,10 @@ export default function SafetyOsApp({
     } finally {
       recorder.restore();
     }
+
+    // The design leaves DM as an empty placeholder; the real daily-management workflow is
+    // the DMP app, so it goes in that page rather than a new screen of our own.
+    mountDmPage(container, DMP_URL, { embedded: DMP_EMBEDDED });
 
     const onCaptureClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
