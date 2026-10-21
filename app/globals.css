@@ -2981,6 +2981,8 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
 .vault-register-none a { color: var(--focus); font-size: 11px; font-weight: 800; text-decoration: none; }
 .vault-register-none a:hover { text-decoration: underline; }
 
+.vault-card-list { display: none; }
+
 .vault-view-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--focus); padding: 0 10px; font-size: 10px; font-weight: 800; cursor: pointer; }
 .vault-view-button:hover { border-color: var(--focus); background: var(--surface-2); }
 .vault-register tr.is-open .vault-view-button { border-color: var(--focus); background: var(--focus); color: #fff; }
@@ -3013,16 +3015,23 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
 @media (max-width: 760px) {
   .vault-shelf-head { padding: 12px; }
   .vault-shelf-head-copy h1 { font-size: 18px; }
-  .vault-register-wrap { overflow: visible; border: 0; border-radius: 0; background: none; }
-  .vault-register { min-width: 0; display: block; }
-  .vault-register thead { display: none; }
-  .vault-register tbody { display: grid; gap: 9px; }
-  .vault-register tr { display: block; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 4px 12px; }
-  .vault-register td { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 8px; border-top: 1px dashed var(--line); padding: 8px 0; font-size: 11px; }
-  .vault-register tbody tr:first-child td { border-top: 1px dashed var(--line); }
-  .vault-register td:first-child { border-top: 0; }
-  .vault-register td::before { content: attr(data-label); color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
-  .vault-register-actions { grid-template-columns: 92px auto !important; }
+
+  /* The register's nine columns only fit on a wide screen. A phone gets the same information
+   * as two horizontal rows per document, so nothing has to be swiped or stacked. */
+  .vault-register-wrap { display: none; }
+  .vault-card-list { display: grid; gap: 8px; }
+  .vault-card { display: grid; gap: 7px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); padding: 9px 10px; }
+  .vault-card.is-open { border-color: var(--focus); box-shadow: 0 0 0 2px rgba(37, 99, 201, .14); }
+  .vault-card-top { display: flex; align-items: center; gap: 6px; }
+  .vault-card-index { width: 19px; height: 19px; display: grid; place-items: center; flex: none; border-radius: 5px; background: var(--surface-2); color: var(--muted); font-size: 9px; font-weight: 900; }
+  .vault-card-name { min-width: 0; flex: 1 1 auto; border: 0; background: none; color: var(--focus); padding: 0; text-align: left; font-size: 12px; font-weight: 850; line-height: 1.25; overflow-wrap: anywhere; cursor: pointer; }
+  .vault-card-top .vault-status { min-width: 0; padding: 3px 7px; font-size: 8px; }
+  .vault-card-top .vault-view-button { flex: none; min-height: 27px; padding: 0 8px; font-size: 9.5px; }
+  .vault-card-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .vault-card-row > div { min-width: 0; display: grid; gap: 1px; align-content: start; }
+  .vault-card-row span { color: var(--muted); font-size: 7px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; line-height: 1.2; }
+  .vault-card-row b { color: var(--text); font-size: 9.5px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+
   .vault-detail-head { padding: 12px; }
   .vault-detail-copy h2 { font-size: 16px; }
   .vault-detail-actions { width: 100%; }
@@ -3038,7 +3047,7 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
  * the browser will not print a framed PDF, the document card) is what leaves the printer. */
 @media print {
   .site-header-shell, .bottom-nav, .toast, .vault-shelf-back, .vault-shelf-head,
-  .vault-register-wrap, .vault-detail-back, .vault-detail-actions, .vault-detail-link,
+  .vault-register-wrap, .vault-card-list, .vault-detail-back, .vault-detail-actions, .vault-detail-link,
   .vault-detail-note, .home-demo-caption { display: none !important; }
   .vault-shelf-page, .vault-detail { max-width: none; padding: 0; margin: 0; }
   .vault-detail-head { border: 0; padding: 0 0 10px; box-shadow: none; }
