@@ -891,13 +891,19 @@ export default function SafexHome() {
             <h2 id="sos-title"><span aria-hidden="true">🚨</span> {T('EMERGENCY HELPLINE')}</h2>
           </div>
           <div className="sos-body">
-            <p className="sos-company">{brandCompanyName ? T('{company} Emergency Call', { company: brandCompanyName }) : T('Emergency Call')}</p>
+            <p className="sos-company">{T('Tata Steel Emergency Call')}</p>
             <p className="sos-number">{nationalNumber(sosNumber)}</p>
             <a className="sos-call-button" href={telHref(sosNumber)}>
               <PhoneCall size={20} aria-hidden="true" /> {T('Tap to Call')}
             </a>
             <button className="sos-cancel-button" type="button" onClick={() => setSosOpen(false)}>{T('Cancel')}</button>
             {sosNumber !== SOS_NUMBER && <p className="sos-fallback-note">{T('Company SOS line · {phone}', { phone: SOS_NUMBER })}</p>}
+            {/* Deliberately the Tata Steel line, not the tenant's own: this card is the
+                group emergency helpline that every site dials. */}
+            <div className="sos-note">
+              <p>{T('This is the Tata Steel emergency number. Use it only in an emergency.')}</p>
+              <p lang="hi">यह टाटा स्टील का आपातकालीन नंबर है — इसका उपयोग केवल आपातकालीन परिस्थिति में करें।</p>
+            </div>
           </div>
         </div>
       </div>}

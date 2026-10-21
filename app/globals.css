@@ -554,6 +554,24 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
   font-size: 11px;
   text-align: center;
 }
+/* The helpline is Tata Steel's, not the tenant's, so the card says so in both languages. */
+.sos-note {
+  display: grid;
+  gap: 3px;
+  margin-top: 13px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .07);
+  text-align: center;
+}
+.sos-note p {
+  margin: 0;
+  color: #cfdcea;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.sos-note p[lang="hi"] { color: #aebfd2; font-size: 10.5px; }
 .sos-fallback-note b { color: #cfe0f0; font-weight: 800; }
 .detail-modal { width: min(100%, 560px); }
 .detail-meta { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
