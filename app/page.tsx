@@ -2,7 +2,7 @@
 
 import {
   AlertTriangle, ArrowLeft, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3,
-  ClipboardList, CloudOff, CloudUpload, Eye, FileText, FolderOpen, Globe2, Home, ImagePlus, Lightbulb, LockKeyhole, MapPin,
+  CloudOff, CloudUpload, Eye, FileText, FolderOpen, Globe2, Home, Lightbulb, LockKeyhole, MapPin,
   Monitor, Mic, Moon, MoreHorizontal, Palette, RefreshCw, Settings2, Shield, ShieldAlert,
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
@@ -28,9 +28,9 @@ import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedView
 import { useSafexBootstrap } from './components/useSafexBootstrap';
 import { AboutAppPage, AccountManagementPage, CompanyAboutPage, InstallAppPage, MoreInfoDialog, MoreMenuPage, type MoreInfoKind } from './components/MorePages';
 import { APP_TIME_ZONE, formatHomeFeedDate, formatHomeFeedTime, getUpcomingEvents, type HomeFeedItem } from '@/lib/home-content';
-import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports, type OutboxSyncResult, type QueuedReport } from '@/lib/report-outbox';
+import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports, type OutboxSyncResult } from '@/lib/report-outbox';
 import { describeSyncStatus, SYNC_BANNER_AUTO_DISMISS_MS } from '@/lib/sync-status';
-import type { Palette as PaletteName, ReportStatus, ReportType, SafetyReport, Site, ThemeMode } from '@/lib/types';
+import type { Palette as PaletteName, ReportType, Site, ThemeMode } from '@/lib/types';
 
 type PageKey = 'home' | 'reports' | 'alerts' | 'events' | 'circulars' | 'updates' | 'training' | 'more' | 'appearance' | 'install' | 'library' | 'company' | 'account' | 'aboutApp' | 'adminDashboard';
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
@@ -70,16 +70,6 @@ const HOME_REPORT_TILES: HomeReportTile[] = [
   { id: 'suggestion', reportType: 'Suggestion', icon: Lightbulb, tone: 'green', labelKey: 'suggestion', descEn: 'Share a safer-work idea', descHi: 'आइडिया दें' }
 ];
 
-const STATUS_CLASS: Record<ReportStatus, string> = {
-  Open: 'status-open',
-  'In Progress': 'status-progress',
-  Closed: 'status-closed'
-};
-
-function formatDate(value: string, locale = 'en-IN'): string {
-  return new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
-}
-
 function getUpcomingEventStatus(value: string): 'Today' | 'Tomorrow' | 'Upcoming' {
   const eventDate = new Date(value);
   const now = new Date();
@@ -92,31 +82,6 @@ function getUpcomingEventStatus(value: string): 'Today' | 'Tomorrow' | 'Upcoming
   if (daysAway <= 0) return 'Today';
   if (daysAway === 1) return 'Tomorrow';
   return 'Upcoming';
-}
-
-function queuedReportToSafetyReport(entry: QueuedReport): SafetyReport {
-  const payload = entry.payload;
-  return {
-    // The reference it will keep after sync: no LOCAL-/OFFLINE- placeholder.
-    id: reportRefForType(payload.type, entry.id),
-    clientSubmissionId: entry.id,
-    type: payload.type,
-    category: payload.category,
-    siteId: payload.siteId,
-    area: payload.area || 'Area not specified',
-    department: payload.department,
-    incidentAt: payload.incidentAt,
-    severity: payload.severity,
-    immediateAction: payload.immediateAction,
-    description: payload.description,
-    shortDescription: payload.description.slice(0, 120),
-    status: 'Open',
-    reportedAt: payload.clientSubmittedAt || entry.queuedAt,
-    reporterEmpNo: payload.anonymous ? null : payload.employeeNo,
-    anonymous: payload.anonymous,
-    hasAttachment: Boolean(entry.attachment),
-    syncState: entry.state === 'needs-attention' ? 'needs-attention' : 'queued'
-  };
 }
 
 export default function SafexHome() {
@@ -144,10 +109,6 @@ export default function SafexHome() {
   const [reportType, setReportType] = useState<ReportType | null>(null);
   const [reportPickerOpen, setReportPickerOpen] = useState(false);
   const [quickConcernChooserOpen, setQuickConcernChooserOpen] = useState(false);
-  const [reportDetail, setReportDetail] = useState<SafetyReport | null>(null);
-  // Starts empty on purpose: this list is only ever what this device actually saved. The
-  // database-side history is read back through <LoggedReports />.
-  const [reports, setReports] = useState<SafetyReport[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [safetyAlertsOpen, setSafetyAlertsOpen] = useState(false);
   const [safetyAlertFilter, setSafetyAlertFilter] = useState<'All' | SafetyAlertCategory>('All');
@@ -186,28 +147,10 @@ export default function SafexHome() {
   // SOS line is dialled instead of showing an empty warning.
   const sosNumber = currentSite?.sosNumber?.trim() || SOS_NUMBER;
   const isSingleSite = sites.length === 1;
-  // Everything in this list came from this browser: an offline submission still waiting to
-  // sync, or one it filed earlier in this visit. The database history is a separate read.
-  // Only what this browser still has to upload. Anything already stored in the database is in
-  // the feed above, so it is not repeated here.
-  const pendingReports = useMemo(
-    () => reports.filter((report) => report.siteId === siteId && report.syncState !== 'synced'),
-    [reports, siteId]
-  );
 
   async function refreshOutboxState() {
     const entries = await listQueuedReports();
     setQueuedReportCount(entries.length);
-    setReports((current) => {
-      const next = [...current];
-      for (const entry of entries) {
-        const local = queuedReportToSafetyReport(entry);
-        const index = next.findIndex((item) => item.clientSubmissionId === entry.id);
-        if (index >= 0) next[index] = { ...next[index], syncState: local.syncState, hasAttachment: local.hasAttachment };
-        else next.unshift(local);
-      }
-      return next;
-    });
     return entries;
   }
 
@@ -223,8 +166,6 @@ export default function SafexHome() {
       const result = await syncPendingReports();
       setOutboxSyncState(result.status);
       if (result.syncedIds.length) {
-        const synced = new Set(result.syncedIds);
-        setReports((items) => items.map((item) => item.clientSubmissionId && synced.has(item.clientSubmissionId) ? { ...item, syncState: 'synced' } : item));
         setOutboxMessage('Saved reports have synced to the configured database.');
       } else {
         const statusMessages: Record<OutboxSyncResult['status'], string> = {
@@ -547,7 +488,7 @@ export default function SafexHome() {
     if (!currentSite) throw new Error('Select a site before saving the report.');
     const clientSubmittedAt = new Date().toISOString();
     const clientSubmissionId = createSubmissionId();
-    const queued = await enqueueReport({
+    await enqueueReport({
       clientSubmissionId,
       siteId: currentSite.id,
       type: data.type,
@@ -562,8 +503,6 @@ export default function SafexHome() {
       severity: data.severity,
       clientSubmittedAt
     }, data.photo);
-    const fresh = queuedReportToSafetyReport(queued);
-    setReports((items) => [fresh, ...items]);
     setReportType(null);
     setQueuedReportCount((count) => count + 1);
     setOutboxSyncState(navigator.onLine ? 'idle' : 'offline');
@@ -798,10 +737,6 @@ export default function SafexHome() {
         {page === 'reports' && <section className="page-panel">
           <div className="page-heading"><div><span className="eyebrow">{currentSite?.name ?? T('SITE')}</span><h1>{T('reportsTitle')}</h1></div><button className="secondary-button" onClick={() => !isSingleSite && openSitePicker('reports')}>{T('changeSite')}</button></div>
           <LoggedReports siteId={currentSite?.id} siteName={currentSite?.name} />
-          <section className="section-block device-reports">
-            <div className="section-heading"><div><span className="eyebrow">{T('THIS DEVICE')}</span><h2>{T('Pending upload')}</h2></div></div>
-            <div className="report-list">{pendingReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((site) => site.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{pendingReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('Nothing pending')}</b><span>{T('Reports waiting to sync appear here.')}</span></div>}</div>
-          </section>
         </section>}
 
         {page === 'alerts' && <FeedArchivePage kind="notices" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
@@ -936,22 +871,12 @@ export default function SafexHome() {
 
       {sosOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="sos-title"><div className="modal sos-modal"><div className="modal-header"><div><span className="eyebrow">{T('CURRENT SITE · EMERGENCY CONTACT')}</span><h2 id="sos-title">{currentSite ? `SOS · ${currentSite.name}` : 'SOS'}</h2></div><button className="close-button" onClick={() => setSosOpen(false)} aria-label={T('Close SOS')}><X /></button></div><p>{T('Call the emergency number immediately for any injury, fire, fall or trapped person.')}</p><a className="sos-call-link" href={telHref(sosNumber)}>{T('Call emergency contact · {phone}', { phone: sosNumber })}</a>{sosNumber !== SOS_NUMBER && <p className="sos-fallback-note">{T('Company SOS line · {phone}', { phone: SOS_NUMBER })}</p>}<div className="modal-footnote"><AlertTriangle size={14} /> {T('Confirm the displayed number before calling. Site Admin can set a site-specific contact.')}</div></div></div>}
 
-      {reportDetail && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="modal detail-modal"><div className="modal-header"><div><span className="eyebrow">{sites.find((site) => site.id === reportDetail.siteId)?.name}</span><h2 id="detail-title">{reportDetail.id}</h2></div><button className="close-button" onClick={() => setReportDetail(null)} aria-label={T('Close')}><X /></button></div><div className="detail-meta"><span className="type-chip">{T(reportDetail.type)}</span>{reportDetail.category && <span className="type-chip">{T(reportDetail.category)}</span>}<span className={`status-pill ${STATUS_CLASS[reportDetail.status]}`}>{T(reportDetail.status)}</span></div><dl className="detail-grid"><div><dt>{T('Reported by')}</dt><dd>{T(reportDetail.anonymous ? 'Anonymous' : 'This device')}</dd></div><div><dt>{T('Site')}</dt><dd>{sites.find((site) => site.id === reportDetail.siteId)?.name}</dd></div><div><dt>{T('Area')}</dt><dd>{reportDetail.area}</dd></div><div><dt>{T('Department')}</dt><dd>{reportDetail.department ?? T('N/A')}</dd></div><div><dt>{T('Severity')}</dt><dd>{reportDetail.severity ? T(reportDetail.severity) : T('N/A')}</dd></div><div><dt>{T('Incident date & time')}</dt><dd>{formatDate(reportDetail.incidentAt ?? reportDetail.reportedAt, locale)}</dd></div><div><dt>{T('Submitted on')}</dt><dd>{formatDate(reportDetail.reportedAt, locale)}</dd></div></dl><p className="detail-description">{reportDetail.description ?? reportDetail.shortDescription}</p>{reportDetail.immediateAction && <div className="detail-description"><b>{T('Immediate action:')}</b> {reportDetail.immediateAction}</div>}{reportDetail.hasAttachment && <div className="attachment-preview"><ImagePlus /><span>{T('Photo evidence noted')}</span><small>{T('The image itself is not shown in this view')}</small></div>}<div className="modal-footnote">{T('Worker view is redacted. Full IDs and unredacted evidence require authorized staff access.')}</div></div></div>}
       {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setVaultCategoryId(null)} />}
       {feedDetail && <HomeFeedDetailDialog item={feedDetail} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setFeedDetail(null)} />}
 
       {toast && <div className="toast" role="status">{T(toast.key, { ...toast.params, ...(toast.report ? { report: toast.report.category ? `${T(toast.report.type)} · ${T(toast.report.category)}` : T(toast.report.type) } : {}) })}</div>}
     </div>
   );
-}
-
-function ReportCard({ report, site, onOpen }: { report: SafetyReport; site?: Site; onOpen: () => void }) {
-  const { language, T } = useI18n();
-  const locale = LANGUAGE_LOCALE[language];
-  // A device-filed report belongs to whoever holds the phone; the Employee ID is not shown.
-  const reporter = T(report.anonymous ? 'Anonymous' : 'This device');
-  const syncLabel = report.syncState === 'synced' ? T('Synced to database') : report.syncState === 'needs-attention' ? T('Needs sync review') : report.syncState ? T('Saved on device · waiting to sync') : '';
-  return <button className="report-card" onClick={onOpen}><div className="report-card-top"><b>{report.id}</b><span className={`status-pill ${STATUS_CLASS[report.status]}`}>{T(report.status)}</span></div><div className="report-card-type">{T(report.type)}{report.category && <span> · {T(report.category)}</span>}</div>{report.syncState && <span className={`report-sync-pill ${report.syncState}`}>{syncLabel}</span>}<p>{report.shortDescription}</p><div className="report-card-meta"><span><MapPin size={13} />{site?.name} · {report.area}</span><span>{T('By {name}', { name: reporter })}</span><span>{formatDate(report.reportedAt, locale)}</span></div>{report.hasAttachment && <span className="attachment-tag"><ImagePlus size={13} /> {T('Photo attached')}</span>}</button>;
 }
 
 function NavItem({ active, icon, label, onClick }: { active: boolean; icon: ReactNode; label: string; onClick: () => void }) {
