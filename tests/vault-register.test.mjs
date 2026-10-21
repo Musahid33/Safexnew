@@ -119,7 +119,7 @@ test('validity is computed from the review date, with a 30-day warning', () => {
 
 test('the shelf shows the register columns and opens the document in place', () => {
   const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
-  for (const heading of ['Sl. No.', 'Department', 'Section', 'Document Type', 'Rev.', 'Valid Upto', 'Status', 'Action']) {
+  for (const heading of ['Sl. No.', 'Dept.', 'Sec.', 'Type of Doc', 'Validity Upto', 'Status', 'View']) {
     assert.ok(shelf.includes(`'${heading}'`), `the register has a ${heading} column`);
   }
   assert.ok(shelf.includes('registerValidity'), 'the status chip is derived from the validity date');
@@ -127,6 +127,32 @@ test('the shelf shows the register columns and opens the document in place', () 
   assert.ok(shelf.includes('?inline=1'));
   assert.ok(shelf.includes('?download=1'));
   assert.equal(shelf.includes('demo'), false, 'the register has no sample rows');
+});
+
+test('the register has no filter bar', () => {
+  const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
+  const css = readFileSync('app/globals.css', 'utf8');
+  for (const gone of ['vault-filter-bar', 'All Department', 'All Section', 'All Document Type', 'Latest First', 'Reset']) {
+    assert.equal(shelf.includes(gone), false, `${gone} is gone from the shelf`);
+  }
+  assert.equal(css.includes('.vault-filter-bar'), false, 'the filter styles are gone too');
+});
+
+test('viewing, printing and downloading all stay on the same page', () => {
+  const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
+  // The action block sits between the document heading and the viewer.
+  const actions = shelf.slice(shelf.indexOf('vault-detail-actions'), shelf.indexOf('vault-viewer'));
+  assert.equal(actions.includes('_blank'), false, 'Print and Download do not open a tab');
+  assert.ok(actions.includes('Print'));
+  assert.ok(actions.includes('?download=1'));
+  assert.ok(actions.includes('download'), 'the download is a file save, not a page');
+
+  // Printing uses the frame that is already on screen, with a page-print fallback.
+  assert.ok(shelf.includes('contentWindow'));
+  assert.ok(shelf.includes('target.print()'));
+  assert.ok(shelf.includes('window.print()'));
+  const css = readFileSync('app/globals.css', 'utf8');
+  assert.ok(css.includes('@media print'), 'the print stylesheet hides the app chrome');
 });
 
 test('every shelf opens the same register screen', () => {

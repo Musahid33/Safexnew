@@ -2964,17 +2964,8 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
 .vault-shelf-head-copy h1 { margin: 0; overflow-wrap: anywhere; font-size: 21px; letter-spacing: -.3px; }
 .vault-shelf-head-copy p { margin: 0; color: var(--muted); font-size: 11px; }
 
-.vault-filter-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 9px; align-items: end; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); padding: 12px; }
-.vault-filter-bar label { min-width: 0; display: grid; gap: 4px; }
-.vault-filter-bar label > span { color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
-.vault-filter-bar select { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--text); padding: 0 8px; font-size: 11px; font-weight: 700; }
-.vault-filter-bar select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-.vault-filter-reset { min-height: 38px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--text); padding: 0 16px; font-size: 11px; font-weight: 800; cursor: pointer; }
-.vault-filter-reset:hover:not(:disabled) { border-color: var(--focus); color: var(--focus); }
-.vault-filter-reset:disabled { opacity: .5; cursor: default; }
-
 .vault-register-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
-.vault-register { width: 100%; min-width: 900px; border-collapse: collapse; }
+.vault-register { width: 100%; min-width: 760px; border-collapse: collapse; }
 .vault-register th { background: var(--surface-2); color: #33475f; text-align: left; padding: 10px 10px; font-size: 9px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; border-bottom: 1px solid var(--line); }
 .vault-register td { border-top: 1px solid var(--line); padding: 10px; color: var(--text); font-size: 11px; vertical-align: middle; }
 .vault-register tbody tr:first-child td { border-top: 0; }
@@ -2990,8 +2981,9 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
 .vault-register-none a { color: var(--focus); font-size: 11px; font-weight: 800; text-decoration: none; }
 .vault-register-none a:hover { text-decoration: underline; }
 
-.vault-icon-button { width: 30px; height: 30px; display: inline-grid; place-items: center; margin-right: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--focus); cursor: pointer; }
-.vault-icon-button:hover { border-color: var(--focus); }
+.vault-view-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--focus); padding: 0 10px; font-size: 10px; font-weight: 800; cursor: pointer; }
+.vault-view-button:hover { border-color: var(--focus); background: var(--surface-2); }
+.vault-register tr.is-open .vault-view-button { border-color: var(--focus); background: var(--focus); color: #fff; }
 .vault-status { display: inline-flex; align-items: center; justify-content: center; min-width: 62px; border-radius: 999px; padding: 4px 9px; font-size: 9px; font-weight: 900; letter-spacing: .02em; }
 .vault-status.valid { background: #e3f7eb; color: #12703d; }
 .vault-status.due { background: #fff3d9; color: #925800; }
@@ -3018,11 +3010,6 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
 .vault-viewer.is-image { display: grid; place-items: center; background: var(--surface-2); padding: 12px; }
 .vault-viewer.is-image img { max-width: 100%; max-height: 72vh; display: block; border-radius: 8px; object-fit: contain; }
 
-@media (max-width: 980px) {
-  .vault-filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .vault-filter-reset { grid-column: 1 / -1; }
-}
-
 @media (max-width: 760px) {
   .vault-shelf-head { padding: 12px; }
   .vault-shelf-head-copy h1 { font-size: 18px; }
@@ -3044,6 +3031,17 @@ button.admin-command-card { width: 100%; cursor: pointer; font: inherit; }
 }
 
 @media (max-width: 460px) {
-  .vault-filter-bar { grid-template-columns: 1fr; }
   .vault-status { min-width: 54px; }
+}
+
+/* Printing a document: the app chrome and the register step aside so the open file (or, when
+ * the browser will not print a framed PDF, the document card) is what leaves the printer. */
+@media print {
+  .site-header-shell, .bottom-nav, .toast, .vault-shelf-back, .vault-shelf-head,
+  .vault-register-wrap, .vault-detail-back, .vault-detail-actions, .vault-detail-link,
+  .vault-detail-note, .home-demo-caption { display: none !important; }
+  .vault-shelf-page, .vault-detail { max-width: none; padding: 0; margin: 0; }
+  .vault-detail-head { border: 0; padding: 0 0 10px; box-shadow: none; }
+  .vault-viewer { border: 0; border-radius: 0; background: #fff; }
+  .vault-viewer iframe { height: 96vh; min-height: 0; }
 }
