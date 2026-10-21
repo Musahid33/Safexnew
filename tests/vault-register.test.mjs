@@ -117,13 +117,30 @@ test('validity is computed from the review date, with a 30-day warning', () => {
  * The shelf screen
  * ---------------------------------------------------------------------------------------- */
 
-test('the shelf shows the register columns and opens the document in place', () => {
+test('the register is exactly five columns', () => {
   const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
-  for (const heading of ['Sl. No.', 'Dept.', 'Sec.', 'Type of Doc', 'Validity Upto', 'Status', 'View']) {
-    assert.ok(shelf.includes(`'${heading}'`), `the register has a ${heading} column`);
+  const css = readFileSync('app/globals.css', 'utf8');
+
+  const head = shelf.slice(shelf.indexOf('<thead>'), shelf.indexOf('</thead>'));
+  assert.equal((head.match(/<th /g) ?? []).length, 5, 'five column headings');
+  for (const heading of ['Sr No.', 'Status', 'Action']) {
+    assert.ok(head.includes(`'${heading}'`), `the register has a ${heading} column`);
   }
+  assert.ok(head.includes('text.name') && head.includes('text.code'), 'the shelf supplies the name and number labels');
+
+  // The register columns that were dropped must not creep back into the table.
+  const body = shelf.slice(shelf.indexOf('<tbody>'), shelf.indexOf('</tbody>'));
+  for (const gone of ["T('Dept.')", "T('Sec.')", "T('Type of Doc')", "T('Validity Upto')"]) {
+    assert.equal(body.includes(gone), false, `${gone} is not a register column`);
+  }
+
+  // Fixed layout with declared widths keeps the five columns on one axis on every screen.
+  assert.ok(css.includes('table-layout: fixed'));
+  for (const col of ['.vault-col-sr', '.vault-col-code', '.vault-col-status', '.vault-col-action']) {
+    assert.ok(css.includes(col), `${col} is sized`);
+  }
+
   assert.ok(shelf.includes('registerValidity'), 'the status chip is derived from the validity date');
-  // The file is streamed from this origin so it can be framed by the app itself.
   assert.ok(shelf.includes('?inline=1'));
   assert.ok(shelf.includes('?download=1'));
   assert.equal(shelf.includes('demo'), false, 'the register has no sample rows');

@@ -6,7 +6,7 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { LANGUAGE_LOCALE } from '@/lib/i18n';
-import { DOCUMENT_TYPE_LABELS, VAULT_CATEGORIES } from '@/lib/content/catalog';
+import { VAULT_CATEGORIES } from '@/lib/content/catalog';
 import { registerDate, registerValidity, registerToday } from '@/lib/content/register';
 import { useI18n } from './I18nProvider';
 import { DOCUMENT_VAULT_CATEGORIES, type VaultCategoryId, type VaultDocument } from './DocumentVault';
@@ -113,34 +113,33 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
 
     <div className="vault-register-wrap">
       <table className="vault-register">
+        <colgroup>
+          <col className="vault-col-sr" />
+          <col />
+          <col className="vault-col-code" />
+          <col className="vault-col-status" />
+          <col className="vault-col-action" />
+        </colgroup>
         <thead>
           <tr>
-            <th scope="col">{T('Sl. No.')}</th>
-            <th scope="col">{T('Dept.')}</th>
-            <th scope="col">{T('Sec.')}</th>
-            <th scope="col">{T('Type of Doc')}</th>
+            <th scope="col">{T('Sr No.')}</th>
             <th scope="col">{T(text.name)}</th>
             <th scope="col">{T(text.code)}</th>
-            <th scope="col">{T('Validity Upto')}</th>
             <th scope="col">{T('Status')}</th>
-            <th scope="col">{T('View')}</th>
+            <th scope="col">{T('Action')}</th>
           </tr>
         </thead>
         <tbody>
           {shelf.map((document, index) => {
             const validity = registerValidity(document.validUpto, today);
             return <tr key={document.id} className={openId === document.id ? 'is-open' : ''}>
-              <td data-label={T('Sl. No.')}>{index + 1}</td>
-              <td data-label={T('Dept.')}>{document.department ?? '—'}</td>
-              <td data-label={T('Sec.')}>{document.section ?? '—'}</td>
-              <td data-label={T('Type of Doc')}>{T(DOCUMENT_TYPE_LABELS[document.documentType] ?? document.documentType)}</td>
+              <td data-label={T('Sr No.')} className="vault-register-sr">{index + 1}</td>
               <td data-label={T(text.name)} className="vault-register-name">
                 <button type="button" onClick={() => setOpenId(document.id)}>{document.title}</button>
               </td>
               <td data-label={T(text.code)} className="vault-register-code">{document.documentCode ?? '—'}</td>
-              <td data-label={T('Validity Upto')}>{registerDate(document.validUpto)}</td>
               <td data-label={T('Status')}><span className={`vault-status ${validity.key}`}>{T(validity.label)}</span></td>
-              <td data-label={T('View')} className="vault-register-actions">
+              <td data-label={T('Action')} className="vault-register-actions">
                 <button
                   type="button"
                   className="vault-view-button"
@@ -160,9 +159,8 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
       </div>}
     </div>
 
-    {/* A phone cannot fit nine columns side by side, so each document is two short lines —
-     * number and name, then the document number, its status and View. The same structure on
-     * every shelf; only the column wording follows the shelf. */}
+    {/* The same five fields as the register, arranged as two aligned lines on a phone:
+     * serial number and name, then document number, status and View. */}
     <div className="vault-card-list">
       {shelf.map((document, index) => {
         const validity = registerValidity(document.validUpto, today);
