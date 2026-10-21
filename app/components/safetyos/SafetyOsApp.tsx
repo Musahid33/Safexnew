@@ -8,6 +8,7 @@ import { DESIGN_MARKUP } from './generated/markup';
 import { DESIGN_SCRIPT } from './generated/script';
 import type { Site } from '@/lib/types';
 import DmWorkspace from './dm/DmWorkspace';
+import EmployeePassportAdmin from './EmployeePassportAdmin';
 import {
   CASE_STATUS, CASE_STATUS_DB, toCaseReport,
   type AdminReport, type DesignCaseReport
@@ -166,6 +167,8 @@ export default function SafetyOsApp({
   const [piiEnabled, setPiiEnabled] = useState(false);
   /** The design's DM page container, which the React workspace is portalled into. */
   const [dmHost, setDmHost] = useState<HTMLElement | null>(null);
+  /** The design's Employee Profile page, which the passport screen is portalled into. */
+  const [epHost, setEpHost] = useState<HTMLElement | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [gateUsername, setGateUsername] = useState('');
   const [gatePassword, setGatePassword] = useState('');
@@ -422,6 +425,19 @@ export default function SafetyOsApp({
       setDmHost(host);
     }
 
+    // The design's Employee Profile page is its own demo form (local array, no photo, no
+    // Passport). The real screen is the credential the worker app shows, with editing, so
+    // the page keeps its nodes — the design's script binds handlers to them without a null
+    // check — and they are hidden by CSS while the passport is portalled alongside.
+    const epPage = container.querySelector<HTMLElement>('#employeeProfilePage');
+    if (epPage) {
+      epPage.classList.add('is-hosted');
+      const host = document.createElement('div');
+      host.className = 'ep-admin-host';
+      epPage.append(host);
+      setEpHost(host);
+    }
+
     // The design's sidebar is a 224 px column (66 px below 1250 px) and it hides its own
     // menu button, so every screen pays for navigation it may not be using. Here it becomes
     // a drawer: closed by default, opened from the topbar, dismissed by the scrim, Escape or
@@ -632,6 +648,13 @@ export default function SafetyOsApp({
         officerName={personName(officerName) ?? ''}
       />,
       dmHost
+    )}
+    {epHost && createPortal(
+      <EmployeePassportAdmin
+        siteId={selectedSiteId}
+        siteName={site?.name ?? 'Site'}
+      />,
+      epHost
     )}
     {(note || reportState === 'unavailable') && <div
       className={`sos-sync-note ${note ? `is-${note.tone}` : 'is-error'}`}

@@ -38,6 +38,8 @@ type EmployeeRow = {
   work_location?: string | null;
   notes?: string | null;
   previous_names?: string[] | null;
+  /** Selected only for one employee at a time; see `findEmployeeProfileInDatabase`. */
+  photo?: string | null;
 };
 
 // Work location is not personal data, so it travels with the base projection: the console
@@ -225,7 +227,8 @@ function toRecord(row: EmployeeRow): MasterEmployeeRecord {
     emergencyContactMobile: row.emergency_contact_mobile ?? null,
     homeAddress: row.home_address ?? null,
     notes: row.notes ?? null,
-    previousNames: row.previous_names ?? []
+    previousNames: row.previous_names ?? [],
+    photo: row.photo ?? null
   };
 }
 
@@ -366,6 +369,10 @@ const PII_COLUMNS =
   'id, employee_no, full_name, designation, department, site_id, active, safety_pass_no, skill_grade, blood_group, mobile_e164, '
   + 'email, gender, dob, emergency_contact_name, emergency_contact_mobile, work_location, home_address, notes, previous_names';
 
+// The photo is deliberately NOT part of PII_COLUMNS: the roster list would carry a face per
+// row into every response. One employee at a time is the only way it is read.
+const PROFILE_COLUMNS = `${PII_COLUMNS}, photo`;
+
 export type DbRosterPage = { records: MasterEmployeeRecord[]; total: number };
 
 /**
@@ -410,4 +417,67 @@ export async function listEmployeesFromDatabase(
   // subset of EmployeeRow, so the shape is sound; the cast just restates that.
   const rows = result.data as unknown as EmployeeRow[];
   return { records: rows.map(toRecord), total: result.count ?? 0 };
+}
+
+/**
+ * One employee, with the photo.
+ *
+ * The admin passport edits a person one at a time, and that is the only place a face is
+ * needed. A database that has not had the photo migration applied yet still answers: the
+ * query is retried without the column, and the caller is told the photo is unavailable
+ * rather than the whole profile failing.
+ */
+export type EmployeeProfileRead = { record: MasterEmployeeRecord; photoAvailable: boolean };
+
+let photoSupport: boolean | null = null;
+
+function isMissingColumn(error: { code?: string; message?: string } | null | undefined): boolean {
+  return Boolean(error) && (error?.code === '42703' || /column .*photo.* does not exist/i.test(error?.message ?? ''));
+}
+
+export async function findEmployeeProfileInDatabase(employeeNo: string): Promise<EmployeeProfileRead | null> {
+  const admin = getAdminSupabase();
+  if (!admin) return null;
+  const tenantId = await resolveTenantId(admin);
+  if (!tenantId) return null;
+
+  const read = (columns: string) => admin
+    .from('employees')
+    .select(columns)
+    .eq('tenant_id', tenantId)
+    .eq('employee_no', employeeNo)
+    .limit(1);
+
+  const withPhoto = await withTimeout(read(PROFILE_COLUMNS));
+  if (withPhoto && !withPhoto.error) {
+    photoSupport = true;
+    const rows = withPhoto.data as unknown as EmployeeRow[];
+    const row = rows[0];
+    return row ? { record: toRecord(row), photoAvailable: true } : null;
+  }
+
+  if (!isMissingColumn(withPhoto?.error)) return null;
+
+  // The migration has not run on this database. Answer with everything else so the screen
+  // still edits the profile, and report that the face is not stored.
+  photoSupport = false;
+  const fallback = await withTimeout(read(PII_COLUMNS));
+  if (!fallback || fallback.error) return null;
+  const rows = fallback.data as unknown as EmployeeRow[];
+  const row = rows[0];
+  return row ? { record: toRecord(row), photoAvailable: false } : null;
+}
+
+/** Whether `employees.photo` exists, answered once per server instance and then cached. */
+export async function isPhotoColumnSupported(): Promise<boolean> {
+  if (photoSupport !== null) return photoSupport;
+  const admin = getAdminSupabase();
+  if (!admin) return false;
+  // A zero-row filtered select: the question is whether the column exists, and no
+  // employee's face should be pulled through the service role just to answer it.
+  const result = await withTimeout(
+    admin.from('employees').select('photo').eq('employee_no', '__safex_photo_probe__').limit(1)
+  );
+  photoSupport = Boolean(result) && !isMissingColumn(result?.error);
+  return photoSupport;
 }
