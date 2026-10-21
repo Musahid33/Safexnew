@@ -11,6 +11,7 @@ import type { ContentStatus } from './types';
 
 const MAX = {
   title: 160,
+  register: 80,
   summary: 500,
   shortSummary: 300,
   body: 5000,
@@ -87,7 +88,12 @@ export type DocumentInput = {
   document_code: string | null;
   document_type: DocumentType;
   revision: string | null;
+  /** Register columns. `undefined` keeps whatever is stored (a status-only edit). */
+  department?: string | null;
+  section?: string | null;
   effective_date: string | null;
+  /** The register's "Valid Upto" — a date-only column in `documents.review_due_date`. */
+  review_due_date?: string | null;
   status: ContentStatus;
   /** `undefined` means "leave whatever is stored" — used by a status-only edit. */
   storage_path?: string | null;
@@ -117,6 +123,15 @@ export function validDocumentInput(body: Record<string, unknown>): DocumentInput
   const path = 'filePath' in body ? storagePath(body.filePath) : undefined;
   const external = 'externalUrl' in body ? validExternalUrl(body.externalUrl) : undefined;
   const effectiveDate = isoDate(body.effectiveDate);
+  // Register fields follow the same rule as the file columns: absent means "not this edit",
+  // an explicit empty value clears it. That keeps a publish/unpublish toggle from wiping the
+  // department, section or validity date it never sent.
+  const department = 'department' in body ? optionalText(body.department, MAX.register) : undefined;
+  const section = 'section' in body ? optionalText(body.section, MAX.register) : undefined;
+  const validUpto = 'validUpto' in body ? isoDate(body.validUpto) : undefined;
+  if (department === undefined && 'department' in body) return null;
+  if (section === undefined && 'section' in body) return null;
+  if (validUpto === undefined && 'validUpto' in body) return null;
   if (summary === undefined || documentCode === undefined || revision === undefined) return null;
   if ([fileName, path, external, effectiveDate].includes(undefined) && ('fileName' in body || 'filePath' in body || 'externalUrl' in body)) {
     // Only reject when a field that *was* sent could not be parsed.
@@ -147,7 +162,10 @@ export function validDocumentInput(body: Record<string, unknown>): DocumentInput
     document_code: documentCode,
     document_type: documentType,
     revision,
+    department,
+    section,
     effective_date: effectiveDate,
+    review_due_date: validUpto,
     status,
     storage_path: path,
     original_filename: fileName,
@@ -157,7 +175,7 @@ export function validDocumentInput(body: Record<string, unknown>): DocumentInput
     updated_at: now
   };
   // Absent keys are removed, not set to undefined, so a status-only edit writes no file column.
-  for (const key of ['storage_path', 'original_filename', 'external_url'] as const) {
+  for (const key of ['storage_path', 'original_filename', 'external_url', 'department', 'section', 'review_due_date'] as const) {
     if (row[key] === undefined) delete row[key];
   }
   return row;

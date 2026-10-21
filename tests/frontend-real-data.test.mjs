@@ -98,15 +98,20 @@ test('branding carries the real company name and invents no contact details', ()
 });
 
 test('the document vault lists no sample files', () => {
-  const source = readFileSync('app/components/DocumentVault.tsx', 'utf8');
   // The four shelves are navigation only; every file comes from /api/content as a prop.
-  assert.equal((source.match(/documents: \[\]/g) ?? []).length, 0, 'a shelf no longer carries rows');
-  assert.ok(source.includes('documents = []'), 'an empty vault is the default');
-  assert.ok(source.includes('documents.filter((document) => document.category === categoryId)'));
-  // The old rows were real-looking entries; none of their titles or revisions survive.
-  assert.equal(source.includes('Lockout / Tagout'), false);
-  assert.equal(source.includes("revision: 'Demo'"), false);
-  assert.equal(source.includes("updated: '2026-"), false);
+  const sources = [
+    readFileSync('app/components/DocumentVault.tsx', 'utf8'),
+    readFileSync('app/components/VaultShelf.tsx', 'utf8')
+  ];
+  for (const source of sources) {
+    assert.equal((source.match(/documents: \[\]/g) ?? []).length, 0, 'a shelf carries no rows of its own');
+    // The old rows were real-looking entries; none of their titles or revisions survive.
+    assert.equal(source.includes('Lockout / Tagout'), false);
+    assert.equal(source.includes("revision: 'Demo'"), false);
+    assert.equal(source.includes("updated: '2026-"), false);
+  }
+  assert.ok(sources[0].includes('documents = []'), 'an empty vault is the default');
+  assert.ok(sources[1].includes('documents.filter((document) => document.category === categoryId)'));
 });
 
 test('worker screens carry no implementation footnotes', () => {

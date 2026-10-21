@@ -1,14 +1,17 @@
 'use client';
 
-import { BookOpen, ChevronRight, ExternalLink, FileText, Scale, ShieldAlert, X, ScrollText, type LucideIcon } from 'lucide-react';
-import { LANGUAGE_LOCALE } from '@/lib/i18n';
-import { APP_TIME_ZONE } from '@/lib/home-content';
-import { DOCUMENT_TYPE_LABELS, VAULT_CATEGORIES, type DocumentType } from '@/lib/content/catalog';
+import { ChevronRight, FileText, Scale, ShieldAlert, ScrollText, type LucideIcon } from 'lucide-react';
+import type { DocumentType } from '@/lib/content/catalog';
 import { useI18n } from './I18nProvider';
 
 export type VaultCategoryId = 'sop-swp' | 'risk-assessments' | 'legal-compliance' | 'policies-procedures';
 
-/** A document as the publishing panel saved it, and as /api/content returns it. */
+/**
+ * A document as the publishing panel saved it, and as /api/content returns it.
+ *
+ * These are the register columns: department, section, document number, revision and the
+ * validity date the shelf's status chip is computed from.
+ */
 export type VaultDocument = {
   id: string;
   category: VaultCategoryId;
@@ -17,10 +20,16 @@ export type VaultDocument = {
   documentCode: string | null;
   documentType: DocumentType;
   revision: string | null;
+  department: string | null;
+  section: string | null;
   effectiveDate: string | null;
+  validUpto: string | null;
   publishedAt: string | null;
   fileUrl: string | null;
   fileName: string | null;
+  mimeType: string | null;
+  /** True for a row that points at an external link instead of an uploaded file. */
+  external: boolean;
 };
 
 type VaultCategory = {
@@ -57,56 +66,5 @@ export function DocumentVaultGrid({ onSelect, documents = [] }: {
         <ChevronRight className="vault-category-arrow" size={19} />
       </button>;
     })}
-  </div>;
-}
-
-export function VaultCategoryDialog({ categoryId, siteName, documents = [], onClose }: {
-  categoryId: VaultCategoryId;
-  siteName: string;
-  documents?: VaultDocument[];
-  onClose: () => void;
-}) {
-  const { language, T } = useI18n();
-  const locale = LANGUAGE_LOCALE[language];
-  const category = DOCUMENT_VAULT_CATEGORIES.find((item) => item.id === categoryId);
-  if (!category) return null;
-  const Icon = category.icon;
-  const published = documents.filter((document) => document.category === categoryId);
-
-  return <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="vault-dialog-title">
-    <div className="modal vault-category-dialog">
-      <div className="modal-header">
-        <div className="vault-dialog-heading">
-          <span className={`vault-category-icon ${category.tone}`}><Icon size={22} /></span>
-          <div><span className="eyebrow">{T('DOCUMENT VAULT')} · {siteName}</span><h2 id="vault-dialog-title">{T(category.title)}</h2></div>
-        </div>
-        <button className="close-button" type="button" onClick={onClose} aria-label={T('Close document category')}><X /></button>
-      </div>
-      <p className="vault-dialog-intro">{T(category.description)}. {T('Documents published for the selected site appear here.')}</p>
-      <div className="vault-document-list">
-        {published.length === 0 && <div className="vault-document-empty">
-          <FileText size={22} aria-hidden="true" />
-          <b>{T('No documents published yet')}</b>
-          <span>{T('Approved files will be listed here once the safety team publishes them from the admin panel.')}</span>
-        </div>}
-        {published.map((document) => {
-          const date = document.effectiveDate ?? document.publishedAt;
-          const kind = DOCUMENT_TYPE_LABELS[document.documentType] ?? VAULT_CATEGORIES[document.category].title;
-          return <article className="vault-document-row" key={document.id}>
-            <span className="vault-document-icon"><BookOpen size={19} /></span>
-            <span className="vault-document-copy">
-              <b>{document.title}</b>
-              <small>
-                {kind}{document.revision ? ` · ${document.revision}` : ''}{date ? ` · ${T('Updated')} ${new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE, day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date))}` : ''}
-              </small>
-              {document.summary && <small className="vault-document-summary">{document.summary}</small>}
-            </span>
-            {document.fileUrl
-              ? <a className="vault-document-open" href={document.fileUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> {T('Open')}</a>
-              : <span className="vault-document-status">{T('Index only')}</span>}
-          </article>;
-        })}
-      </div>
-    </div>
   </div>;
 }

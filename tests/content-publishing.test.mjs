@@ -353,13 +353,14 @@ test('an expired announcement disappears from the feed', async () => {
 });
 
 test('a database one migration behind still reads documents', async () => {
-  // First read asks for external_url, which does not exist yet; the retry must drop it.
+  // The newest register columns are asked for first. A deployment that has not applied them
+  // must lose a layer at a time rather than answer with an empty shelf.
   const client = fakeAdmin({
     tables: {
       sites: SITE,
       document_categories: { data: [{ id: 'cat-1', category_key: 'sop_swp' }], error: null },
       documents: [
-        { data: null, error: { code: '42703', message: 'column documents.external_url does not exist' } },
+        { data: null, error: { code: '42703', message: 'column documents.department does not exist' } },
         { data: [documentRow()], error: null }
       ],
       site_announcements: { data: [], error: null },
@@ -371,8 +372,31 @@ test('a database one migration behind still reads documents', async () => {
 
   const documentQueries = client.queries.filter((entry) => entry.table === 'documents');
   assert.equal(documentQueries.length, 2);
+  assert.ok(documentQueries[0].select.includes('department'), 'the register columns are asked for first');
   assert.ok(documentQueries[0].select.includes('external_url'));
-  assert.equal(documentQueries[1].select.includes('external_url'), false);
+  assert.equal(documentQueries[1].select.includes('department'), false, 'the retry drops the register columns');
+  assert.ok(documentQueries[1].select.includes('external_url'), 'and keeps the older optional column');
+});
+
+test('the shelf falls all the way back to the original columns', async () => {
+  const client = fakeAdmin({
+    tables: {
+      sites: SITE,
+      document_categories: { data: [{ id: 'cat-1', category_key: 'sop_swp' }], error: null },
+      documents: [
+        { data: null, error: { code: '42703', message: 'column documents.department does not exist' } },
+        { data: null, error: { code: '42703', message: 'column documents.external_url does not exist' } },
+        { data: [documentRow()], error: null }
+      ],
+      site_announcements: { data: [], error: null },
+      site_events: { data: [], error: null }
+    }
+  });
+  const content = await loadStore(client).readPublishedContent('wbd');
+  assert.equal(content.documents.length, 1);
+  const documentQueries = client.queries.filter((entry) => entry.table === 'documents');
+  assert.equal(documentQueries.length, 3);
+  assert.equal(documentQueries[2].select.includes('external_url'), false);
 });
 
 test('a file is only served when its row is published', async () => {
@@ -450,9 +474,12 @@ test('the worker app loads documents and the feed from the database', () => {
 
   const vault = readFileSync('app/components/DocumentVault.tsx', 'utf8');
   assert.ok(vault.includes('documents = []'));
-  assert.ok(vault.includes('document.fileUrl'));
-  assert.ok(vault.includes('documents.filter((document) => document.category === categoryId)'));
   assert.equal(vault.includes('documents: []'), false, 'no shelf is hard-coded with sample files');
+
+  // The shelf's register is the screen that opens a document; it reads published props only.
+  const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
+  assert.ok(shelf.includes('document.fileUrl'));
+  assert.ok(shelf.includes('documents.filter((document) => document.category === categoryId)'));
 
   const feed = readFileSync('app/components/HomeFeedViews.tsx', 'utf8');
   assert.ok(feed.includes('filterFeedItems'));
