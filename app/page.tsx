@@ -2,8 +2,8 @@
 
 import {
   AlertTriangle, ArrowLeft, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3,
-  CloudOff, CloudUpload, Eye, FileText, FolderOpen, Globe2, Home, Lightbulb, LockKeyhole, MapPin,
-  Monitor, Mic, Moon, MoreHorizontal, Palette, PhoneCall, RefreshCw, Settings2, Shield, ShieldAlert,
+  Eye, FileText, FolderOpen, Globe2, Home, Lightbulb, LockKeyhole, MapPin,
+  Monitor, Mic, Moon, MoreHorizontal, Palette, PhoneCall, Settings2, Shield, ShieldAlert,
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
@@ -21,15 +21,14 @@ import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
 import SafetyOsApp from './components/safetyos/SafetyOsApp';
 import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId, type VaultDocument } from './components/DocumentVault';
-import LoggedReports from './components/LoggedReports';
+import LoggedReports, { invalidateLoggedReports } from './components/LoggedReports';
 import RewardCarousel, { type RecognitionGalleryItem } from './components/RewardCarousel';
 import type { RecognitionItem } from '@/lib/recognitions';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
 import { useSafexBootstrap } from './components/useSafexBootstrap';
 import { AboutAppPage, AccountManagementPage, CompanyAboutPage, InstallAppPage, MoreInfoDialog, MoreMenuPage, type MoreInfoKind } from './components/MorePages';
 import { APP_TIME_ZONE, formatHomeFeedDate, formatHomeFeedTime, type HomeFeedItem } from '@/lib/home-content';
-import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports, type OutboxSyncResult } from '@/lib/report-outbox';
-import { describeSyncStatus, SYNC_BANNER_AUTO_DISMISS_MS } from '@/lib/sync-status';
+import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports } from '@/lib/report-outbox';
 import type { Palette as PaletteName, ReportType, Site, ThemeMode } from '@/lib/types';
 
 type PageKey = 'home' | 'reports' | 'alerts' | 'events' | 'circulars' | 'updates' | 'training' | 'more' | 'appearance' | 'install' | 'library' | 'company' | 'account' | 'aboutApp' | 'adminDashboard';
@@ -137,13 +136,6 @@ export default function SafexHome() {
   const [vaultCategoryId, setVaultCategoryId] = useState<VaultCategoryId | null>(null);
   const [feedDetail, setFeedDetail] = useState<HomeFeedItem | null>(null);
   const [reportSyncEnabled, setReportSyncEnabled] = useState(false);
-  const [queuedReportCount, setQueuedReportCount] = useState(0);
-  // Starts `true` so the server-rendered markup and the first client render agree; the
-  // effect below corrects it immediately when the device is actually offline.
-  const [isOnline, setIsOnline] = useState(true);
-  const [hideSyncedBanner, setHideSyncedBanner] = useState(false);
-  const [outboxSyncState, setOutboxSyncState] = useState<OutboxSyncResult['status'] | 'syncing' | 'storage-error'>('idle');
-  const [outboxMessage, setOutboxMessage] = useState('');
   const outboxSyncLock = useRef(false);
   const outboxSyncAgain = useRef(false);
   const languageMenuRef = useRef<HTMLDivElement>(null);
@@ -162,42 +154,29 @@ export default function SafexHome() {
   const sosNumber = currentSite?.sosNumber?.trim() || SOS_NUMBER;
   const isSingleSite = sites.length === 1;
 
-  async function refreshOutboxState() {
-    const entries = await listQueuedReports();
-    setQueuedReportCount(entries.length);
-    return entries;
+  function refreshOutboxState() {
+    return listQueuedReports();
   }
 
-  async function syncOfflineReports(manual = false) {
+  /**
+   * Background sync. It deliberately draws no banner or badge: a report either reaches the
+   * database and shows up in Logged reports, or stays queued and is retried on the next open,
+   * focus or reconnection. Anything that reached the database drops the cached report list so
+   * the next visit reads the new row instead of yesterday's copy.
+   */
+  async function syncOfflineReports() {
     if (outboxSyncLock.current) {
       outboxSyncAgain.current = true;
       return;
     }
     outboxSyncLock.current = true;
-    setOutboxSyncState('syncing');
     try {
-      if (manual) await retryReportsNeedingAttention();
+      await retryReportsNeedingAttention();
       const result = await syncPendingReports();
-      setOutboxSyncState(result.status);
-      if (result.syncedIds.length) {
-        setOutboxMessage('Saved reports have synced to the configured database.');
-      } else {
-        const statusMessages: Record<OutboxSyncResult['status'], string> = {
-          idle: '',
-          synced: 'All saved reports are synced.',
-          offline: 'No internet connection. Reports remain saved on this device and will retry automatically.',
-          'backend-unconfigured': 'Reports are saved on this device. Database sync is not configured on the Safex server yet.',
-          'server-error': 'The database server is unavailable. Reports remain saved here and will retry.',
-          'needs-attention': 'Some queued reports need attention before they can sync.',
-          'rate-limited': 'Sync is temporarily rate-limited; it will retry later.'
-        };
-        setOutboxMessage(statusMessages[result.status]);
-      }
+      if (result.syncedIds.length) invalidateLoggedReports(currentSite?.id);
       await refreshOutboxState();
-      if (result.syncedIds.length) setToast({ key: '{count} queued reports synced.', params: { count: result.syncedIds.length } });
     } catch {
-      setOutboxSyncState('storage-error');
-      setOutboxMessage('Offline report storage could not be read. Keep the form open and try again.');
+      // Storage or network trouble: the queue is on disk and the next trigger retries it.
     } finally {
       outboxSyncLock.current = false;
       if (outboxSyncAgain.current) {
@@ -318,15 +297,8 @@ export default function SafexHome() {
         const entries = await refreshOutboxState();
         if (!active || !entries.length) return;
         if (navigator.onLine) void syncOfflineReports();
-        else {
-          setOutboxSyncState('offline');
-          setOutboxMessage('No internet connection. Saved reports will sync automatically when you reconnect.');
-        }
       } catch {
-        if (active) {
-          setOutboxSyncState('storage-error');
-          setOutboxMessage('Offline report storage is not available in this browser.');
-        }
+        // No readable queue on this device: nothing to sync, and no message to show.
       }
     };
     const trySync = () => { if (active) void syncOfflineReports(); };
@@ -350,54 +322,6 @@ export default function SafexHome() {
       navigator.serviceWorker?.removeEventListener('message', handleWorkerMessage);
     };
   }, []);
-
-  // Connection banner. Losing the network is announced immediately - even with an empty queue -
-  // because the worker needs to know a report was stored rather than lost. Coming back online
-  // needs no special handling here: the 'online' listener in the outbox effect above already
-  // starts the sync, which drives the banner to "syncing" and then "synced".
-  useEffect(() => {
-    const updateConnection = () => {
-      const online = navigator.onLine;
-      setIsOnline(online);
-      if (!online) {
-        setOutboxSyncState('offline');
-        setOutboxMessage('No internet connection. Reports remain saved on this device and will retry automatically.');
-      }
-    };
-    updateConnection();
-    window.addEventListener('online', updateConnection);
-    window.addEventListener('offline', updateConnection);
-    return () => {
-      window.removeEventListener('online', updateConnection);
-      window.removeEventListener('offline', updateConnection);
-    };
-  }, []);
-
-  // A finished sync is a confirmation, not a permanent panel, so it clears itself.
-  useEffect(() => {
-    if (outboxSyncState !== 'synced' || queuedReportCount > 0) {
-      setHideSyncedBanner(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setHideSyncedBanner(true), SYNC_BANNER_AUTO_DISMISS_MS);
-    return () => window.clearTimeout(timer);
-  }, [outboxSyncState, queuedReportCount]);
-
-  // Exactly one banner can ever render, or none at all (see describeSyncStatus).
-  const syncBanner = useMemo(() => {
-    const banner = describeSyncStatus({
-      isOnline,
-      syncState: outboxSyncState,
-      queuedCount: queuedReportCount,
-      syncEnabled: reportSyncEnabled
-    });
-    if (!banner) return null;
-    if (banner.tone === 'synced' && hideSyncedBanner) return null;
-    // The outbox sets a precise, already-translated message for each retry status; prefer it
-    // over the generic fallback so the banner can never contradict the sync engine.
-    const waiting = banner.tone === 'queued' || banner.tone === 'attention' || banner.tone === 'error';
-    return waiting && outboxMessage ? { ...banner, detailKey: outboxMessage } : banner;
-  }, [isOnline, outboxSyncState, queuedReportCount, reportSyncEnabled, hideSyncedBanner, outboxMessage]);
 
   useEffect(() => {
     document.documentElement.dataset.mode = themeMode;
@@ -537,10 +461,7 @@ export default function SafexHome() {
       clientSubmittedAt
     }, data.photo);
     setReportType(null);
-    setQueuedReportCount((count) => count + 1);
-    setOutboxSyncState(navigator.onLine ? 'idle' : 'offline');
-    setOutboxMessage('Report saved on this device. It will try to sync automatically when online.');
-    setToast({ key: '{report} saved on this device. Auto-sync will run when a connection is available.', report: { type: data.type, category: data.category } });
+    setToast({ key: '{report} submitted. It will sync automatically.', report: { type: data.type, category: data.category } });
     void registerReportBackgroundSync();
     void syncOfflineReports();
   }
@@ -681,12 +602,6 @@ export default function SafexHome() {
           </div>
         </header>
       </div>
-      {syncBanner && <aside className={`sync-status-banner ${syncBanner.tone}`} role="status" aria-live="polite">
-        <span className="sync-status-icon">{syncBanner.icon === 'offline' ? <CloudOff size={19} /> : syncBanner.icon === 'syncing' ? <RefreshCw size={19} className="sync-status-spin" /> : syncBanner.icon === 'synced' ? <Check size={19} /> : syncBanner.icon === 'attention' ? <AlertTriangle size={19} /> : <CloudUpload size={19} />}</span>
-        <span className="sync-status-copy"><b>{T(syncBanner.titleKey, syncBanner.params)}</b><small>{T(syncBanner.detailKey)}</small></span>
-        {syncBanner.action === 'sync-now' && <button type="button" className="sync-status-action" onClick={() => void syncOfflineReports(true)} disabled={!reportSyncEnabled}>{T('Sync now')}</button>}
-      </aside>}
-
       <main className="main-content">
         {page === 'home' && <>
           <section className="hero-strip">
