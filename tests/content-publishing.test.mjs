@@ -478,7 +478,7 @@ test('the worker app loads documents and the feed from the database', () => {
 
   // The shelf's register is the screen that opens a document; it reads published props only.
   const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
-  assert.ok(shelf.includes('document.fileUrl'));
+  assert.ok(shelf.includes('open.fileUrl'), 'the opened row is what shows the file');
   assert.ok(shelf.includes('documents.filter((document) => document.category === categoryId)'));
 
   const feed = readFileSync('app/components/HomeFeedViews.tsx', 'utf8');

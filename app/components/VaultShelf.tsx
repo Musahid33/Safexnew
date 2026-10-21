@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Download, Eye, FileText, ExternalLink, ShieldAlert, Scale, ScrollText, type LucideIcon } from 'lucide-react';
+import {
+  ArrowLeft, Download, Eye, ExternalLink, FileText, Printer, Scale, ScrollText, ShieldAlert,
+  type LucideIcon
+} from 'lucide-react';
 import { LANGUAGE_LOCALE } from '@/lib/i18n';
-import { DOCUMENT_TYPE_LABELS, VAULT_CATEGORIES, type DocumentType } from '@/lib/content/catalog';
+import { DOCUMENT_TYPE_LABELS, VAULT_CATEGORIES } from '@/lib/content/catalog';
 import { registerDate, registerValidity, registerToday } from '@/lib/content/register';
 import { useI18n } from './I18nProvider';
 import { DOCUMENT_VAULT_CATEGORIES, type VaultCategoryId, type VaultDocument } from './DocumentVault';
@@ -12,16 +15,16 @@ import { DOCUMENT_VAULT_CATEGORIES, type VaultCategoryId, type VaultDocument } f
  * One vault shelf, shown as the site's document register.
  *
  * The register is the same for every shelf — SOP / SWP, Risk Assessments, Legal & Statutory
- * Compliance and Policy & Procedures — because the four shelves hold the same columns:
- * department, section, document type, document number, name, revision, validity and status.
- * Rows come only from published database rows; the shelf never fills itself.
+ * Compliance and Policy & Procedures: serial number, department, section, document type,
+ * document number, document name, validity and status. Rows come only from published database
+ * rows; the shelf never fills itself.
  *
- * Opening a row shows the document itself: a PDF is streamed from this origin and displayed
- * in the page, an image is displayed the same way, and a link-only row offers the link.
+ * Viewing a row keeps the reader on this page: the document is streamed from this origin and
+ * displayed underneath the register, with Print and Download beside it. Neither action opens a
+ * tab — printing goes to the same page's viewer and downloading stays a file download.
  */
 
-type SortKey = 'latest' | 'oldest' | 'code' | 'name';
-
+/** Per-shelf column wording, so the register speaks the shelf's own language. */
 const SHELF_TEXT: Record<VaultCategoryId, { code: string; name: string }> = {
   'sop-swp': { code: 'SOP No.', name: 'SOP Name' },
   'risk-assessments': { code: 'RA No.', name: 'Risk Assessment' },
@@ -45,44 +48,16 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
   const { language, T } = useI18n();
   const locale = LANGUAGE_LOCALE[language];
   const category = DOCUMENT_VAULT_CATEGORIES.find((item) => item.id === categoryId);
-  const [department, setDepartment] = useState('all');
-  const [section, setSection] = useState('all');
-  const [type, setType] = useState('all');
-  const [sort, setSort] = useState<SortKey>('latest');
   const [openId, setOpenId] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    setDepartment('all');
-    setSection('all');
-    setType('all');
-    setSort('latest');
-    setOpenId(null);
-  }, [categoryId]);
+  useEffect(() => { setOpenId(null); }, [categoryId]);
 
   const shelf = useMemo(
     () => documents.filter((document) => document.category === categoryId),
     [documents, categoryId]
   );
-
-  const departments = useMemo(() => unique(shelf.map((document) => document.department)), [shelf]);
-  const sections = useMemo(() => unique(shelf.map((document) => document.section)), [shelf]);
-  const types = useMemo(() => unique(shelf.map((document) => document.documentType)), [shelf]);
-
-  const rows = useMemo(() => {
-    const filtered = shelf.filter((document) =>
-      (department === 'all' || (document.department ?? '') === department)
-      && (section === 'all' || (document.section ?? '') === section)
-      && (type === 'all' || document.documentType === type)
-    );
-    const byDate = (document: VaultDocument) => document.publishedAt ? new Date(document.publishedAt).getTime() : 0;
-    return [...filtered].sort((a, b) => {
-      if (sort === 'code') return (a.documentCode ?? a.title).localeCompare(b.documentCode ?? b.title, locale);
-      if (sort === 'name') return a.title.localeCompare(b.title, locale);
-      if (sort === 'oldest') return byDate(a) - byDate(b);
-      return byDate(b) - byDate(a);
-    });
-  }, [shelf, department, section, type, sort, locale]);
 
   // Opening a row on a phone should land on the document, not leave the reader at the table.
   useEffect(() => {
@@ -95,14 +70,33 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
   const Icon = SHELF_ICON[categoryId];
   const open = shelf.find((document) => document.id === openId) ?? null;
   const today = registerToday();
-  const filtersOn = department !== 'all' || section !== 'all' || type !== 'all';
   const count = new Intl.NumberFormat(locale).format(shelf.length);
+  const viewerKind = !open?.fileUrl || open.external
+    ? 'none'
+    : open.mimeType === 'application/pdf'
+      ? 'pdf'
+      : open.mimeType?.startsWith('image/')
+        ? 'image'
+        : 'none';
 
-  function resetFilters() {
-    setDepartment('all');
-    setSection('all');
-    setType('all');
-    setSort('latest');
+  /**
+   * Print the document that is already on screen. The viewer is same-origin, so its own frame
+   * is what goes to the printer; if the browser refuses that, the page falls back to printing
+   * itself (the print stylesheet hides everything except the document).
+   */
+  function printDocument() {
+    const frame = viewerRef.current;
+    const target = frame?.contentWindow;
+    try {
+      if (target) {
+        target.focus();
+        target.print();
+        return;
+      }
+    } catch {
+      // Fall through to printing the page itself.
+    }
+    window.print();
   }
 
   return <section className="page-panel vault-shelf-page">
@@ -117,90 +111,53 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
       </div>
     </div>
 
-    <div className="vault-filter-bar">
-          <label><span>{T('Department')}</span>
-            <select value={department} onChange={(event) => setDepartment(event.target.value)}>
-              <option value="all">{T('All Department')}</option>
-              {departments.map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
-          </label>
-          <label><span>{T('Section')}</span>
-            <select value={section} onChange={(event) => setSection(event.target.value)}>
-              <option value="all">{T('All Section')}</option>
-              {sections.map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
-          </label>
-          <label><span>{T('Document Type')}</span>
-            <select value={type} onChange={(event) => setType(event.target.value)}>
-              <option value="all">{T('All Document Type')}</option>
-              {types.map((value) => <option key={value} value={value}>{T(DOCUMENT_TYPE_LABELS[value as DocumentType] ?? value)}</option>)}
-            </select>
-          </label>
-          <label><span>{T('Order')}</span>
-            <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
-              <option value="latest">{T('Latest First')}</option>
-              <option value="oldest">{T('Oldest First')}</option>
-              <option value="code">{T('Document No.')}</option>
-              <option value="name">{T('Name A–Z')}</option>
-            </select>
-          </label>
-          <button className="vault-filter-reset" type="button" onClick={resetFilters} disabled={!filtersOn && sort === 'latest'}>{T('Reset')}</button>
-        </div>
-
-        <div className="vault-register-wrap">
-          <table className="vault-register">
-            <thead>
-              <tr>
-                <th scope="col">{T('Sl. No.')}</th>
-                <th scope="col">{T('Department')}</th>
-                <th scope="col">{T('Section')}</th>
-                <th scope="col">{T('Document Type')}</th>
-                <th scope="col">{T(text.code)}</th>
-                <th scope="col">{T(text.name)}</th>
-                <th scope="col">{T('Rev.')}</th>
-                <th scope="col">{T('Valid Upto')}</th>
-                <th scope="col">{T('Status')}</th>
-                <th scope="col">{T('Action')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((document, index) => {
-                const validity = registerValidity(document.validUpto, today);
-                return <tr key={document.id} className={openId === document.id ? 'is-open' : ''}>
-                  <td data-label={T('Sl. No.')}>{index + 1}</td>
-                  <td data-label={T('Department')}>{document.department ?? '—'}</td>
-                  <td data-label={T('Section')}>{document.section ?? '—'}</td>
-                  <td data-label={T('Document Type')}>{T(DOCUMENT_TYPE_LABELS[document.documentType] ?? document.documentType)}</td>
-                  <td data-label={T(text.code)} className="vault-register-code">{document.documentCode ?? '—'}</td>
-                  <td data-label={T(text.name)} className="vault-register-name">
-                    <button type="button" onClick={() => setOpenId(document.id)}>{document.title}</button>
-                  </td>
-                  <td data-label={T('Rev.')}>{document.revision ?? '—'}</td>
-                  <td data-label={T('Valid Upto')}>{registerDate(document.validUpto)}</td>
-                  <td data-label={T('Status')}><span className={`vault-status ${validity.key}`}>{T(validity.label)}</span></td>
-                  <td data-label={T('Action')} className="vault-register-actions">
-                    <button type="button" className="vault-icon-button" aria-label={T('View {name}', { name: document.title })} onClick={() => setOpenId(document.id)}>
-                      <Eye size={16} />
-                    </button>
-                    {document.fileUrl && <a
-                      className="vault-icon-button"
-                      href={`${document.fileUrl}?download=1`}
-                      aria-label={T('Download {name}', { name: document.title })}
-                      target="_blank"
-                      rel="noreferrer"
-                    ><Download size={16} /></a>}
-                  </td>
-                </tr>;
-              })}
-            </tbody>
-          </table>
-          {rows.length === 0 && <div className="vault-register-none">
-            <b>{T(shelf.length === 0 ? 'No documents published yet' : 'No documents match these filters.')}</b>
-            {shelf.length === 0 && <>
-              <span>{T('Approved files will be listed here once the safety team publishes them from the admin panel.')}</span>
-              <a href="/admin/publish" target="_blank" rel="noreferrer">{T('Publish from the admin panel')}</a>
-            </>}
-          </div>}
+    <div className="vault-register-wrap">
+      <table className="vault-register">
+        <thead>
+          <tr>
+            <th scope="col">{T('Sl. No.')}</th>
+            <th scope="col">{T('Dept.')}</th>
+            <th scope="col">{T('Sec.')}</th>
+            <th scope="col">{T('Type of Doc')}</th>
+            <th scope="col">{T(text.code)}</th>
+            <th scope="col">{T(text.name)}</th>
+            <th scope="col">{T('Validity Upto')}</th>
+            <th scope="col">{T('Status')}</th>
+            <th scope="col">{T('View')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shelf.map((document, index) => {
+            const validity = registerValidity(document.validUpto, today);
+            return <tr key={document.id} className={openId === document.id ? 'is-open' : ''}>
+              <td data-label={T('Sl. No.')}>{index + 1}</td>
+              <td data-label={T('Dept.')}>{document.department ?? '—'}</td>
+              <td data-label={T('Sec.')}>{document.section ?? '—'}</td>
+              <td data-label={T('Type of Doc')}>{T(DOCUMENT_TYPE_LABELS[document.documentType] ?? document.documentType)}</td>
+              <td data-label={T(text.code)} className="vault-register-code">{document.documentCode ?? '—'}</td>
+              <td data-label={T(text.name)} className="vault-register-name">
+                <button type="button" onClick={() => setOpenId(document.id)}>{document.title}</button>
+              </td>
+              <td data-label={T('Validity Upto')}>{registerDate(document.validUpto)}</td>
+              <td data-label={T('Status')}><span className={`vault-status ${validity.key}`}>{T(validity.label)}</span></td>
+              <td data-label={T('View')} className="vault-register-actions">
+                <button
+                  type="button"
+                  className="vault-view-button"
+                  aria-label={T('View {name}', { name: document.title })}
+                  aria-expanded={openId === document.id}
+                  onClick={() => setOpenId(document.id)}
+                ><Eye size={15} /> {T('View')}</button>
+              </td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+      {shelf.length === 0 && <div className="vault-register-none">
+        <b>{T('No documents published yet')}</b>
+        <span>{T('Approved files will be listed here once the safety team publishes them from the admin panel.')}</span>
+        <a href="/admin/publish" target="_blank" rel="noreferrer">{T('Publish from the admin panel')}</a>
+      </div>}
     </div>
 
     {open && <div className="vault-detail" ref={detailRef}>
@@ -211,41 +168,40 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
           <h2>{open.title}</h2>
           <p>{open.summary ?? T(VAULT_CATEGORIES[open.category].description)}</p>
           <div className="vault-detail-meta">
-            {open.department && <span>{T('Department')}: <b>{open.department}</b></span>}
-            {open.section && <span>{T('Section')}: <b>{open.section}</b></span>}
+            {open.department && <span>{T('Dept.')}: <b>{open.department}</b></span>}
+            {open.section && <span>{T('Sec.')}: <b>{open.section}</b></span>}
             <span>{T('Revision')}: <b>{open.revision ?? '—'}</b></span>
-            <span>{T('Valid Upto')}: <b>{registerDate(open.validUpto)}</b></span>
+            <span>{T('Validity Upto')}: <b>{registerDate(open.validUpto)}</b></span>
             <span className={`vault-status ${registerValidity(open.validUpto, today).key}`}>{T(registerValidity(open.validUpto, today).label)}</span>
           </div>
         </div>
-        {open.fileUrl && <div className="vault-detail-actions">
-          <a className="secondary-button" href={open.fileUrl} target="_blank" rel="noreferrer"><Eye size={16} /> {T('View')}</a>
-          <a className="primary-button" href={`${open.fileUrl}?download=1`} target="_blank" rel="noreferrer"><Download size={16} /> {T('Download')}</a>
+        {open.fileUrl && !open.external && <div className="vault-detail-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={printDocument}
+            disabled={viewerKind === 'none'}
+          ><Printer size={16} /> {T('Print')}</button>
+          <a className="primary-button" href={`${open.fileUrl}?download=1`} download><Download size={16} /> {T('Download')}</a>
         </div>}
       </div>
 
-      {open.fileUrl && !open.external && open.mimeType === 'application/pdf' && <div className="vault-viewer">
+      {viewerKind === 'pdf' && <div className="vault-viewer">
         <iframe
+          ref={viewerRef}
           key={open.id}
           src={`${open.fileUrl}?inline=1#navpanes=0&view=FitH`}
           title={open.title}
-          loading="lazy"
         />
       </div>}
-      {open.fileUrl && !open.external && Boolean(open.mimeType?.startsWith('image/')) && <div className="vault-viewer is-image">
+      {viewerKind === 'image' && <div className="vault-viewer is-image">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={`${open.fileUrl}?inline=1`} alt={open.title} />
       </div>}
-      {open.fileUrl && <a className="vault-detail-link" href={open.fileUrl} target="_blank" rel="noreferrer">
-        <ExternalLink size={16} /> {open.external
-          ? T('Open {name}', { name: open.fileName ?? open.title })
-          : T('Open the file in a new tab')}
+      {open.fileUrl && open.external && <a className="vault-detail-link" href={open.fileUrl} target="_blank" rel="noreferrer">
+        <ExternalLink size={16} /> {T('Open the linked document')}
       </a>}
       {!open.fileUrl && <p className="vault-detail-note">{T('No file is attached to this document.')}</p>}
     </div>}
   </section>;
-}
-
-function unique(values: Array<string | null | undefined>): string[] {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b));
 }
