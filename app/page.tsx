@@ -3,7 +3,7 @@
 import {
   AlertTriangle, ArrowLeft, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3,
   CloudOff, CloudUpload, Eye, FileText, FolderOpen, Globe2, Home, Lightbulb, LockKeyhole, MapPin,
-  Monitor, Mic, Moon, MoreHorizontal, Palette, RefreshCw, Settings2, Shield, ShieldAlert,
+  Monitor, Mic, Moon, MoreHorizontal, Palette, PhoneCall, RefreshCw, Settings2, Shield, ShieldAlert,
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
@@ -69,6 +69,15 @@ const HOME_REPORT_TILES: HomeReportTile[] = [
   { id: 'concern', opensConcernChooser: true, icon: Shield, tone: 'purple', titleEn: 'Grievance / Speak Up', titleHi: 'शिकायत / खुलकर बोलें', descEn: 'Anonymous option for Speak Up only', descHi: 'गुमनाम केवल Speak Up में' },
   { id: 'suggestion', reportType: 'Suggestion', icon: Lightbulb, tone: 'green', labelKey: 'suggestion', descEn: 'Share a safer-work idea', descHi: 'आइडिया दें' }
 ];
+
+/**
+ * The number as it is dialled inside the country, which is how it reads on an emergency card:
+ * `+91 7070705925` becomes `7070705925`. Anything without a country code is left alone.
+ */
+function nationalNumber(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.replace(/^\+?91[\s-]?/, '') || trimmed;
+}
 
 function getUpcomingEventStatus(value: string): 'Today' | 'Tomorrow' | 'Upcoming' {
   const eventDate = new Date(value);
@@ -869,7 +878,29 @@ export default function SafexHome() {
 
       {notificationsOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="notification-title"><div className="modal settings-modal"><div className="modal-header"><div><span className="eyebrow">{T('DEVICE SETTINGS')}</span><h2 id="notification-title">{T('Push notifications')}</h2></div><button className="close-button" onClick={() => setNotificationsOpen(false)} aria-label={T('Close')}><X /></button></div><p>{T('Choose which published updates reach this device. Avoid sending every draft or internal edit.')}</p><div className="notification-status"><Bell size={17} /><span>{T('Browser permission:')} <b>{T(notificationPermission)}</b></span></div><Preference label="Safety Alerts and urgent notices" detail="New published safety alerts" checked={pushPrefs.safety} onChange={() => setPref('safety')} /><Preference label="Circulars and published updates" detail="Notices, events and training" checked={pushPrefs.notices} onChange={() => setPref('notices')} /><Preference label="My report status" detail="Updates only for your reports" checked={pushPrefs.ownReports} onChange={() => setPref('ownReports')} /><Preference label="All vendor-site updates" detail="Opt in for this vendor only" checked={pushPrefs.allVendorSites} onChange={() => setPref('allVendorSites')} /><Preference label="Hide details on lock screen" detail="Recommended for privacy" checked={pushPrefs.hideLockScreen} onChange={() => setPref('hideLockScreen')} /><button className="primary-button full-button" onClick={requestPushPermission}>{T('Allow notifications on this device')}</button><div className="modal-footnote">{T('Production push still requires a service worker subscription and server-side VAPID sender.')}</div></div></div>}
 
-      {sosOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="sos-title"><div className="modal sos-modal"><div className="modal-header"><div><span className="eyebrow">{T('CURRENT SITE · EMERGENCY CONTACT')}</span><h2 id="sos-title">{currentSite ? `SOS · ${currentSite.name}` : 'SOS'}</h2></div><button className="close-button" onClick={() => setSosOpen(false)} aria-label={T('Close SOS')}><X /></button></div><p>{T('Call the emergency number immediately for any injury, fire, fall or trapped person.')}</p><a className="sos-call-link" href={telHref(sosNumber)}>{T('Call emergency contact · {phone}', { phone: sosNumber })}</a>{sosNumber !== SOS_NUMBER && <p className="sos-fallback-note">{T('Company SOS line · {phone}', { phone: SOS_NUMBER })}</p>}<div className="modal-footnote"><AlertTriangle size={14} /> {T('Confirm the displayed number before calling. Site Admin can set a site-specific contact.')}</div></div></div>}
+      {sosOpen && <div
+        className="overlay sos-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sos-title"
+        onClick={(event) => { if (event.target === event.currentTarget) setSosOpen(false); }}
+      >
+        <div className="modal sos-modal">
+          <div className="sos-hero">
+            <span className="sos-hero-icon" aria-hidden="true"><PhoneCall size={30} /></span>
+            <h2 id="sos-title"><span aria-hidden="true">🚨</span> {T('EMERGENCY HELPLINE')}</h2>
+          </div>
+          <div className="sos-body">
+            <p className="sos-company">{brandCompanyName ? T('{company} Emergency Call', { company: brandCompanyName }) : T('Emergency Call')}</p>
+            <p className="sos-number">{nationalNumber(sosNumber)}</p>
+            <a className="sos-call-button" href={telHref(sosNumber)}>
+              <PhoneCall size={20} aria-hidden="true" /> {T('Tap to Call')}
+            </a>
+            <button className="sos-cancel-button" type="button" onClick={() => setSosOpen(false)}>{T('Cancel')}</button>
+            {sosNumber !== SOS_NUMBER && <p className="sos-fallback-note">{T('Company SOS line · {phone}', { phone: SOS_NUMBER })}</p>}
+          </div>
+        </div>
+      </div>}
 
       {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setVaultCategoryId(null)} />}
       {feedDetail && <HomeFeedDetailDialog item={feedDetail} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setFeedDetail(null)} />}

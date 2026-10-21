@@ -106,6 +106,43 @@ test('the document vault lists no sample files', () => {
   assert.equal(source.includes('updated: \'2026-'), false);
 });
 
+test('the SOS card is the emergency card: red header, big number, call and cancel', () => {
+  const page = readFileSync('app/page.tsx', 'utf8');
+
+  // Structure of the card the worker sees.
+  for (const piece of [
+    'sos-hero',
+    'sos-hero-icon',
+    'sos-modal',
+    'sos-body',
+    'sos-company',
+    'sos-number',
+    'sos-call-button',
+    'sos-cancel-button'
+  ]) {
+    assert.ok(page.includes(piece), `${piece} is part of the SOS card`);
+  }
+  assert.ok(page.includes('EMERGENCY HELPLINE'));
+  assert.ok(page.includes('Tap to Call'));
+  assert.ok(page.includes('href={telHref(sosNumber)}'), 'the big button dials the site number');
+  assert.ok(page.includes('onClick={() => setSosOpen(false)}'), 'Cancel closes it');
+
+  // The number reads the way it is dialled in the country: no +91 in the headline.
+  assert.ok(page.includes('nationalNumber(sosNumber)'));
+  const match = page.match(/function nationalNumber\(value: string\): string \{([\s\S]*?)\n\}/);
+  assert.ok(match, 'the helper exists');
+  const helper = match[1];
+  assert.ok(helper.includes("replace(/^\\+?91[\\s-]?/, '')"), 'a +91 prefix is stripped');
+
+  // The card is themed for emergencies only, so it cannot inherit a light theme by accident.
+  const css = readFileSync('app/globals.css', 'utf8');
+  assert.ok(css.includes('.sos-modal {'));
+  assert.ok(css.includes('background: #0b1f33'), 'navy body');
+  assert.ok(css.includes('.sos-hero {'));
+  assert.ok(css.includes('background: linear-gradient(180deg, #ec1c1c, #d81818)'), 'red header');
+  assert.equal(css.includes('.sos-call-link'), false, 'the old flat link is gone');
+});
+
 test('the worker page imports no demo tenant, site or alert set', () => {
   const page = readFileSync('app/page.tsx', 'utf8');
   assert.equal(page.includes('DEMO_TENANT'), false);
