@@ -160,8 +160,9 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
       </div>}
     </div>
 
-    {/* A phone cannot fit nine columns side by side, so each document is two horizontal rows:
-     * number, name and View on the first, the register columns on the second. */}
+    {/* A phone cannot fit nine columns side by side, so each document is two short lines —
+     * number and name, then the document number, its status and View. The same structure on
+     * every shelf; only the column wording follows the shelf. */}
     <div className="vault-card-list">
       {shelf.map((document, index) => {
         const validity = registerValidity(document.validUpto, today);
@@ -169,6 +170,9 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
           <div className="vault-card-top">
             <span className="vault-card-index">{index + 1}</span>
             <button className="vault-card-name" type="button" onClick={() => setOpenId(document.id)}>{document.title}</button>
+          </div>
+          <div className="vault-card-meta">
+            <span className="vault-card-code"><span>{T(text.code)}</span><b>{document.documentCode ?? '—'}</b></span>
             <span className={`vault-status ${validity.key}`}>{T(validity.label)}</span>
             <button
               type="button"
@@ -177,13 +181,6 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
               aria-expanded={openId === document.id}
               onClick={() => setOpenId(document.id)}
             ><Eye size={14} /> {T('View')}</button>
-          </div>
-          <div className="vault-card-row">
-            <div><span>{T('Dept.')}</span><b>{document.department ?? '—'}</b></div>
-            <div><span>{T('Sec.')}</span><b>{document.section ?? '—'}</b></div>
-            <div><span>{T('Type of Doc')}</span><b>{T(DOCUMENT_TYPE_LABELS[document.documentType] ?? document.documentType)}</b></div>
-            <div><span>{T(text.code)}</span><b>{document.documentCode ?? '—'}</b></div>
-            <div><span>{T('Validity Upto')}</span><b>{registerDate(document.validUpto)}</b></div>
           </div>
         </article>;
       })}
