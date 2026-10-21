@@ -32,14 +32,15 @@ function loader(overrides = {}) {
   return load;
 }
 
-test('the home feed has nothing invented in it', () => {
+test('the home feed module holds no invented feed', () => {
   const content = loader()('lib/home-content.ts');
-  for (const kind of ['events', 'circulars', 'notices', 'updates']) {
-    assert.deepEqual(content.getHomeFeedItems(kind), [], `${kind} must be empty until a feed exists`);
-  }
-  assert.deepEqual(content.getUpcomingEvents(), []);
 
-  // The helpers still format a real date, so a published item will render correctly.
+  // There is no static feed at all — the screens receive published rows as props, so a
+  // stub list that could silently come back is not kept around.
+  assert.equal('getHomeFeedItems' in content, false);
+  assert.equal('getUpcomingEvents' in content, false);
+
+  // The date helpers still format a real date, so a published item renders correctly.
   assert.ok(content.formatHomeFeedDate('2026-10-21T09:00:00+05:30').includes('21'));
   assert.equal(content.APP_TIME_ZONE, 'Asia/Kolkata');
 });

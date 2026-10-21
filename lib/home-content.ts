@@ -15,46 +15,6 @@ export type HomeFeedItem = {
   attachmentUrl?: string | null;
 };
 
-/**
- * Events, circulars and notices.
- *
- * The feed itself is read from the database (`/api/content`) and passed to the screens as
- * props. This static list stays empty on purpose: it is the fallback the helpers below use,
- * so a screen rendered without a feed shows an honest empty state, never sample rows.
- */
-const HOME_FEED: HomeFeedItem[] = [];
-
-export function getHomeFeedItems(kind: HomeFeedKind): HomeFeedItem[] {
-  if (kind === 'events') {
-    const now = Date.now();
-    return HOME_FEED.filter((item) => item.type === 'Event').sort((a, b) => {
-      const aTime = new Date(a.date).getTime();
-      const bTime = new Date(b.date).getTime();
-      const aUpcoming = aTime >= now;
-      const bUpcoming = bTime >= now;
-      if (aUpcoming && bUpcoming) return aTime - bTime;
-      if (!aUpcoming && !bUpcoming) return bTime - aTime;
-      return aUpcoming ? -1 : 1;
-    });
-  }
-
-  if (kind === 'circulars') {
-    return HOME_FEED.filter((item) => item.type === 'Circular').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-
-  if (kind === 'notices') {
-    return HOME_FEED.filter((item) => item.type === 'Notice').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-
-  return HOME_FEED.filter((item) => item.type !== 'Event').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-}
-
-export function getUpcomingEvents(now = Date.now()): HomeFeedItem[] {
-  return HOME_FEED.filter((item) => item.type === 'Event')
-    .filter((event) => new Date(event.date).getTime() >= now)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-}
-
 export function formatHomeFeedDate(value: string, locale = 'en-IN', timeZone = APP_TIME_ZONE): string {
   return new Intl.DateTimeFormat(locale, { timeZone, weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
 }

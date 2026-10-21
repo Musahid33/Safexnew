@@ -12,8 +12,7 @@ type Material = { title: string; description: string; type: 'Video' | 'Module'; 
 type TrainingCheck = { employee: Employee; completed: string[]; pending: string[]; hasRecords: boolean };
 type UiMessage = { key: string; params?: Record<string, string | number> };
 
-// The demo catalog (three videos and three modules with invented titles) was removed. The
-// catalog is filled by the training team; until it is, the sections say so.
+// Empty until the training team publishes material; the sections say so until then.
 const TRAINING_VIDEOS: Material[] = [];
 const TRAINING_MODULES: Material[] = [];
 

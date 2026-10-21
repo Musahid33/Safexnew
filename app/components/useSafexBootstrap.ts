@@ -36,7 +36,7 @@ export type SafexBootstrap = {
 
 const INITIAL: SafexBootstrap = {
   ready: false,
-  // Empty until the server answers. A demo site here used to make the app look configured
+  // Empty until the server answers: a placeholder site here would make the app look configured
   // while the real tenant was unreachable.
   sites: [],
   companyName: null,

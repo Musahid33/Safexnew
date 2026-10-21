@@ -34,7 +34,7 @@ export async function GET() {
     status: 'ok',
     app: 'safex',
     reportSubmissionEnabled,
-    mode: reportSubmissionEnabled ? 'report-sync-enabled' : backendConfigured ? 'backend-configured-report-sync-disabled' : 'demo-only',
+    mode: reportSubmissionEnabled ? 'report-sync-enabled' : backendConfigured ? 'backend-configured-report-sync-disabled' : 'unconfigured',
     ...(detailed ? { backendConfigured, supabaseReachable } : {})
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

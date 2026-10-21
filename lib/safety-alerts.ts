@@ -29,8 +29,7 @@ export type SafetyAlert = {
 /**
  * Published incident alerts.
  *
- * The synthetic set that used to live here was removed with the rest of the demo data. No
- * alert feed is connected yet, so this is empty and the screen says so instead of showing
- * invented incidents with invented lessons.
+ * No alert feed is connected yet, so this stays empty and the screen says so instead of
+ * showing invented incidents.
  */
 export const SAFETY_ALERTS: SafetyAlert[] = [];
