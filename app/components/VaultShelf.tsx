@@ -119,8 +119,8 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
             <th scope="col">{T('Dept.')}</th>
             <th scope="col">{T('Sec.')}</th>
             <th scope="col">{T('Type of Doc')}</th>
-            <th scope="col">{T(text.code)}</th>
             <th scope="col">{T(text.name)}</th>
+            <th scope="col">{T(text.code)}</th>
             <th scope="col">{T('Validity Upto')}</th>
             <th scope="col">{T('Status')}</th>
             <th scope="col">{T('View')}</th>
@@ -134,10 +134,10 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
               <td data-label={T('Dept.')}>{document.department ?? '—'}</td>
               <td data-label={T('Sec.')}>{document.section ?? '—'}</td>
               <td data-label={T('Type of Doc')}>{T(DOCUMENT_TYPE_LABELS[document.documentType] ?? document.documentType)}</td>
-              <td data-label={T(text.code)} className="vault-register-code">{document.documentCode ?? '—'}</td>
               <td data-label={T(text.name)} className="vault-register-name">
                 <button type="button" onClick={() => setOpenId(document.id)}>{document.title}</button>
               </td>
+              <td data-label={T(text.code)} className="vault-register-code">{document.documentCode ?? '—'}</td>
               <td data-label={T('Validity Upto')}>{registerDate(document.validUpto)}</td>
               <td data-label={T('Status')}><span className={`vault-status ${validity.key}`}>{T(validity.label)}</span></td>
               <td data-label={T('View')} className="vault-register-actions">
@@ -153,6 +153,40 @@ export function VaultShelf({ categoryId, siteName, documents = [], onBack }: {
           })}
         </tbody>
       </table>
+      {shelf.length === 0 && <div className="vault-register-none">
+        <b>{T('No documents published yet')}</b>
+        <span>{T('Approved files will be listed here once the safety team publishes them from the admin panel.')}</span>
+        <a href="/admin/publish" target="_blank" rel="noreferrer">{T('Publish from the admin panel')}</a>
+      </div>}
+    </div>
+
+    {/* A phone cannot fit nine columns side by side, so each document is two horizontal rows:
+     * number, name and View on the first, the register columns on the second. */}
+    <div className="vault-card-list">
+      {shelf.map((document, index) => {
+        const validity = registerValidity(document.validUpto, today);
+        return <article key={document.id} className={`vault-card ${openId === document.id ? 'is-open' : ''}`}>
+          <div className="vault-card-top">
+            <span className="vault-card-index">{index + 1}</span>
+            <button className="vault-card-name" type="button" onClick={() => setOpenId(document.id)}>{document.title}</button>
+            <span className={`vault-status ${validity.key}`}>{T(validity.label)}</span>
+            <button
+              type="button"
+              className="vault-view-button"
+              aria-label={T('View {name}', { name: document.title })}
+              aria-expanded={openId === document.id}
+              onClick={() => setOpenId(document.id)}
+            ><Eye size={14} /> {T('View')}</button>
+          </div>
+          <div className="vault-card-row">
+            <div><span>{T('Dept.')}</span><b>{document.department ?? '—'}</b></div>
+            <div><span>{T('Sec.')}</span><b>{document.section ?? '—'}</b></div>
+            <div><span>{T('Type of Doc')}</span><b>{T(DOCUMENT_TYPE_LABELS[document.documentType] ?? document.documentType)}</b></div>
+            <div><span>{T(text.code)}</span><b>{document.documentCode ?? '—'}</b></div>
+            <div><span>{T('Validity Upto')}</span><b>{registerDate(document.validUpto)}</b></div>
+          </div>
+        </article>;
+      })}
       {shelf.length === 0 && <div className="vault-register-none">
         <b>{T('No documents published yet')}</b>
         <span>{T('Approved files will be listed here once the safety team publishes them from the admin panel.')}</span>

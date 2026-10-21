@@ -129,6 +129,24 @@ test('the shelf shows the register columns and opens the document in place', () 
   assert.equal(shelf.includes('demo'), false, 'the register has no sample rows');
 });
 
+test('a phone gets two horizontal rows per document, not a stacked list', () => {
+  const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
+  const css = readFileSync('app/globals.css', 'utf8');
+
+  // Row one: number, name, status, View. Row two: the register columns, side by side.
+  assert.ok(shelf.includes('vault-card-top'));
+  assert.ok(shelf.includes('vault-card-row'));
+  assert.ok(shelf.includes("T('Dept.')"));
+  assert.ok(shelf.includes("T('Sec.')"));
+  assert.ok(shelf.includes("T('Validity Upto')"));
+
+  const phone = css.slice(css.indexOf('@media (max-width: 760px) {'), css.indexOf('@media (max-width: 460px)'));
+  assert.ok(phone.includes('.vault-register-wrap { display: none; }'), 'the wide table steps aside on a phone');
+  assert.ok(phone.includes('.vault-card-list { display: grid;'));
+  assert.ok(phone.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'), 'the second row stays horizontal');
+  assert.equal(phone.includes('grid-template-columns: 92px minmax(0, 1fr)'), false, 'the old stacked field list is gone');
+});
+
 test('the register has no filter bar', () => {
   const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
   const css = readFileSync('app/globals.css', 'utf8');
