@@ -134,6 +134,17 @@ test('the SOS card is the emergency card: red header, big number, call and cance
   const helper = match[1];
   assert.ok(helper.includes("replace(/^\\+?91[\\s-]?/, '')"), 'a +91 prefix is stripped');
 
+  // The helpline belongs to Tata Steel, so the card carries that name and no tenant branding.
+  assert.ok(page.includes("T('Tata Steel Emergency Call')"));
+  assert.equal(page.includes('{company} Emergency Call'), false, 'no tenant-branded subtitle');
+  assert.equal(page.includes('sos-company">{brandCompanyName'), false);
+
+  // And it says, in English and Hindi, that the number is for emergencies only.
+  assert.ok(page.includes("T('This is the Tata Steel emergency number. Use it only in an emergency.')"));
+  assert.ok(page.includes('lang="hi"'));
+  assert.ok(page.includes('इसका उपयोग केवल आपातकालीन परिस्थिति में करें।'));
+  assert.ok(page.includes('className="sos-note"'));
+
   // The card is themed for emergencies only, so it cannot inherit a light theme by accident.
   const css = readFileSync('app/globals.css', 'utf8');
   assert.ok(css.includes('.sos-modal {'));
