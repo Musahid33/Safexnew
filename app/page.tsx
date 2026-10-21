@@ -3,12 +3,12 @@
 import {
   AlertTriangle, ArrowLeft, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3,
   ClipboardList, CloudOff, CloudUpload, Eye, FileText, FolderOpen, Globe2, Home, ImagePlus, Lightbulb, LockKeyhole, MapPin,
-  Monitor, Mic, Moon, MoreHorizontal, Palette, RefreshCw, Search, Settings2, Shield, ShieldAlert,
+  Monitor, Mic, Moon, MoreHorizontal, Palette, RefreshCw, Settings2, Shield, ShieldAlert,
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { LIFE_SAVING_RULES } from '@/lib/life-saving-rules';
-import { DEMO_REPORTS, DEMO_TENANT } from '@/lib/demo-data';
+import { DEMO_TENANT } from '@/lib/demo-data';
 import { DEMO_SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
 import LanguageStrip from './components/LanguageStrip';
@@ -19,6 +19,7 @@ import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
 import SafetyOsApp from './components/safetyos/SafetyOsApp';
 import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId } from './components/DocumentVault';
+import MyLoggedReports from './components/MyLoggedReports';
 import RewardCarousel, { type RecognitionGalleryItem } from './components/RewardCarousel';
 import type { RecognitionItem } from '@/lib/recognitions';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
@@ -145,11 +146,9 @@ export default function SafexHome() {
   const [reportPickerOpen, setReportPickerOpen] = useState(false);
   const [quickConcernChooserOpen, setQuickConcernChooserOpen] = useState(false);
   const [reportDetail, setReportDetail] = useState<SafetyReport | null>(null);
-  const [reports, setReports] = useState<SafetyReport[]>(DEMO_REPORTS);
-  const [showAllSitesOtp, setShowAllSitesOtp] = useState(false);
-  const [otpStage, setOtpStage] = useState<'details' | 'code'>('details');
-  const [otpMessage, setOtpMessage] = useState('');
-  const [otpCode, setOtpCode] = useState('');
+  // Starts empty on purpose: this list is only ever what this device actually saved. The
+  // database-side history is read back through <MyLoggedReports />.
+  const [reports, setReports] = useState<SafetyReport[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [safetyAlertsOpen, setSafetyAlertsOpen] = useState(false);
   const [safetyAlertFilter, setSafetyAlertFilter] = useState<'All' | SafetyAlertCategory>('All');
@@ -163,8 +162,6 @@ export default function SafexHome() {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installMessage, setInstallMessage] = useState<UiMessage | null>(null);
   const [toast, setToast] = useState<UiMessage | null>(null);
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'All' | ReportStatus>('All');
   const [vaultCategoryId, setVaultCategoryId] = useState<VaultCategoryId | null>(null);
   const [feedDetail, setFeedDetail] = useState<HomeFeedItem | null>(null);
   const [reportSyncEnabled, setReportSyncEnabled] = useState(false);
@@ -187,12 +184,9 @@ export default function SafexHome() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [safetyAlertFilter]);
   const currentSite = sites.find((site) => site.id === siteId) ?? null;
   const isSingleSite = sites.length === 1;
-  const activeSiteReports = useMemo(() => reports.filter((report) => report.siteId === siteId), [reports, siteId]);
-  const filteredReports = useMemo(() => activeSiteReports.filter((report) => {
-    const textMatches = `${report.id} ${report.type} ${report.category ?? ''} ${report.area} ${report.department ?? ''} ${report.shortDescription}`.toLowerCase().includes(searchText.toLowerCase());
-    const statusMatches = statusFilter === 'All' || report.status === statusFilter;
-    return textMatches && statusMatches;
-  }), [activeSiteReports, searchText, statusFilter]);
+  // Everything in this list came from this browser: an offline submission still waiting to
+  // sync, or one it filed earlier in this visit. The database history is a separate read.
+  const deviceReports = useMemo(() => reports.filter((report) => report.siteId === siteId), [reports, siteId]);
 
   async function refreshOutboxState() {
     const entries = await listQueuedReports();
@@ -599,27 +593,10 @@ export default function SafexHome() {
     setInstallMessage({ key: 'No one-tap install prompt is available here. Use the browser menu → Install app / Add to Home Screen. On iPhone, use Share → Add to Home Screen.' });
   }
 
-  function requestOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setOtpCode('');
-    setOtpStage('code');
-    setOtpMessage('Demo only: no OTP was sent. Connect phone verification to the registered employee record before enabling All Site Reports.');
-  }
-
-  function verifyOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setOtpMessage('OTP verification is not connected. All Site Reports remain locked until the registered-phone OTP service is configured.');
-  }
-
   function setPref(key: keyof typeof pushPrefs) {
     setPushPrefs((prefs) => ({ ...prefs, [key]: !prefs[key] }));
   }
 
-  const statusCounts = {
-    Open: activeSiteReports.filter((item) => item.status === 'Open').length,
-    'In Progress': activeSiteReports.filter((item) => item.status === 'In Progress').length,
-    Closed: activeSiteReports.filter((item) => item.status === 'Closed').length
-  };
   const nextEventDate = nextUpcomingEvent ? new Date(nextUpcomingEvent.date) : null;
   const nextEventDay = nextEventDate ? new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE, day: '2-digit' }).format(nextEventDate) : '';
   const nextEventMonth = nextEventDate ? new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE, month: 'short' }).format(nextEventDate).replace('.', '').toLocaleUpperCase(locale) : '';
@@ -811,12 +788,13 @@ export default function SafexHome() {
         </>}
 
         {page === 'reports' && <section className="page-panel">
-          <div className="page-heading"><div><span className="eyebrow">{currentSite?.name ?? T('SITE')}</span><h1>{T('reportsTitle')}</h1><p>{T('My Site Reports follows the site selected when the app opened. No Employee No. lookup is needed.')}</p></div><button className="secondary-button" onClick={() => !isSingleSite && openSitePicker('reports')}>{T('changeSite')}</button></div>
-          <div className="report-scope-grid"><button className="scope-card selected" onClick={() => setStatusFilter('All')}><span className="scope-icon"><ClipboardList /></span><b>{T('mySiteReports')}</b><small>{currentSite?.name ?? T('Choose a site')} · {T('Site-filtered')}</small></button><button className="scope-card" onClick={() => { setShowAllSitesOtp(true); setOtpMessage(''); setOtpStage('details'); }}><span className="scope-icon locked"><LockKeyhole /></span><b>{T('allSiteReports')}</b><small>{T('Employee ID + registered mobile + OTP')}</small></button></div>
-          <div className="stat-row"><div className="stat-card"><b>{activeSiteReports.length}</b><span>{T('Total')}</span></div><div className="stat-card"><b>{statusCounts.Open}</b><span>{T('Open')}</span></div><div className="stat-card"><b>{statusCounts['In Progress']}</b><span>{T('In progress')}</span></div><div className="stat-card"><b>{statusCounts.Closed}</b><span>{T('Closed')}</span></div></div>
-          <div className="list-toolbar"><div className="search-box"><Search size={17} /><input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder={T('Search report ID, type or area')} /></div><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'All' | ReportStatus)} aria-label={T('Filter by status')}><option value="All">{T('All statuses')}</option><option value="Open">{T('Open')}</option><option value="In Progress">{T('In Progress')}</option><option value="Closed">{T('Closed')}</option></select></div>
-          <div className="report-list">{filteredReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((s) => s.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{filteredReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('No reports found')}</b><span>{T('Try another filter or report a safety concern.')}</span></div>}</div>
-          <div className="privacy-note"><LockKeyhole size={15} /> {T('Demo summaries mask reporter IDs. Production access and attachments must be enforced server-side.')}</div>
+          <div className="page-heading"><div><span className="eyebrow">{currentSite?.name ?? T('SITE')}</span><h1>{T('reportsTitle')}</h1><p>{T('Enter your Employee ID and the mobile number registered with it to read back the reports you submitted.')}</p></div><button className="secondary-button" onClick={() => !isSingleSite && openSitePicker('reports')}>{T('changeSite')}</button></div>
+          <MyLoggedReports siteName={currentSite?.name} />
+          <section className="section-block device-reports">
+            <div className="section-heading"><div><span className="eyebrow">{T('THIS DEVICE')}</span><h2>{T('Saved on this device')}</h2></div></div>
+            <p className="home-demo-caption">{T('Reports filed here while offline stay in this list until they sync. Everything shown is a real submission — no sample data.')}</p>
+            <div className="report-list">{deviceReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((site) => site.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{deviceReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('No reports saved on this device')}</b><span>{T('Submit a report and it will appear here until it reaches the database.')}</span></div>}</div>
+          </section>
         </section>}
 
         {page === 'alerts' && <FeedArchivePage kind="notices" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
@@ -948,7 +926,6 @@ export default function SafexHome() {
       {officerAccessOpen && <OfficerAccessDialog onClose={() => setOfficerAccessOpen(false)} onDemoLogin={completeDemoAdminLogin} />}
       {moreInfoKind && <MoreInfoDialog kind={moreInfoKind} company={DEMO_TENANT} onClose={() => setMoreInfoKind(null)} onLogin={() => { setMoreInfoKind(null); setOfficerAccessOpen(true); }} />}
 
-      {showAllSitesOtp && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="otp-title"><div className="modal otp-modal"><div className="modal-header"><div><span className="eyebrow">{T('CROSS-SITE ACCESS')}</span><h2 id="otp-title">{T('allSiteReports')}</h2></div><button className="close-button" onClick={() => setShowAllSitesOtp(false)} aria-label={T('Close')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="modal-language-strip" /><p>{T('Verify your Employee ID and the mobile number registered in the employee master. Only redacted reports from your vendor tenant may be shown after OTP verification.')}</p>{otpStage === 'details' ? <form onSubmit={requestOtp}><label className="field-label" htmlFor="otp-emp">{T('Employee ID')}</label><input id="otp-emp" className="form-control" placeholder={T('Your Employee ID')} autoComplete="off" required /><label className="field-label" htmlFor="otp-phone">{T('Registered mobile number')}</label><input id="otp-phone" className="form-control" type="tel" inputMode="tel" placeholder={T('+91…')} minLength={10} maxLength={18} required /><button className="primary-button full-button" type="submit">{T('Send OTP')}</button></form> : <><div className="otp-message-preview"><LockKeyhole size={17} /><span>{T('Six-digit verification step · no real code is sent in demo mode.')}</span></div><form onSubmit={verifyOtp}><label className="field-label" htmlFor="otp-code">{T('Six-digit OTP')}</label><input id="otp-code" className="form-control otp-code-input" value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/[^0-9]/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="••••••" required /><button className="primary-button full-button" type="submit">{T('Verify OTP')}</button><button className="text-button otp-back-button" type="button" onClick={() => { setOtpStage('details'); setOtpMessage(''); }}>{T('Back to Employee ID and mobile')}</button></form></>}{otpMessage && <div className="inline-notice warning" role="status">{T(otpMessage)}</div>}<div className="modal-footnote"><LockKeyhole size={14} /> {T('All-site access stays locked until registered-phone OTP, tenant scope and redaction are enforced by the server.')}</div></div></div>}
 
       {notificationsOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="notification-title"><div className="modal settings-modal"><div className="modal-header"><div><span className="eyebrow">{T('DEVICE SETTINGS')}</span><h2 id="notification-title">{T('Push notifications')}</h2></div><button className="close-button" onClick={() => setNotificationsOpen(false)} aria-label={T('Close')}><X /></button></div><p>{T('Choose which published updates reach this device. Avoid sending every draft or internal edit.')}</p><div className="notification-status"><Bell size={17} /><span>{T('Browser permission:')} <b>{T(notificationPermission)}</b></span></div><Preference label="Safety Alerts and urgent notices" detail="New published safety alerts" checked={pushPrefs.safety} onChange={() => setPref('safety')} /><Preference label="Circulars and published updates" detail="Notices, events and training" checked={pushPrefs.notices} onChange={() => setPref('notices')} /><Preference label="My report status" detail="Updates only for your reports" checked={pushPrefs.ownReports} onChange={() => setPref('ownReports')} /><Preference label="All vendor-site updates" detail="Opt in for this vendor only" checked={pushPrefs.allVendorSites} onChange={() => setPref('allVendorSites')} /><Preference label="Hide details on lock screen" detail="Recommended for privacy" checked={pushPrefs.hideLockScreen} onChange={() => setPref('hideLockScreen')} /><button className="primary-button full-button" onClick={requestPushPermission}>{T('Allow notifications on this device')}</button><div className="modal-footnote">{T('Production push still requires a service worker subscription and server-side VAPID sender.')}</div></div></div>}
 
