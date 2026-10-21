@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen, ChevronRight, ExternalLink, FileText, LockKeyhole, Scale, ShieldAlert, X, ScrollText, type LucideIcon } from 'lucide-react';
+import { BookOpen, ChevronRight, ExternalLink, FileText, Scale, ShieldAlert, X, ScrollText, type LucideIcon } from 'lucide-react';
 import { LANGUAGE_LOCALE } from '@/lib/i18n';
 import { APP_TIME_ZONE } from '@/lib/home-content';
 import { DOCUMENT_TYPE_LABELS, VAULT_CATEGORIES, type DocumentType } from '@/lib/content/catalog';
@@ -107,7 +107,6 @@ export function VaultCategoryDialog({ categoryId, siteName, documents = [], onCl
           </article>;
         })}
       </div>
-      <div className="modal-footnote"><LockKeyhole size={14} /> {T('Only published files are listed. Nothing here is a sample entry.')}</div>
     </div>
   </div>;
 }

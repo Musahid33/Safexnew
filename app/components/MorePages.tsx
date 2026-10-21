@@ -155,7 +155,6 @@ export function CompanyAboutPage({ company, onBack }: { company: TenantBranding;
         <CompanyDetail icon={Phone} label="Support phone" value={company.supportMobile} href={phoneHref(company.supportMobile)} />
       </div>
     </div>
-    <div className="more-demo-note"><Info size={15} /> {T('Blank company fields are shown as not configured; no contact information is guessed.')}</div>
   </section>;
 }
 
@@ -178,7 +177,6 @@ export function AccountManagementPage({ onBack, onLogin, onOpenInfo }: {
       <MoreOptionCard icon={KeyRound} tone="company" title="Change Password" description="Password changes require a connected account" onClick={() => onOpenInfo('change-password')} />
       <MoreOptionCard icon={Palette} tone="appearance" title="Account Settings" description="Review account-specific settings and preferences" onClick={() => onOpenInfo('account-settings')} />
     </div>
-    <div className="more-demo-note"><Info size={15} /> {T('Account login is verified by the Safex server; password reset and Supabase authentication are not connected.')}</div>
   </section>;
 }
 
@@ -276,7 +274,6 @@ export function MoreInfoDialog({ kind, company, onClose, onLogin }: {
       </div> : <div className="more-info-unconfigured">{T('Support email and phone have not been configured by Admin.')}</div>}</div>}
       {kind === 'change-password' && <div className="more-info-copy"><p>{T('Password changes are unavailable because account authentication is not connected. No password was changed.')}</p><p>{T('Once account authentication is configured, use the verified account flow to change or recover a password.')}</p><button type="button" className="primary-button full-button more-info-primary" onClick={onLogin}><LogIn size={16} /> {T('Open Account Login')}</button></div>}
       {kind === 'account-settings' && <div className="more-info-copy"><p>{T('There is no signed-in account, so account-specific settings are unavailable.')}</p><p>{T('Appearance and notification preferences remain available locally. Secure account preferences require an authenticated server session.')}</p></div>}
-      <div className="modal-footnote"><Info size={14} /> {T('Missing company policy and support details are not replaced with guessed content.')}</div>
     </div>
   </div>;
 }

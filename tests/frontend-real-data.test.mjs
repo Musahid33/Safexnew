@@ -109,6 +109,38 @@ test('the document vault lists no sample files', () => {
   assert.equal(source.includes("updated: '2026-"), false);
 });
 
+test('worker screens carry no implementation footnotes', () => {
+  // These lines described the plumbing (this browser, sync, a server that is not configured,
+  // demo content) instead of helping the worker. They were removed on request and must not
+  // come back.
+  const files = [
+    'app/page.tsx',
+    'app/components/ReportWorkflow.tsx',
+    'app/components/DocumentVault.tsx',
+    'app/components/TrainingPortal.tsx',
+    'app/components/MorePages.tsx',
+    'app/components/OfficerAccessDialog.tsx'
+  ];
+  const banned = [
+    'Pending report details',
+    'Saved on this device first',
+    'not a sample entry',
+    'Preferences save on this device',
+    'Production push still requires',
+    'Blank company fields are shown',
+    'Account login is verified by the Safex server',
+    'Missing company policy and support details',
+    'Password reset and live Supabase authentication',
+    'training catalog and training records are not connected'
+  ];
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8');
+    for (const line of banned) {
+      assert.equal(source.includes(line), false, `${file} must not show "${line}"`);
+    }
+  }
+});
+
 test('the SOS card is the emergency card: red header, big number, call and cancel', () => {
   const page = readFileSync('app/page.tsx', 'utf8');
 

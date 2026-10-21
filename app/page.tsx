@@ -135,7 +135,6 @@ export default function SafexHome() {
   const [toast, setToast] = useState<UiMessage | null>(null);
   const [vaultCategoryId, setVaultCategoryId] = useState<VaultCategoryId | null>(null);
   const [feedDetail, setFeedDetail] = useState<HomeFeedItem | null>(null);
-  const [reportSyncEnabled, setReportSyncEnabled] = useState(false);
   const outboxSyncLock = useRef(false);
   const outboxSyncAgain = useRef(false);
   const languageMenuRef = useRef<HTMLDivElement>(null);
@@ -279,16 +278,6 @@ export default function SafexHome() {
   useEffect(() => {
     if (degraded) setToast({ key: 'The employee master is unavailable. No sample employees are shown. Please try again later.' });
   }, [degraded]);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/api/health', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).then((health) => {
-      if (active) setReportSyncEnabled(Boolean(health?.reportSubmissionEnabled));
-    }).catch(() => {
-      if (active) setReportSyncEnabled(false);
-    });
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -505,7 +494,7 @@ export default function SafexHome() {
   const siteSelectionDialog = siteReady && siteDialog ? (
     <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{brandCompanyName.trim().charAt(0) || 'S'}</span><span><b>{brandCompanyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p>{sites.length === 0
               ? <div className="inline-notice warning">{T('No site is configured for this deployment yet. Ask the Admin to verify the site and reload.')}</div>
-              : <><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button></>}<div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>
+              : <><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button></>}</div></div>
   ) : null;
 
   // The Admin / HSE Manager dashboard is the uploaded SafetyOS console itself. It is
@@ -697,7 +686,6 @@ export default function SafexHome() {
         {page === 'library' && <section className="page-panel document-vault-page">
           <div className="page-heading"><div><span className="eyebrow">{T('DOCUMENTS')} · {currentSite?.name ?? T('SELECTED SITE')}</span><h1>{T('Document Vault / Library')}</h1><p>{T('Browse site safety procedures, risk assessments, compliance indexes, policies and meeting minutes.')}</p></div><FolderOpen size={28} /></div>
           <DocumentVaultGrid onSelect={setVaultCategoryId} documents={vaultDocuments} />
-          <div className="privacy-note"><LockKeyhole size={15} /> {T('Only published files are listed. Nothing here is a sample entry.')}</div>
         </section>}
 
         {page === 'more' && <MoreMenuPage
@@ -717,7 +705,6 @@ export default function SafexHome() {
             ['safex', 'Safex', '#0f2540', '#f5a623'], ['ocean', 'Ocean', '#123b5d', '#31b7c7'], ['forest', 'Forest', '#164b3a', '#70b77e'], ['contrast', 'High contrast', '#101820', '#ffd400']
           ] as [PaletteName, string, string, string][]).map(([id, name, primary, accent]) => <button key={id} className={`palette-choice ${palette === id ? 'selected' : ''}`} onClick={() => setPalette(id)}><span className="swatch-pair"><i style={{ background: primary }} /><i style={{ background: accent }} /></span><b>{T(name)}</b>{palette === id && <Check size={15} />}</button>)}</div></div>
           <div className="preview-card"><div className="preview-header"><span className="preview-logo">S</span><b>Safex · {currentSite?.name ?? T('Site')}</b><span className="preview-sos">SOS</span></div><div className="preview-body"><span>{T('Home')}</span><span>{T('Report')}</span><span>{T('Safety Alerts')}</span></div></div>
-          <div className="privacy-note"><Check size={15} /> {T('Preferences save on this device. SOS and report-status colours keep their safety meaning.')}</div>
         </section>}
 
         {page === 'install' && <InstallAppPage company={company} canInstall={Boolean(installPrompt)} installMessage={installMessage} onInstall={installApp} onBack={() => setPage('more')} />}
@@ -809,13 +796,13 @@ export default function SafexHome() {
         </div>
       </div>}
 
-      {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} directory={directory} language={language} onLanguageChange={setLanguage} voiceEnabled={APP_FEATURES.voiceReporting} syncEnabled={reportSyncEnabled} onClose={() => setReportType(null)} onSubmit={submitReport} />}
+      {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} directory={directory} language={language} onLanguageChange={setLanguage} voiceEnabled={APP_FEATURES.voiceReporting} onClose={() => setReportType(null)} onSubmit={submitReport} />}
       {profileSearchOpen && <ProfileSearchDialog site={currentSite} companyName={companyName} directory={directory} directoryMode={directoryMode} directoryReason={directoryReason} employeeCount={employeeCount} onClose={() => setProfileSearchOpen(false)} />}
       {officerAccessOpen && <OfficerAccessDialog onClose={() => setOfficerAccessOpen(false)} onSignedIn={completeAdminSignIn} />}
       {moreInfoKind && <MoreInfoDialog kind={moreInfoKind} company={company} onClose={() => setMoreInfoKind(null)} onLogin={() => { setMoreInfoKind(null); setOfficerAccessOpen(true); }} />}
 
 
-      {notificationsOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="notification-title"><div className="modal settings-modal"><div className="modal-header"><div><span className="eyebrow">{T('DEVICE SETTINGS')}</span><h2 id="notification-title">{T('Push notifications')}</h2></div><button className="close-button" onClick={() => setNotificationsOpen(false)} aria-label={T('Close')}><X /></button></div><p>{T('Choose which published updates reach this device. Avoid sending every draft or internal edit.')}</p><div className="notification-status"><Bell size={17} /><span>{T('Browser permission:')} <b>{T(notificationPermission)}</b></span></div><Preference label="Safety Alerts and urgent notices" detail="New published safety alerts" checked={pushPrefs.safety} onChange={() => setPref('safety')} /><Preference label="Circulars and published updates" detail="Notices, events and training" checked={pushPrefs.notices} onChange={() => setPref('notices')} /><Preference label="My report status" detail="Updates only for your reports" checked={pushPrefs.ownReports} onChange={() => setPref('ownReports')} /><Preference label="All vendor-site updates" detail="Opt in for this vendor only" checked={pushPrefs.allVendorSites} onChange={() => setPref('allVendorSites')} /><Preference label="Hide details on lock screen" detail="Recommended for privacy" checked={pushPrefs.hideLockScreen} onChange={() => setPref('hideLockScreen')} /><button className="primary-button full-button" onClick={requestPushPermission}>{T('Allow notifications on this device')}</button><div className="modal-footnote">{T('Production push still requires a service worker subscription and server-side VAPID sender.')}</div></div></div>}
+      {notificationsOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="notification-title"><div className="modal settings-modal"><div className="modal-header"><div><span className="eyebrow">{T('DEVICE SETTINGS')}</span><h2 id="notification-title">{T('Push notifications')}</h2></div><button className="close-button" onClick={() => setNotificationsOpen(false)} aria-label={T('Close')}><X /></button></div><p>{T('Choose which published updates reach this device. Avoid sending every draft or internal edit.')}</p><div className="notification-status"><Bell size={17} /><span>{T('Browser permission:')} <b>{T(notificationPermission)}</b></span></div><Preference label="Safety Alerts and urgent notices" detail="New published safety alerts" checked={pushPrefs.safety} onChange={() => setPref('safety')} /><Preference label="Circulars and published updates" detail="Notices, events and training" checked={pushPrefs.notices} onChange={() => setPref('notices')} /><Preference label="My report status" detail="Updates only for your reports" checked={pushPrefs.ownReports} onChange={() => setPref('ownReports')} /><Preference label="All vendor-site updates" detail="Opt in for this vendor only" checked={pushPrefs.allVendorSites} onChange={() => setPref('allVendorSites')} /><Preference label="Hide details on lock screen" detail="Recommended for privacy" checked={pushPrefs.hideLockScreen} onChange={() => setPref('hideLockScreen')} /><button className="primary-button full-button" onClick={requestPushPermission}>{T('Allow notifications on this device')}</button></div></div>}
 
       {sosOpen && <div
         className="overlay sos-overlay"
