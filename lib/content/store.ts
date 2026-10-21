@@ -98,10 +98,15 @@ export type DocumentRow = {
   document_code: string | null;
   document_type: string;
   revision: string | null;
+  department?: string | null;
+  section?: string | null;
   effective_date: string | null;
+  /** The register's "Valid Upto". */
+  review_due_date?: string | null;
   status: string;
   storage_path?: string | null;
   original_filename?: string | null;
+  mime_type?: string | null;
   external_url?: string | null;
   sort_order?: number | null;
   published_at: string | null;
@@ -146,6 +151,22 @@ function hasFile(row: { storage_path?: string | null; attachment_path?: string |
   return Boolean(row.storage_path || row.attachment_path || row.external_url);
 }
 
+/** The bucket stores the uploaded MIME type; older rows only have the file name to go on. */
+const MIME_BY_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp'
+};
+
+export function documentMimeType(row: { mime_type?: string | null; original_filename?: string | null }): string | null {
+  if (row.mime_type) return row.mime_type;
+  const name = row.original_filename ?? '';
+  const extension = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+  return MIME_BY_EXTENSION[extension] ?? null;
+}
+
 export function mapPublishedDocument(row: DocumentRow, category: VaultCategoryKey | null): PublishedDocument | null {
   if (!category) return null;
   return {
@@ -156,10 +177,15 @@ export function mapPublishedDocument(row: DocumentRow, category: VaultCategoryKe
     documentCode: row.document_code,
     documentType: (row.document_type ?? 'document') as DocumentType,
     revision: row.revision,
+    department: row.department ?? null,
+    section: row.section ?? null,
     effectiveDate: row.effective_date,
+    validUpto: row.review_due_date ?? null,
     publishedAt: row.published_at,
     fileUrl: hasFile(row) ? contentFileUrl('document', row.id) : null,
-    fileName: row.original_filename ?? null
+    fileName: row.original_filename ?? null,
+    mimeType: documentMimeType(row),
+    external: Boolean(row.external_url && !row.storage_path)
   };
 }
 
@@ -228,7 +254,7 @@ function optionalColumnsError(error: { code?: string; message?: string } | null 
 }
 
 async function selectDocuments(store: ContentStore, siteId: string, publishedOnly: boolean) {
-  const base = 'id, category_id, title, summary, document_code, document_type, revision, effective_date, status, storage_path, original_filename, sort_order, published_at, updated_at';
+  const base = 'id, category_id, title, summary, document_code, document_type, revision, effective_date, review_due_date, mime_type, status, storage_path, original_filename, sort_order, published_at, updated_at';
   const run = async (columns: string) => {
     let request = store.admin.from('documents').select(columns)
       .eq('company_id', store.tenantId).eq('location_id', siteId);
@@ -238,9 +264,19 @@ async function selectDocuments(store: ContentStore, siteId: string, publishedOnl
       .order('published_at', { ascending: false })
       .limit(MAX_DOCUMENTS));
   };
-  const first = await run(`${base}, external_url`);
-  if (first && optionalColumnsError(first.error)) return run(base);
-  return first;
+  // Newest register columns first; each step drops a layer so a deployment one migration
+  // behind still lists its documents instead of answering with an empty shelf.
+  const tiers = [
+    `${base}, external_url, department, section`,
+    `${base}, external_url`,
+    base
+  ];
+  let result = await run(tiers[0]);
+  for (const columns of tiers.slice(1)) {
+    if (!result || !optionalColumnsError(result.error)) break;
+    result = await run(columns);
+  }
+  return result;
 }
 
 async function selectAnnouncements(store: ContentStore, siteId: string, publishedOnly: boolean) {
@@ -327,10 +363,80 @@ export async function readPublishedContent(siteRef: string): Promise<PublishedCo
  * ------------------------------------------------------------------------------------------ */
 
 /** A freshly signed private URL, or null when the object cannot be reached. */
-export async function signContentPath(store: ContentStore, path: string): Promise<string | null> {
-  const result = await withTimeout(store.admin.storage.from(CONTENT_BUCKET).createSignedUrl(path, 120));
+export async function signContentPath(
+  store: ContentStore,
+  path: string,
+  download?: string | boolean
+): Promise<string | null> {
+  const result = await withTimeout(store.admin.storage.from(CONTENT_BUCKET)
+    .createSignedUrl(path, 120, download ? { download } : undefined));
   if (!result || result.error || !result.data?.signedUrl) return null;
   return result.data.signedUrl;
+}
+
+/**
+ * What a published file row resolves to.
+ *
+ * `url` is a two-minute signed storage URL or the row's external https link. `storagePath` is
+ * only set for an uploaded file — the route uses it to decide whether it can stream the bytes
+ * for the in-app viewer instead of redirecting.
+ */
+export type PublishedFileAsset = {
+  url: string;
+  storagePath: string | null;
+  mimeType: string | null;
+  fileName: string | null;
+  external: boolean;
+};
+
+export async function resolvePublishedFileAsset(
+  kind: 'document' | 'announcement',
+  id: string,
+  options: { download?: boolean } = {}
+): Promise<PublishedFileAsset | null> {
+  const store = await contentStore();
+  if (!store) return null;
+
+  if (kind === 'document') {
+    const result = await withTimeout(store.admin.from('documents')
+      .select('status, storage_path, external_url, original_filename, mime_type')
+      .eq('id', id).eq('company_id', store.tenantId).maybeSingle());
+    if (!result || result.error || !result.data) return null;
+    const row = result.data as {
+      status: string; storage_path: string | null; external_url?: string | null;
+      original_filename?: string | null; mime_type?: string | null;
+    };
+    if (row.status !== 'published') return null;
+    if (row.storage_path) {
+      const url = await signContentPath(store, row.storage_path, options.download ? row.original_filename ?? true : undefined);
+      if (!url) return null;
+      return {
+        url,
+        storagePath: row.storage_path,
+        mimeType: documentMimeType(row),
+        fileName: row.original_filename ?? null,
+        external: false
+      };
+    }
+    return row.external_url
+      ? { url: row.external_url, storagePath: null, mimeType: null, fileName: null, external: true }
+      : null;
+  }
+
+  const result = await withTimeout(store.admin.from('site_announcements')
+    .select('status, attachment_path, external_url, expires_at')
+    .eq('id', id).eq('company_id', store.tenantId).maybeSingle());
+  if (!result || result.error || !result.data) return null;
+  const row = result.data as { status: string; attachment_path: string | null; external_url?: string | null; expires_at: string | null };
+  if (!isLiveAnnouncement({ status: row.status, expires_at: row.expires_at } as AnnouncementRow)) return null;
+  if (row.attachment_path) {
+    const url = await signContentPath(store, row.attachment_path, options.download ? true : undefined);
+    if (!url) return null;
+    return { url, storagePath: row.attachment_path, mimeType: null, fileName: null, external: false };
+  }
+  return row.external_url
+    ? { url: row.external_url, storagePath: null, mimeType: null, fileName: null, external: true }
+    : null;
 }
 
 /**
@@ -344,28 +450,8 @@ export async function resolvePublishedFile(
   kind: 'document' | 'announcement',
   id: string
 ): Promise<string | null> {
-  const store = await contentStore();
-  if (!store) return null;
-
-  if (kind === 'document') {
-    const result = await withTimeout(store.admin.from('documents')
-      .select('status, storage_path, external_url')
-      .eq('id', id).eq('company_id', store.tenantId).maybeSingle());
-    if (!result || result.error || !result.data) return null;
-    const row = result.data as { status: string; storage_path: string | null; external_url?: string | null };
-    if (row.status !== 'published') return null;
-    if (row.storage_path) return signContentPath(store, row.storage_path);
-    return row.external_url ?? null;
-  }
-
-  const result = await withTimeout(store.admin.from('site_announcements')
-    .select('status, attachment_path, external_url, expires_at')
-    .eq('id', id).eq('company_id', store.tenantId).maybeSingle());
-  if (!result || result.error || !result.data) return null;
-  const row = result.data as { status: string; attachment_path: string | null; external_url?: string | null; expires_at: string | null };
-  if (!isLiveAnnouncement({ status: row.status, expires_at: row.expires_at } as AnnouncementRow)) return null;
-  if (row.attachment_path) return signContentPath(store, row.attachment_path);
-  return row.external_url ?? null;
+  const asset = await resolvePublishedFileAsset(kind, id);
+  return asset?.url ?? null;
 }
 
 /* --------------------------------------------------------------------------------------------
@@ -436,7 +522,10 @@ export async function readAdminContent(siteId: string): Promise<{ store: Content
         documentCode: row.document_code,
         documentType: (row.document_type ?? 'document') as DocumentType,
         revision: row.revision,
+        department: row.department ?? null,
+        section: row.section ?? null,
         effectiveDate: row.effective_date,
+        validUpto: row.review_due_date ?? null,
         status: (row.status ?? 'draft') as ContentStatus,
         publishedAt: row.published_at,
         fileName: row.original_filename ?? null,

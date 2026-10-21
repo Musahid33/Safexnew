@@ -6,7 +6,7 @@ import {
   Monitor, Mic, Moon, MoreHorizontal, Palette, PhoneCall, Settings2, Shield, ShieldAlert,
   Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { LIFE_SAVING_RULES } from '@/lib/life-saving-rules';
 import { SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { APP_FEATURES, brandingFor } from '@/lib/app-config';
@@ -20,7 +20,8 @@ import TrainingPortal from './components/TrainingPortal';
 import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
 import SafetyOsApp from './components/safetyos/SafetyOsApp';
-import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId, type VaultDocument } from './components/DocumentVault';
+import { DocumentVaultGrid, type VaultCategoryId, type VaultDocument } from './components/DocumentVault';
+import { VaultShelf } from './components/VaultShelf';
 import LoggedReports, { invalidateLoggedReports } from './components/LoggedReports';
 import RewardCarousel, { type RecognitionGalleryItem } from './components/RewardCarousel';
 import type { RecognitionItem } from '@/lib/recognitions';
@@ -134,6 +135,12 @@ export default function SafexHome() {
   const [installMessage, setInstallMessage] = useState<UiMessage | null>(null);
   const [toast, setToast] = useState<UiMessage | null>(null);
   const [vaultCategoryId, setVaultCategoryId] = useState<VaultCategoryId | null>(null);
+
+  /** A shelf opens as its own register screen inside the library page. */
+  const openVaultShelf = useCallback((category: VaultCategoryId) => {
+    setVaultCategoryId(category);
+    setPage('library');
+  }, []);
   const [feedDetail, setFeedDetail] = useState<HomeFeedItem | null>(null);
   const outboxSyncLock = useRef(false);
   const outboxSyncAgain = useRef(false);
@@ -662,7 +669,7 @@ export default function SafexHome() {
           </section>
           {APP_FEATURES.library && <section className="section-block document-vault-section">
             <div className="section-heading vault-section-heading"><div className="vault-section-title"><span className="vault-title-icon"><FolderOpen size={23} /></span><div className="vault-section-heading-copy"><h2>{T('Document Vault / Library')}</h2></div></div></div>
-            <DocumentVaultGrid onSelect={setVaultCategoryId} documents={vaultDocuments} />
+            <DocumentVaultGrid onSelect={openVaultShelf} documents={vaultDocuments} />
             <p className="home-demo-caption">{T('Site document categories. Only files published by the safety team are listed.')}</p>
           </section>}
           {APP_FEATURES.rewardWall && <section className="section-block reward-wall-section">
@@ -683,10 +690,17 @@ export default function SafexHome() {
 
         {page === 'training' && <TrainingPortal site={currentSite} directory={directory} />}
 
-        {page === 'library' && <section className="page-panel document-vault-page">
-          <div className="page-heading"><div><span className="eyebrow">{T('DOCUMENTS')} · {currentSite?.name ?? T('SELECTED SITE')}</span><h1>{T('Document Vault / Library')}</h1><p>{T('Browse site safety procedures, risk assessments, compliance indexes, policies and meeting minutes.')}</p></div><FolderOpen size={28} /></div>
-          <DocumentVaultGrid onSelect={setVaultCategoryId} documents={vaultDocuments} />
-        </section>}
+        {page === 'library' && (vaultCategoryId
+          ? <VaultShelf
+            categoryId={vaultCategoryId}
+            siteName={currentSite?.name ?? T('Selected site')}
+            documents={vaultDocuments}
+            onBack={() => setVaultCategoryId(null)}
+          />
+          : <section className="page-panel document-vault-page">
+            <div className="page-heading"><div><span className="eyebrow">{T('DOCUMENTS')} · {currentSite?.name ?? T('SELECTED SITE')}</span><h1>{T('Document Vault / Library')}</h1><p>{T('Browse site safety procedures, risk assessments, compliance indexes, policies and meeting minutes.')}</p></div><FolderOpen size={28} /></div>
+            <DocumentVaultGrid onSelect={openVaultShelf} documents={vaultDocuments} />
+          </section>)}
 
         {page === 'more' && <MoreMenuPage
           title={T('more')}
@@ -834,7 +848,6 @@ export default function SafexHome() {
         </div>
       </div>}
 
-      {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} documents={vaultDocuments} onClose={() => setVaultCategoryId(null)} />}
       {feedDetail && <HomeFeedDetailDialog item={feedDetail} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setFeedDetail(null)} />}
 
       {toast && <div className="toast" role="status">{T(toast.key, { ...toast.params, ...(toast.report ? { report: toast.report.category ? `${T(toast.report.type)} · ${T(toast.report.category)}` : T(toast.report.type) } : {}) })}</div>}

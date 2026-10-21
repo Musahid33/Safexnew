@@ -35,7 +35,11 @@ type DocumentDraft = {
   documentCode: string;
   documentType: DocumentType;
   revision: string;
+  department: string;
+  section: string;
   effectiveDate: string;
+  /** The register's "Valid Upto" — `documents.review_due_date`. */
+  validUpto: string;
   status: 'draft' | 'published' | 'archived';
   sortOrder: number;
   filePath: string | null;
@@ -48,7 +52,7 @@ type DocumentDraft = {
 function blankDocument(): DocumentDraft {
   return {
     category: 'sop-swp', title: '', summary: '', documentCode: '', documentType: 'sop',
-    revision: '', effectiveDate: '', status: 'draft', sortOrder: 0,
+    revision: '', department: '', section: '', effectiveDate: '', validUpto: '', status: 'draft', sortOrder: 0,
     filePath: null, fileName: null, externalUrl: '', keepFile: false
   };
 }
@@ -233,7 +237,10 @@ export default function PublishPanel() {
       documentCode: docDraft.documentCode,
       documentType: docDraft.documentType,
       revision: docDraft.revision,
+      department: docDraft.department,
+      section: docDraft.section,
       effectiveDate: docDraft.effectiveDate || null,
+      validUpto: docDraft.validUpto || null,
       status: docDraft.status,
       sortOrder: docDraft.sortOrder,
       // Absent file fields tell the server to keep whatever is stored.
@@ -314,7 +321,10 @@ export default function PublishPanel() {
       documentCode: row.documentCode ?? '',
       documentType: row.documentType,
       revision: row.revision ?? '',
+      department: row.department ?? '',
+      section: row.section ?? '',
       effectiveDate: today(row.effectiveDate),
+      validUpto: today(row.validUpto),
       status: row.status,
       sortOrder: row.sortOrder,
       // The stored path is not exposed; `keepFile` keeps the attachment as it is.
@@ -365,7 +375,8 @@ export default function PublishPanel() {
     const ok = await send('PUT', {
       kind: 'document', id: row.id, category: row.category, title: row.title,
       summary: row.summary, documentCode: row.documentCode, documentType: row.documentType,
-      revision: row.revision, effectiveDate: row.effectiveDate, status, sortOrder: row.sortOrder
+      revision: row.revision, department: row.department, section: row.section,
+      effectiveDate: row.effectiveDate, validUpto: row.validUpto, status, sortOrder: row.sortOrder
     });
     if (ok) setMessage(status === 'published' ? 'Document published.' : 'Document moved back to draft.');
   }
@@ -468,11 +479,20 @@ export default function PublishPanel() {
           </label>
 
           <div className="content-admin-pair">
+            <label>Department
+              <input maxLength={80} placeholder="Mechanical" value={docDraft.department} onChange={(event) => setDocDraft({ ...docDraft, department: event.target.value })} />
+            </label>
+            <label>Section
+              <input maxLength={80} placeholder="Workshop" value={docDraft.section} onChange={(event) => setDocDraft({ ...docDraft, section: event.target.value })} />
+            </label>
+          </div>
+
+          <div className="content-admin-pair">
             <label>Document number
-              <input maxLength={40} value={docDraft.documentCode} onChange={(event) => setDocDraft({ ...docDraft, documentCode: event.target.value })} />
+              <input maxLength={40} placeholder="SOP-MECH-001" value={docDraft.documentCode} onChange={(event) => setDocDraft({ ...docDraft, documentCode: event.target.value })} />
             </label>
             <label>Revision
-              <input maxLength={40} value={docDraft.revision} onChange={(event) => setDocDraft({ ...docDraft, revision: event.target.value })} />
+              <input maxLength={40} placeholder="Rev-01" value={docDraft.revision} onChange={(event) => setDocDraft({ ...docDraft, revision: event.target.value })} />
             </label>
           </div>
 
@@ -484,10 +504,14 @@ export default function PublishPanel() {
             <label>Effective date
               <input type="date" value={docDraft.effectiveDate} onChange={(event) => setDocDraft({ ...docDraft, effectiveDate: event.target.value })} />
             </label>
-            <label>Order on the shelf
-              <input type="number" min={0} max={9999} value={docDraft.sortOrder} onChange={(event) => setDocDraft({ ...docDraft, sortOrder: Number(event.target.value) })} />
+            <label>Valid upto (review date)
+              <input type="date" value={docDraft.validUpto} onChange={(event) => setDocDraft({ ...docDraft, validUpto: event.target.value })} />
             </label>
           </div>
+
+          <label>Order on the shelf
+            <input type="number" min={0} max={9999} value={docDraft.sortOrder} onChange={(event) => setDocDraft({ ...docDraft, sortOrder: Number(event.target.value) })} />
+          </label>
 
           <label>File (PDF or image, 10 MB)
             <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={async (event) => {
@@ -527,7 +551,12 @@ export default function PublishPanel() {
           {listing.documents.map((row) => <div className="content-admin-row" key={row.id}>
             <div>
               <strong>{row.title}</strong>
-              <p>{VAULT_CATEGORIES[row.category]?.title} · {DOCUMENT_TYPE_LABELS[row.documentType] ?? row.documentType}{row.revision ? ` · Rev ${row.revision}` : ''}</p>
+              <p>
+                {VAULT_CATEGORIES[row.category]?.title} · {DOCUMENT_TYPE_LABELS[row.documentType] ?? row.documentType}
+                {row.revision ? ` · Rev ${row.revision}` : ''}
+                {row.department ? ` · ${row.department}` : ''}{row.section ? ` / ${row.section}` : ''}
+                {row.validUpto ? ` · valid to ${row.validUpto}` : ''}
+              </p>
               <small className={row.status === 'published' ? 'is-published' : 'is-draft'}>{row.status}</small>
               {row.fileUrl && (row.status === 'published'
                 ? <a className="content-admin-file" href={row.fileUrl} target="_blank" rel="noreferrer">Open file</a>

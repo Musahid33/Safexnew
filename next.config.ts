@@ -28,8 +28,9 @@ const cspDirectives = [
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-  // No iframes or embeds are used anywhere in the app.
-  "frame-src 'none'",
+  // The only frame the app embeds is its own document viewer, which streams a published
+  // file from /api/content/file/... — same origin, never a third-party page.
+  "frame-src 'self'",
   // Only dev/preview instances may be embedded in a frame.
   ...(allowFraming ? [] : ["frame-ancestors 'none'"]),
   // Recognition artwork may be served from the Supabase project storage bucket.
@@ -47,6 +48,15 @@ const cspDirectives = [
   'upgrade-insecure-requests'
 ];
 
+// The viewer streams a published file from this origin and is framed by this app, so that
+// one route has to allow same-origin framing. Every other route keeps DENY / 'none'.
+const fileRouteHeaders = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'no-referrer' },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" }
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
@@ -56,7 +66,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: '/api/content/file/:kind/:id',
+        headers: fileRouteHeaders
+      },
+      {
+        // Everything except the file route above, which carries its own frame policy.
+        source: '/:path((?!api/content/file/).*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

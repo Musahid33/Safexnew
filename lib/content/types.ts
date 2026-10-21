@@ -16,13 +16,22 @@ export type PublishedDocument = {
   documentCode: string | null;
   documentType: DocumentType;
   revision: string | null;
+  /** Register columns: the department and section the procedure belongs to. */
+  department: string | null;
+  section: string | null;
   /** ISO date (yyyy-mm-dd) the document takes effect, when one was given. */
   effectiveDate: string | null;
+  /** ISO date the document is valid up to (the register's "Valid Upto"). */
+  validUpto: string | null;
   /** ISO timestamp the admin published it. */
   publishedAt: string | null;
   /** Stable, same-origin link served by /api/content/file/document/[id]. */
   fileUrl: string | null;
   fileName: string | null;
+  /** `application/pdf` / `image/*` when the file was uploaded; null for a link-only row. */
+  mimeType: string | null;
+  /** True when the row points at an external https link instead of an uploaded file. */
+  external: boolean;
 };
 
 export type ContentFeedItem = {
@@ -54,7 +63,10 @@ export type AdminDocument = {
   documentCode: string | null;
   documentType: DocumentType;
   revision: string | null;
+  department: string | null;
+  section: string | null;
   effectiveDate: string | null;
+  validUpto: string | null;
   status: ContentStatus;
   publishedAt: string | null;
   fileName: string | null;
