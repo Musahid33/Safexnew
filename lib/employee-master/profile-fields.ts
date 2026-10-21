@@ -29,6 +29,8 @@ export type EmployeeProfileInput = {
   address?: string | null;
   notes?: string | null;
   previousNames?: string[];
+  /** Data URL of the employee's photograph, already shrunk by the browser. */
+  photo?: string | null;
 };
 
 /** Console field → database column. Anything not listed here is rejected. */
@@ -47,7 +49,8 @@ export const EMPLOYEE_FIELD_COLUMNS = {
   location: 'work_location',
   address: 'home_address',
   notes: 'notes',
-  previousNames: 'previous_names'
+  previousNames: 'previous_names',
+  photo: 'photo'
 } as const satisfies Record<keyof EmployeeProfileInput, string>;
 
 /**
@@ -58,6 +61,22 @@ export const PII_EMPLOYEE_FIELDS: readonly (keyof EmployeeProfileInput)[] = [
   'mobile', 'bloodGroup', 'email', 'gender', 'dob',
   'emergencyName', 'emergencyMobile', 'address', 'notes', 'previousNames'
 ];
+
+// `photo` is intentionally absent above. The release switch exists so that health data and
+// a home address are never shown without an explicit decision; a face on the roster is what
+// makes the passport a passport, and the user asked for it as part of the profile. It is
+// still never selected by the roster query — only for the one person being opened.
+
+/**
+ * The largest a stored photograph may be, in characters of base64.
+ *
+ * The browser has already re-encoded the file (`compressPhoto`: longest edge 1000 px, JPEG
+ * quality stepped down until it fits in about 120 000 characters), so a legitimate save
+ * lands well under half of this. The ceiling catches a caller that skipped the browser —
+ * and anything this large is a phone photo that was never resized, not a record.
+ */
+export const MAX_PHOTO_CHARS = 200_000;
+const PHOTO_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 
 export const EMPLOYEE_GENDERS = ['Female', 'Male', 'Other', 'Prefer not to say'] as const;
 
@@ -122,6 +141,20 @@ export function normaliseEmployeePatch(
       const value = text(raw);
       if (!value || value.length > 120) {
         return { ok: false, code: 'INVALID_VALUE', error: 'A name of 1–120 characters is required.' };
+      }
+      columns[column] = value;
+      continue;
+    }
+
+    if (key === 'photo') {
+      const value = text(raw);
+      if (value) {
+        if (!PHOTO_DATA_URL.test(value)) {
+          return { ok: false, code: 'INVALID_VALUE', error: 'The photo must be a JPEG, PNG or WEBP image.' };
+        }
+        if (value.length > MAX_PHOTO_CHARS) {
+          return { ok: false, code: 'INVALID_VALUE', error: 'That photo is too large — choose a smaller one.' };
+        }
       }
       columns[column] = value;
       continue;

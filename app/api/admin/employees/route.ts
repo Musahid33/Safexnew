@@ -182,5 +182,8 @@ export async function POST(request: NextRequest) {
             : 503;
     return NextResponse.json({ ok: false, code: result.code, error: result.error }, { status, headers: NO_STORE });
   }
-  return NextResponse.json({ ok: true, employeeNo: result.employeeNo }, { status: 201, headers: NO_STORE });
+  return NextResponse.json(
+    { ok: true, employeeNo: result.employeeNo, photoSaved: !result.photoSkipped },
+    { status: 201, headers: NO_STORE }
+  );
 }

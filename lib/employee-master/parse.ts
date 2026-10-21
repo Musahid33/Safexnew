@@ -31,6 +31,8 @@ export type MasterEmployeeRecord = {
   homeAddress?: string | null;
   notes?: string | null;
   previousNames?: string[];
+  /** Data URL. Only loaded for a single employee, never for the roster list. */
+  photo?: string | null;
 };
 
 export type MasterIssue = {

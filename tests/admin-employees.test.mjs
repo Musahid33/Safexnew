@@ -167,3 +167,89 @@ test('the generated console hands profile edits to the host', () => {
   // No more optimistic "updated" toast before the server has answered.
   assert.equal(script.includes("toast(existing?'Employee profile updated.'"), false);
 });
+
+test('a photograph is saved as a data URL on its own column', () => {
+  const jpeg = `data:image/jpeg;base64,${'A'.repeat(64)}`;
+  const result = fields.normaliseEmployeePatch({ photo: jpeg }, { includePii: true });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.columns, { photo: jpeg });
+
+  // Removing a face is a clear, not an omission.
+  const cleared = fields.normaliseEmployeePatch({ photo: '' }, { includePii: true });
+  assert.equal(cleared.ok, true);
+  assert.deepEqual(cleared.columns, { photo: null });
+});
+
+test('a photograph is not held hostage by the personal-data switch', () => {
+  // The release flag exists for health data and home addresses. The passport has to show
+  // the person it belongs to even when that flag is off, so a photo saves on its own.
+  const result = fields.normaliseEmployeePatch(
+    { photo: `data:image/png;base64,${'B'.repeat(32)}`, name: 'Ravi Kumar' },
+    { includePii: false }
+  );
+  assert.equal(result.ok, true);
+  assert.deepEqual(Object.keys(result.columns).sort(), ['full_name', 'photo']);
+});
+
+test('only an image data URL of a sane size is accepted as a photo', () => {
+  const rejected = [
+    'https://example.com/face.jpg',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    'data:image/svg+xml;base64,PHN2Zz4=',
+    `data:image/jpeg;base64,${'-'.repeat(16)}`,
+    `data:image/jpeg;base64,${'A'.repeat(fields.MAX_PHOTO_CHARS)}`
+  ];
+  for (const photo of rejected) {
+    const result = fields.normaliseEmployeePatch({ photo }, { includePii: true });
+    assert.equal(result.ok, false, `${photo.slice(0, 40)} must be refused`);
+    assert.equal(result.code, 'INVALID_VALUE');
+  }
+
+  // WEBP comes out of some Android cameras; it is a face like any other.
+  const webp = fields.normaliseEmployeePatch({ photo: `data:image/webp;base64,${'C'.repeat(48)}` }, { includePii: true });
+  assert.equal(webp.ok, true);
+});
+
+test('the roster never carries a face, only the opened employee does', () => {
+  const source = readFileSync('lib/employee-master/db-source.ts', 'utf8');
+  const roster = /const SELECT_COLUMNS\s*=([\s\S]*?);\n/.exec(source)?.[1] ?? '';
+  const passport = /const PASSPORT_COLUMNS\s*=([\s\S]*?);\n/.exec(source)?.[1] ?? '';
+  const pii = /const PII_COLUMNS\s*=([\s\S]*?);\n/.exec(source)?.[1] ?? '';
+
+  for (const [name, block] of [['SELECT_COLUMNS', roster], ['PASSPORT_COLUMNS', passport], ['PII_COLUMNS', pii]]) {
+    assert.equal(block.includes('photo'), false, `${name} must not select the photo`);
+  }
+  // ...and the one query that does ask for it is the single-employee read.
+  assert.ok(source.includes('PROFILE_COLUMNS = `${PII_COLUMNS}, photo`'));
+  assert.ok(source.includes('findEmployeeProfileInDatabase'));
+});
+
+test('the console has one passport screen, opened from the design page', () => {
+  const app = readFileSync('app/components/safetyos/SafetyOsApp.tsx', 'utf8');
+  const screen = readFileSync('app/components/safetyos/EmployeePassportAdmin.tsx', 'utf8');
+
+  // Portalled the same way as the DM workspace: the design keeps its own nodes.
+  assert.ok(app.includes("container.querySelector<HTMLElement>('#employeeProfilePage')"));
+  assert.ok(app.includes('<EmployeePassportAdmin'));
+  // The design's script binds the form's buttons without a null check, so the nodes stay
+  // in place and are hidden by CSS instead of being removed.
+  assert.ok(app.includes("epPage.classList.add('is-hosted')"));
+  assert.ok(screen.includes('compressPhoto'));
+
+  // One button opens the picker, and it must not pin the phone to the camera.
+  assert.equal((screen.match(/type="file"/g) ?? []).length, 1);
+  assert.equal(screen.includes('capture='), false);
+
+  // A missing migration must not look like "your edits were not saved".
+  assert.ok(screen.includes('photoSaved === false'));
+});
+
+test('the console can read one employee with a face, and only one', () => {
+  const single = readFileSync('app/api/admin/employees/[employeeNo]/route.ts', 'utf8');
+  assert.ok(single.includes('export async function GET'));
+  assert.ok(single.includes('findEmployeeProfileInDatabase(employeeNo)'));
+  // The same gate as the writes, and no caching of a personal record.
+  assert.ok(single.includes('readSession(request) === null'));
+  assert.ok(single.includes('isAdminPiiEnabled()'));
+  assert.ok(single.includes('NO_STORE'));
+});

@@ -1,6 +1,6 @@
 import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
-import { resolveSiteId, resolveTenantId } from './db-source';
+import { isPhotoColumnSupported, resolveSiteId, resolveTenantId } from './db-source';
 import { isEmployeeNo, normaliseEmployeePatch, type EmployeeProfileInput } from './profile-fields';
 
 /**
@@ -32,7 +32,7 @@ async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
 }
 
 export type EmployeeWriteResult =
-  | { ok: true; employeeNo: string }
+  | { ok: true; employeeNo: string; photoSkipped?: boolean }
   | {
     ok: false;
     code: 'UNAVAILABLE' | 'NOT_FOUND' | 'DUPLICATE' | 'VALIDATION' | 'PII_DISABLED' | 'NO_SITE';
@@ -41,6 +41,22 @@ export type EmployeeWriteResult =
 
 function isUniqueViolation(error: { code?: string } | null | undefined): boolean {
   return error?.code === '23505';
+}
+
+/**
+ * Drop the photo when this database has not had the photo migration applied.
+ *
+ * The alternative — sending the column and letting the whole update fail — would make a
+ * missing migration look like "your changes were not saved". Everything else still saves,
+ * and the caller is told the photo did not.
+ */
+async function withoutUnsupportedPhoto(
+  columns: Record<string, string | string[] | null>
+): Promise<{ columns: Record<string, string | string[] | null>; photoSkipped: boolean }> {
+  if (!('photo' in columns)) return { columns, photoSkipped: false };
+  if (await isPhotoColumnSupported()) return { columns, photoSkipped: false };
+  const { photo: _photo, ...rest } = columns;
+  return { columns: rest, photoSkipped: true };
 }
 
 /**
@@ -70,9 +86,18 @@ export async function updateEmployeeProfile(options: {
   const tenantId = await resolveTenantId(admin);
   if (!tenantId) return { ok: false, code: 'UNAVAILABLE', error: 'The employee database is not reachable.' };
 
+  const { columns, photoSkipped } = await withoutUnsupportedPhoto(normalised.columns);
+  if (Object.keys(columns).length === 0) {
+    return {
+      ok: false,
+      code: 'VALIDATION',
+      error: 'The photo needs the employee photo migration before it can be saved.'
+    };
+  }
+
   const result = await withTimeout(admin
     .from('employees')
-    .update({ ...normalised.columns, updated_at: new Date().toISOString() })
+    .update({ ...columns, updated_at: new Date().toISOString() })
     .eq('tenant_id', tenantId)
     .eq('employee_no', options.currentNo)
     .select('employee_no'));
@@ -86,7 +111,7 @@ export async function updateEmployeeProfile(options: {
   }
   const rows = (result.data ?? []) as { employee_no: string }[];
   if (rows.length === 0) return { ok: false, code: 'NOT_FOUND', error: 'No employee with that number exists.' };
-  return { ok: true, employeeNo: rows[0].employee_no };
+  return { ok: true, employeeNo: rows[0].employee_no, photoSkipped };
 }
 
 /** Add one employee to the site's roster, as a manual entry rather than a sync. */
@@ -111,7 +136,8 @@ export async function createEmployeeProfile(options: {
       error: normalised.error
     };
   }
-  const { employee_no: employeeNo, full_name: fullName, ...rest } = normalised.columns;
+  const stripped = await withoutUnsupportedPhoto(normalised.columns);
+  const { employee_no: employeeNo, full_name: fullName, ...rest } = stripped.columns;
   if (typeof employeeNo !== 'string' || !isEmployeeNo(employeeNo)) {
     return { ok: false, code: 'VALIDATION', error: 'An employee number is required.' };
   }
@@ -143,7 +169,7 @@ export async function createEmployeeProfile(options: {
     return { ok: false, code: 'UNAVAILABLE', error: 'The employee record could not be created.' };
   }
   const rows = (result.data ?? []) as { employee_no: string }[];
-  return { ok: true, employeeNo: rows[0]?.employee_no ?? employeeNo };
+  return { ok: true, employeeNo: rows[0]?.employee_no ?? employeeNo, photoSkipped: stripped.photoSkipped };
 }
 
 /**

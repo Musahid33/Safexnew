@@ -98,19 +98,44 @@ The live employee API does not require a platform-admin UUID, but admin roster a
 ## Editing the roster from the console
 
 The Admin / HSE console's **Employee Profile** screen writes through
-`/api/admin/employees` (`POST`, `PATCH /:employeeNo`, `DELETE /:employeeNo`). All three need
+`/api/admin/employees` (`POST`, `GET|PATCH|DELETE /:employeeNo`). All three need
 the same verified operator session as the roster; there is no unauthenticated write path and
 no browser role that can touch `public.employees` directly.
 
-- **Which fields**: `full_name`, `designation`, `department`, `work_location` always;
-  `mobile_e164`, `blood_group`, `email`, `gender`, `dob`, emergency contact, `home_address`,
-  `notes` and `previous_names` only while `SAFEX_ADMIN_PII_ENABLED=true`.
-- **Why the flag matters for writes**: with PII off the roster never sends the personal
-  fields, so the profile form shows them empty. The API rejects those fields rather than
-  accepting the empties and erasing what is stored.
+- **Which fields**: `full_name`, `designation`, `department`, `work_location` and `photo`
+  always; `mobile_e164`, `blood_group`, `email`, `gender`, `dob`, emergency contact,
+  `home_address`, `notes` and `previous_names` only while `SAFEX_ADMIN_PII_ENABLED=true`.
+- **Why the flag matters for writes**: with PII off the console shows those boxes locked and
+  says why, and the API rejects them rather than accepting the empties and erasing what is
+  stored. The flag is opt-in because blood group is health data and a home address can put
+  someone at risk; a photograph is not in that set, so the passport still shows the person
+  it belongs to.
 - **Delete is a deactivation**: the row stays, `active=false`, so reports, training records
   and recognitions keep pointing at it. The next sync may reactivate a person who is still
   on the master sheet — remove them there first.
-- **Photos are not stored**: the design keeps a 2 MB data URL and says on screen that it is
-  a preview. Uploading them needs a storage bucket and a consent decision, not a text
-  column.
+
+## The Employee Passport screen
+
+The console's **Employee Profile** page is the same credential the worker app opens from
+"Search Employee Profile" — photograph, identity, personal and contact rows — portalled
+into the design's page by `app/components/safetyos/EmployeePassportAdmin.tsx`. The design's
+own demo form is left in the DOM (its script binds handlers to those nodes without a null
+check) and hidden with `#employeeProfilePage.is-hosted > *:not(.ep-admin-host)`.
+
+- **Read one at a time**: `GET /api/admin/employees/{employeeNo}` returns the record for
+  one person, photo included, behind the same session gate as the writes and with
+  `Cache-Control: no-store`. The roster list never selects `photo`, so a search response
+  does not carry a face per row.
+- **Photo**: `public.employees.photo` is a `text` column holding a data URL
+  (`image/jpeg`, `image/png` or `image/webp`, at most 200 000 characters). The browser
+  shrinks the file first with `compressPhoto()` — longest edge 1000 px, JPEG quality
+  stepped down until it fits in about 120 000 characters — so a phone photo is roughly
+  90 KB of text. One `<input type="file" accept="image/*">` serves both camera and gallery
+  on Android and iOS; it must not carry `capture`, which would pin it to the camera.
+- **A missing migration is reported, not hidden**: `202610210003_employee_photo.sql` adds
+  the column. If it has not been applied, the API retries the read without `photo`, saves
+  every other field, and returns `photoSaved: false`; the screen says so instead of
+  claiming the whole profile failed.
+- **Create and update both persist**: "New employee" posts to `/api/admin/employees` and
+  fills only the boxes that were typed in; editing patches only the fields the operator
+  actually changed, so an untouched mobile number is never written back as empty.
