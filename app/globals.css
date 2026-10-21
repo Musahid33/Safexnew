@@ -177,7 +177,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .vault-section-heading { align-items: center; }
 .vault-section-title { display: flex; align-items: center; gap: 12px; }
 .vault-title-icon { width: 48px; height: 48px; display: grid; place-items: center; flex: none; border-radius: 14px; background: var(--primary); color: #fff; }
-.vault-category-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+/* Four categories since MoM was removed: auto-fit keeps one even row on a wide screen
+   instead of leaving a single orphan card under a row of three. */
+.vault-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .vault-category-card { min-width: 0; min-height: 112px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); color: var(--text); padding: 15px; text-align: left; box-shadow: 0 3px 10px rgba(15,37,64,.04); cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s; }
 .vault-category-card:hover { transform: translateY(-2px); border-color: var(--focus); box-shadow: var(--shadow); }
 .vault-category-icon { width: 48px; height: 48px; display: grid; place-items: center; flex: none; border: 1px solid transparent; border-radius: 14px; }

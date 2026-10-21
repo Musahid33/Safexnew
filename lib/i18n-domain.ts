@@ -141,7 +141,6 @@ export const domainMessages: Record<string, Partial<Record<Language, string>>> =
   'Registers, checklists & obligations': { hi: 'रजिस्टर, चेकलिस्ट और दायित्व', or: 'ରେଜିଷ୍ଟର୍, ଯାଞ୍ଚ ତାଲିକା ଓ ଦାୟିତ୍ୱ', bn: 'রেজিস্টার, চেকলিস্ট ও বাধ্যবাধকতা', pa: 'ਰਜਿਸਟਰ, ਚੈਕਲਿਸਟ ਅਤੇ ਜ਼ਿੰਮੇਵਾਰੀਆਂ', mr: 'नोंदवही, तपासणीसूची आणि जबाबदाऱ्या' },
   'Policy & Procedures': { hi: 'नीति और प्रक्रियाएँ', or: 'ନୀତି ଓ ପ୍ରକ୍ରିୟା', bn: 'নীতি ও পদ্ধতি', pa: 'ਨੀਤੀ ਅਤੇ ਪ੍ਰਕਿਰਿਆਵਾਂ', mr: 'धोरण आणि प्रक्रिया' },
   'Safety policy and management process': { hi: 'सुरक्षा नीति और प्रबंधन प्रक्रिया', or: 'ସୁରକ୍ଷା ନୀତି ଓ ପରିଚାଳନା ପ୍ରକ୍ରିୟା', bn: 'নিরাপত্তা নীতি ও ব্যবস্থাপনা প্রক্রিয়া', pa: 'ਸੁਰੱਖਿਆ ਨੀਤੀ ਅਤੇ ਪ੍ਰਬੰਧਨ ਪ੍ਰਕਿਰਿਆ', mr: 'सुरक्षा धोरण आणि व्यवस्थापन प्रक्रिया' },
-  'Minutes of Meeting (MoM)': { hi: 'बैठक का कार्यवृत्त (MoM)', or: 'ବୈଠକ ବିବରଣୀ (MoM)', bn: 'সভা কার্যবিবরণী (MoM)', pa: 'ਮੀਟਿੰਗ ਮਿੰਟਸ (MoM)', mr: 'बैठकीचे इतिवृत्त (MoM)' },
   'Safety committee & review meetings': { hi: 'सुरक्षा समिति और समीक्षा बैठकें', or: 'ସୁରକ୍ଷା କମିଟି ଓ ସମୀକ୍ଷା ବୈଠକ', bn: 'নিরাপত্তা কমিটি ও পর্যালোচনা সভা', pa: 'ਸੁਰੱਖਿਆ ਕਮੇਟੀ ਅਤੇ ਸਮੀਖਿਆ ਮੀਟਿੰਗਾਂ', mr: 'सुरक्षा समिती आणि पुनरावलोकन बैठका' },
 
   // Archive labels and UI-only feed counts; published titles/summaries/details are not translated.

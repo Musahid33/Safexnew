@@ -1,11 +1,11 @@
 'use client';
 
-import { BookOpen, CalendarDays, ChevronRight, ClipboardList, FileText, LockKeyhole, Scale, ShieldAlert, X, ScrollText, type LucideIcon } from 'lucide-react';
+import { BookOpen, CalendarDays, ChevronRight, FileText, LockKeyhole, Scale, ShieldAlert, X, ScrollText, type LucideIcon } from 'lucide-react';
 import { LANGUAGE_LOCALE } from '@/lib/i18n';
 import { APP_TIME_ZONE } from '@/lib/home-content';
 import { useI18n } from './I18nProvider';
 
-export type VaultCategoryId = 'sop-swp' | 'risk-assessments' | 'legal-compliance' | 'policies-procedures' | 'minutes-of-meeting';
+export type VaultCategoryId = 'sop-swp' | 'risk-assessments' | 'legal-compliance' | 'policies-procedures';
 
 type VaultDocument = { title: string; kind: string; revision: string; updated: string };
 type VaultCategory = {
@@ -66,18 +66,6 @@ export const DOCUMENT_VAULT_CATEGORIES: VaultCategory[] = [
       { title: 'Emergency Response Procedure · Sample', kind: 'Procedure', revision: 'Demo', updated: '2026-08-20' }
     ]
   },
-  {
-    id: 'minutes-of-meeting',
-    title: 'Minutes of Meeting (MoM)',
-    description: 'Safety committee & review meetings',
-    tone: 'green',
-    icon: ClipboardList,
-    documents: [
-      { title: 'Safety Committee Meeting · Q3', kind: 'MoM', revision: 'Sample', updated: '2026-09-28' },
-      { title: 'Contractor Coordination Meeting', kind: 'MoM', revision: 'Sample', updated: '2026-09-12' },
-      { title: 'Monthly EHS Review Meeting', kind: 'MoM', revision: 'Sample', updated: '2026-08-25' }
-    ]
-  }
 ];
 
 export function DocumentVaultGrid({ onSelect }: { onSelect: (id: VaultCategoryId) => void }) {
