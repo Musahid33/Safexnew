@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { ArrowLeft, Check, ChevronRight, ImagePlus, LockKeyhole, MapPin, Mic, Search, Send, X } from 'lucide-react';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { ArrowLeft, Check, ChevronRight, ImagePlus, LockKeyhole, MapPin, Search, Send, X } from 'lucide-react';
 import type { EmployeeDirectory } from '@/lib/employee-directory';
 import type { Employee, Language, ReportType, Site } from '@/lib/types';
 import LanguageStrip from './LanguageStrip';
+import VoiceTextArea from './VoiceTextArea';
 import { useI18n } from './I18nProvider';
 
 type CategoryOption = { value: string; label: string; description: string; icon: string };
@@ -35,24 +36,6 @@ type Props = {
   syncEnabled: boolean;
   onClose: () => void;
   onSubmit: (data: ReportSubmission) => Promise<void> | void;
-};
-
-type SpeechResultLike = { 0?: { transcript?: string } };
-type SpeechEventLike = { results: ArrayLike<SpeechResultLike> };
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onresult: ((event: SpeechEventLike) => void) | null;
-  onerror: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-type SpeechWindow = Window & {
-  SpeechRecognition?: new () => SpeechRecognitionLike;
-  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
 };
 
 const CATEGORY_OPTIONS: Partial<Record<ReportType, CategoryOption[]>> = {
@@ -87,10 +70,6 @@ const CATEGORY_OPTIONS: Partial<Record<ReportType, CategoryOption[]>> = {
     { value: 'Training Suggestion', label: 'Training suggestion', description: 'Ideas to improve training', icon: '📚' },
     { value: 'Tool Suggestion', label: 'Tools & equipment suggestion', description: 'Ideas to improve tools or equipment', icon: '🔧' }
   ]
-};
-
-const VOICE_LANG: Record<Language, string> = {
-  en: 'en-IN', hi: 'hi-IN', or: 'or-IN', bn: 'bn-IN', pa: 'pa-IN', mr: 'mr-IN'
 };
 
 function localDateTime(): string {
@@ -148,8 +127,6 @@ export default function ReportWorkflow({ type, site, directory, language, onLang
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [voiceRecording, setVoiceRecording] = useState(false);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   // The real employee master lives on the server, so the lookup is debounced and
   // cancellable instead of filtering a roster held in the browser.
@@ -191,10 +168,6 @@ export default function ReportWorkflow({ type, site, directory, language, onLang
 
   useEffect(() => {
     setIncidentAt(localDateTime());
-    return () => {
-      recognitionRef.current?.stop();
-      recognitionRef.current = null;
-    };
   }, []);
 
   const isIncident = type === 'Near Miss' || type === 'Hazard' || type === 'Unsafe Condition' || type === 'Unsafe Act' || type === 'Safety Observation' || type === 'Speak Up';
@@ -251,40 +224,6 @@ export default function ReportWorkflow({ type, site, directory, language, onLang
     }
     setPhoto(file);
     setError('');
-  }
-
-  function handleVoice() {
-    if (voiceRecording) {
-      recognitionRef.current?.stop();
-      return;
-    }
-    const speechWindow = window as SpeechWindow;
-    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-    if (!Recognition) {
-      setError('Voice typing is unavailable in this browser. You can still type your report.');
-      return;
-    }
-    try {
-      const recognition = new Recognition();
-      recognitionRef.current = recognition;
-      recognition.lang = VOICE_LANG[language];
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.onstart = () => setVoiceRecording(true);
-      recognition.onend = () => setVoiceRecording(false);
-      recognition.onerror = () => {
-        setVoiceRecording(false);
-        setError('Voice input stopped. Check microphone permission and try again.');
-      };
-      recognition.onresult = (event) => {
-        const transcript = event.results[0]?.[0]?.transcript?.trim();
-        if (transcript) setDescription((current) => current ? `${current.trim()} ${transcript}` : transcript);
-      };
-      recognition.start();
-    } catch {
-      setVoiceRecording(false);
-      setError('Microphone could not be started. You can still type your report.');
-    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -389,11 +328,34 @@ export default function ReportWorkflow({ type, site, directory, language, onLang
 
         <label className="field-label" htmlFor="report-datetime">🕐 {T('Date & time of incident')} <span className="required">*</span></label><input id="report-datetime" className="form-control" type="datetime-local" value={incidentAt} onChange={(event) => setIncidentAt(event.target.value)} required />
 
-        <label className="field-label" htmlFor="report-description">{descriptionLabel} <span className="required">*</span></label><div className="text-input-wrap"><textarea id="report-description" className="form-control" value={description} onChange={(event) => setDescription(event.target.value)} rows={4} maxLength={1200} placeholder={descriptionPlaceholder} required />{voiceEnabled && <button className={`mic-button ${voiceRecording ? 'recording' : ''}`} type="button" onClick={handleVoice} aria-label={T(voiceRecording ? 'Stop voice input' : 'Speak to fill description')} title={T(voiceRecording ? 'Stop voice input' : 'Speak to fill')}><Mic size={18} /></button>}</div>
+        <label className="field-label" htmlFor="report-description">{descriptionLabel} <span className="required">*</span></label>
+        <VoiceTextArea
+          id="report-description"
+          value={description}
+          onChange={setDescription}
+          language={language}
+          rows={4}
+          maxLength={1200}
+          placeholder={descriptionPlaceholder}
+          required
+          voiceEnabled={voiceEnabled}
+          onError={setError}
+        />
 
         {showSeverity && <div className="severity-control"><label className="field-label" htmlFor="report-severity">⚠️ {T('Severity rating')} <span className="required">*</span></label><select id="report-severity" className="form-control" value={severity} onChange={(event) => setSeverity(event.target.value as Severity | '')} required><option value="">{T('Select severity')}</option><option value="Low">🟢 {T('Low risk')}</option><option value="Medium">🟡 {T('Medium risk')}</option><option value="High">🔴 {T('High risk')}</option></select></div>}
 
-        <label className="field-label" htmlFor="report-action">⚡ {T('Immediate action taken')} <span className="optional">{T('Optional')}</span></label><textarea id="report-action" className="form-control" value={immediateAction} onChange={(event) => setImmediateAction(event.target.value)} rows={2} maxLength={600} placeholder={T('Optional — what action was taken immediately?')} />
+        <label className="field-label" htmlFor="report-action">⚡ {T('Immediate action taken')} <span className="optional">{T('Optional')}</span></label>
+        <VoiceTextArea
+          id="report-action"
+          value={immediateAction}
+          onChange={setImmediateAction}
+          language={language}
+          rows={2}
+          maxLength={600}
+          placeholder={T('Optional — what action was taken immediately?')}
+          voiceEnabled={voiceEnabled}
+          onError={setError}
+        />
 
         <label className="upload-button report-upload"><ImagePlus size={17} /><span>{photo?.name ?? T('Attach photo (optional)')}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} /><small>{T('Image only · maximum 12 MB')}</small></label>
         {photo && <div className="photo-file-row"><span><ImagePlus size={14} />{photo.name}</span><button type="button" onClick={() => setPhoto(null)} aria-label={T('Remove photo')}>{T('Remove')}</button></div>}
