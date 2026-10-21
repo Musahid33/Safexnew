@@ -155,7 +155,34 @@ the write. The response code tells you why:
 | 422 `EMPLOYEE_NOT_AVAILABLE` | Employee ID not active at that site | correct the Employee ID/site |
 | 422 `SITE_NOT_AVAILABLE` | site slug/id inactive for tenant | align site with `sites.slug` |
 
-## 6. Still required before public production
+## 6. Reading a report back in the app ("My logged reports")
+
+`app/api/reports/mine` is the only path by which a worker can read a report out of the
+database. It is a `POST` so the registered mobile number stays out of URLs, proxy logs and
+`Referer`; it is same-origin, rate limited to 12 lookups per minute per IP, and answers
+`Cache-Control: no-store`.
+
+- **Own reports only**: the employee row is looked up by employee number **and** the mobile
+  number registered in the master (compared on the last ten digits, so `+91 98765 43210`,
+  `098765 43210` and `9876543210` are the same number). A wrong number reads nothing.
+- **Same answer for "no such employee" and "wrong number"**: both are `404 NOT_FOUND`, so the
+  endpoint cannot be used to test which Employee IDs exist.
+- **The four confidential types are excluded in the query**, not in the UI:
+  `reporter_employee_id = <the employee> AND anonymous = false AND report_type IN
+  (near_miss, hazard, safety_observation, unsafe_condition, unsafe_act)`. Speak Up, Grievance,
+  Feedback and Suggestion therefore never leave the server through this path, and a report
+  type added to the database later stays hidden until the whitelist is changed deliberately.
+- **Anonymous rows can never match**, because an anonymous report is stored without a
+  reporter (enforced by the `anonymous_has_no_reporter` check constraint).
+- The worker screen (`app/components/MyLoggedReports.tsx`) shows the reference, type, area,
+  filled date and status (Open / In Progress / Closed) for each report, with the description
+  and immediate action behind a tap.
+
+The reports page no longer seeds `DEMO_REPORTS`: the list under "Saved on this device" is
+only ever what this browser actually saved, and the database history comes from the verified
+lookup above.
+
+## 7. Still required before public production
 
 Report sync stores data safely, but these are separate controls and are **not** implemented:
 malware scanning for uploads, moderation/redaction review, attachment preview for officers,
@@ -163,7 +190,7 @@ OTP-based All Site Reports, per-user staff authentication (the shared admin pass
 an audit trail), backups and retention policy. Do not enable public reporting for real
 incidents until the company has signed off on those workflows.
 
-## 7. Sandbox limitation
+## 8. Sandbox limitation
 
 The Arena sandbox this repository is developed in has no outbound access to
 `*.supabase.co`, so the preview there serves the directory from a local snapshot
