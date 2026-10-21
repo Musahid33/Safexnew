@@ -58,6 +58,14 @@ The migration deliberately denies direct anonymous access to employee/report tab
 - `/api/recognitions` serves up to 50 published, consented entries from the configured tenant. The home page shows their images in the carousel and a stationary **Name / Reward For** table immediately below. Without published rows the carousel shows an empty state; it does not draw stock artwork or invent awardee names. If the database is unavailable, the editor reports an error; public view keeps the image-only fallback.
 - This shared passcode is not per-user admin authentication or an audit trail. Before production with real employee names, replace it with role-checked staff identity and verify tenant/domain mapping, data consent, photo hosting and retention policies. In a multi-tenant deployment, resolve tenant by verified host rather than a single deployment-scoped slug.
 
+## Publishing content to the app (vault, circulars, notices, events)
+
+- Apply `supabase/migrations/202610210005_content_publishing.sql` after the initial schema. It adds `documents.external_url` and `documents.sort_order`, the published-list indexes, the four vault shelves for existing sites and the private `safex-content` bucket (10 MB, PDF/PNG/JPG/WEBP). It is already applied to the SafexNew project (`mclrajfcrjdrlmoqwbdw`) as version `202610210005`.
+- Sign in at `/admin/publish` with the same `SAFEX_ADMIN_PASSCODE` session as the rewards page. Pick the site, then publish from **Document Vault**, **Communications** (circular, notice, event) or **Rewards**. Everything is a row scoped by `company_id` + `location_id`.
+- A draft or archived row is never returned to the app. `GET /api/content?site=<slug|uuid>` returns only published rows, and `GET /api/content/file/{document|announcement}/<id>` re-checks the status before redirecting to a two-minute signed URL. Unpublishing stops the download immediately; the storage path itself is never exposed.
+- Uploads go to the private bucket through `/api/admin/content/upload`. Without the bucket, uploads answer 503 and name the migration; an `https://` link can be published instead.
+- The worker app has no fallback content: an empty database shows "No files yet" and "No upcoming events are scheduled for this site."
+
 ## Tenant onboarding, branding and optional features
 
 - During company onboarding, Safex Super Admin records the tenant company name, address, contact email and mobile number, plus its verified domain and sites. The migration stores the public-facing profile in `tenants` (`company_name`, `company_address`, `contact_email`, `contact_mobile_e164`); optional logo storage is represented by `logo_path`.
