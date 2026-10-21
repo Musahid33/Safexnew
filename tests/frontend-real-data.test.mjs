@@ -99,11 +99,14 @@ test('branding carries the real company name and invents no contact details', ()
 
 test('the document vault lists no sample files', () => {
   const source = readFileSync('app/components/DocumentVault.tsx', 'utf8');
-  assert.equal((source.match(/documents: \[\]/g) ?? []).length, 4, 'all four shelves start empty');
+  // The four shelves are navigation only; every file comes from /api/content as a prop.
+  assert.equal((source.match(/documents: \[\]/g) ?? []).length, 0, 'a shelf no longer carries rows');
+  assert.ok(source.includes('documents = []'), 'an empty vault is the default');
+  assert.ok(source.includes('documents.filter((document) => document.category === categoryId)'));
   // The old rows were real-looking entries; none of their titles or revisions survive.
   assert.equal(source.includes('Lockout / Tagout'), false);
   assert.equal(source.includes("revision: 'Demo'"), false);
-  assert.equal(source.includes('updated: \'2026-'), false);
+  assert.equal(source.includes("updated: '2026-"), false);
 });
 
 test('the SOS card is the emergency card: red header, big number, call and cancel', () => {
