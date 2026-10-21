@@ -20,7 +20,7 @@ import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
 import SafetyOsApp from './components/safetyos/SafetyOsApp';
 import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId } from './components/DocumentVault';
-import MyLoggedReports from './components/MyLoggedReports';
+import LoggedReports from './components/LoggedReports';
 import RewardCarousel, { type RecognitionGalleryItem } from './components/RewardCarousel';
 import type { RecognitionItem } from '@/lib/recognitions';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
@@ -74,11 +74,6 @@ const STATUS_CLASS: Record<ReportStatus, string> = {
   'In Progress': 'status-progress',
   Closed: 'status-closed'
 };
-
-function maskEmpNo(value: string | null): string {
-  if (!value) return 'Anonymous';
-  return value.length > 5 ? `${value.slice(0, 3)}••${value.slice(-2)}` : 'Employee';
-}
 
 function formatDate(value: string, locale = 'en-IN'): string {
   return new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
@@ -149,7 +144,7 @@ export default function SafexHome() {
   const [quickConcernChooserOpen, setQuickConcernChooserOpen] = useState(false);
   const [reportDetail, setReportDetail] = useState<SafetyReport | null>(null);
   // Starts empty on purpose: this list is only ever what this device actually saved. The
-  // database-side history is read back through <MyLoggedReports />.
+  // database-side history is read back through <LoggedReports />.
   const [reports, setReports] = useState<SafetyReport[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [safetyAlertsOpen, setSafetyAlertsOpen] = useState(false);
@@ -794,12 +789,12 @@ export default function SafexHome() {
         </>}
 
         {page === 'reports' && <section className="page-panel">
-          <div className="page-heading"><div><span className="eyebrow">{currentSite?.name ?? T('SITE')}</span><h1>{T('reportsTitle')}</h1><p>{T('Enter your Employee ID and the mobile number registered with it to read back the reports you submitted.')}</p></div><button className="secondary-button" onClick={() => !isSingleSite && openSitePicker('reports')}>{T('changeSite')}</button></div>
-          <MyLoggedReports siteName={currentSite?.name} />
+          <div className="page-heading"><div><span className="eyebrow">{currentSite?.name ?? T('SITE')}</span><h1>{T('reportsTitle')}</h1><p>{T('Every report this site has logged, read straight from the database. No Employee ID or mobile number is needed.')}</p></div><button className="secondary-button" onClick={() => !isSingleSite && openSitePicker('reports')}>{T('changeSite')}</button></div>
+          <LoggedReports siteId={currentSite?.id} siteName={currentSite?.name} />
           <section className="section-block device-reports">
-            <div className="section-heading"><div><span className="eyebrow">{T('THIS DEVICE')}</span><h2>{T('Saved on this device')}</h2></div></div>
-            <p className="home-demo-caption">{T('Reports filed here while offline stay in this list until they sync. Everything shown is a real submission — no sample data.')}</p>
-            <div className="report-list">{deviceReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((site) => site.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{deviceReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('No reports saved on this device')}</b><span>{T('Submit a report and it will appear here until it reaches the database.')}</span></div>}</div>
+            <div className="section-heading"><div><span className="eyebrow">{T('THIS DEVICE')}</span><h2>{T('Pending on this device')}</h2></div></div>
+            <p className="home-demo-caption">{T('Only what this browser filed. Reports already stored in the database are listed above, with the rest of the site.')}</p>
+            <div className="report-list">{deviceReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((site) => site.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{deviceReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('Nothing pending on this device')}</b><span>{T('A report filed offline waits here until it reaches the database.')}</span></div>}</div>
           </section>
         </section>}
 
@@ -935,7 +930,7 @@ export default function SafexHome() {
 
       {sosOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="sos-title"><div className="modal sos-modal"><div className="modal-header"><div><span className="eyebrow">{T('CURRENT SITE · EMERGENCY CONTACT')}</span><h2 id="sos-title">{currentSite ? `SOS · ${currentSite.name}` : 'SOS'}</h2></div><button className="close-button" onClick={() => setSosOpen(false)} aria-label={T('Close SOS')}><X /></button></div><p>{T('Call the emergency number immediately for any injury, fire, fall or trapped person.')}</p><a className="sos-call-link" href={telHref(sosNumber)}>{T('Call emergency contact · {phone}', { phone: sosNumber })}</a>{sosNumber !== SOS_NUMBER && <p className="sos-fallback-note">{T('Company SOS line · {phone}', { phone: SOS_NUMBER })}</p>}<div className="modal-footnote"><AlertTriangle size={14} /> {T('Confirm the displayed number before calling. Site Admin can set a site-specific contact.')}</div></div></div>}
 
-      {reportDetail && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="modal detail-modal"><div className="modal-header"><div><span className="eyebrow">{sites.find((site) => site.id === reportDetail.siteId)?.name}</span><h2 id="detail-title">{reportDetail.id}</h2></div><button className="close-button" onClick={() => setReportDetail(null)} aria-label={T('Close')}><X /></button></div><div className="detail-meta"><span className="type-chip">{T(reportDetail.type)}</span>{reportDetail.category && <span className="type-chip">{T(reportDetail.category)}</span>}<span className={`status-pill ${STATUS_CLASS[reportDetail.status]}`}>{T(reportDetail.status)}</span></div><dl className="detail-grid"><div><dt>{T('Reported by')}</dt><dd>{T(reportDetail.anonymous ? 'Anonymous' : maskEmpNo(reportDetail.reporterEmpNo))}</dd></div><div><dt>{T('Site')}</dt><dd>{sites.find((site) => site.id === reportDetail.siteId)?.name}</dd></div><div><dt>{T('Area')}</dt><dd>{reportDetail.area}</dd></div><div><dt>{T('Department')}</dt><dd>{reportDetail.department ?? T('N/A')}</dd></div><div><dt>{T('Severity')}</dt><dd>{reportDetail.severity ? T(reportDetail.severity) : T('N/A')}</dd></div><div><dt>{T('Incident date & time')}</dt><dd>{formatDate(reportDetail.incidentAt ?? reportDetail.reportedAt, locale)}</dd></div><div><dt>{T('Submitted on')}</dt><dd>{formatDate(reportDetail.reportedAt, locale)}</dd></div></dl><p className="detail-description">{reportDetail.description ?? reportDetail.shortDescription}</p>{reportDetail.immediateAction && <div className="detail-description"><b>{T('Immediate action:')}</b> {reportDetail.immediateAction}</div>}{reportDetail.hasAttachment && <div className="attachment-preview"><ImagePlus /><span>{T('Photo evidence noted')}</span><small>{T('The image itself is not shown in this view')}</small></div>}<div className="modal-footnote">{T('Worker view is redacted. Full IDs and unredacted evidence require authorized staff access.')}</div></div></div>}
+      {reportDetail && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="modal detail-modal"><div className="modal-header"><div><span className="eyebrow">{sites.find((site) => site.id === reportDetail.siteId)?.name}</span><h2 id="detail-title">{reportDetail.id}</h2></div><button className="close-button" onClick={() => setReportDetail(null)} aria-label={T('Close')}><X /></button></div><div className="detail-meta"><span className="type-chip">{T(reportDetail.type)}</span>{reportDetail.category && <span className="type-chip">{T(reportDetail.category)}</span>}<span className={`status-pill ${STATUS_CLASS[reportDetail.status]}`}>{T(reportDetail.status)}</span></div><dl className="detail-grid"><div><dt>{T('Reported by')}</dt><dd>{T(reportDetail.anonymous ? 'Anonymous' : 'This device')}</dd></div><div><dt>{T('Site')}</dt><dd>{sites.find((site) => site.id === reportDetail.siteId)?.name}</dd></div><div><dt>{T('Area')}</dt><dd>{reportDetail.area}</dd></div><div><dt>{T('Department')}</dt><dd>{reportDetail.department ?? T('N/A')}</dd></div><div><dt>{T('Severity')}</dt><dd>{reportDetail.severity ? T(reportDetail.severity) : T('N/A')}</dd></div><div><dt>{T('Incident date & time')}</dt><dd>{formatDate(reportDetail.incidentAt ?? reportDetail.reportedAt, locale)}</dd></div><div><dt>{T('Submitted on')}</dt><dd>{formatDate(reportDetail.reportedAt, locale)}</dd></div></dl><p className="detail-description">{reportDetail.description ?? reportDetail.shortDescription}</p>{reportDetail.immediateAction && <div className="detail-description"><b>{T('Immediate action:')}</b> {reportDetail.immediateAction}</div>}{reportDetail.hasAttachment && <div className="attachment-preview"><ImagePlus /><span>{T('Photo evidence noted')}</span><small>{T('The image itself is not shown in this view')}</small></div>}<div className="modal-footnote">{T('Worker view is redacted. Full IDs and unredacted evidence require authorized staff access.')}</div></div></div>}
       {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setVaultCategoryId(null)} />}
       {feedDetail && <HomeFeedDetailDialog item={feedDetail} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setFeedDetail(null)} />}
 
@@ -947,7 +942,8 @@ export default function SafexHome() {
 function ReportCard({ report, site, onOpen }: { report: SafetyReport; site?: Site; onOpen: () => void }) {
   const { language, T } = useI18n();
   const locale = LANGUAGE_LOCALE[language];
-  const reporter = T(report.anonymous ? 'Anonymous' : maskEmpNo(report.reporterEmpNo));
+  // A device-filed report belongs to whoever holds the phone; the Employee ID is not shown.
+  const reporter = T(report.anonymous ? 'Anonymous' : 'This device');
   const syncLabel = report.syncState === 'synced' ? T('Synced to database') : report.syncState === 'needs-attention' ? T('Needs sync review') : report.syncState ? T('Saved on device · waiting to sync') : '';
   return <button className="report-card" onClick={onOpen}><div className="report-card-top"><b>{report.id}</b><span className={`status-pill ${STATUS_CLASS[report.status]}`}>{T(report.status)}</span></div><div className="report-card-type">{T(report.type)}{report.category && <span> · {T(report.category)}</span>}</div>{report.syncState && <span className={`report-sync-pill ${report.syncState}`}>{syncLabel}</span>}<p>{report.shortDescription}</p><div className="report-card-meta"><span><MapPin size={13} />{site?.name} · {report.area}</span><span>{T('By {name}', { name: reporter })}</span><span>{formatDate(report.reportedAt, locale)}</span></div>{report.hasAttachment && <span className="attachment-tag"><ImagePlus size={13} /> {T('Photo attached')}</span>}</button>;
 }

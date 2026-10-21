@@ -1,9 +1,9 @@
 /*
- * "My logged reports" — the worker's own submissions, read back from the database.
+ * "Logged reports" — the site's reports as the database actually holds them.
  *
- * Deliberately self-contained: it reuses the app's colour tokens but none of the report-list
- * classes, so the demo/offline styling on the rest of the page cannot leak into a screen that
- * shows real records.
+ * Self-contained on purpose: it reuses the app's colour tokens but none of the legacy
+ * report-list classes, so offline/queued styling on the rest of the page can never be
+ * mistaken for a stored record.
  */
 
 .mlr-card {
@@ -16,7 +16,7 @@
 }
 .mlr-card *, .mlr-card *::before, .mlr-card *::after { box-sizing: border-box; }
 
-.mlr-head { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 14px; }
+.mlr-head { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 14px; flex-wrap: wrap; }
 .mlr-head-icon {
   display: grid;
   place-items: center;
@@ -27,14 +27,13 @@
   background: #eaf2fe;
   color: #1556b7;
 }
-.mlr-head-copy { min-width: 0; }
+.mlr-head-copy { min-width: 0; flex: 1 1 240px; }
 .mlr-head h2 { margin: 0 0 3px; font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
 .mlr-head p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; }
 .mlr-head-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
   flex: none;
   border: 1px solid #cfe0f5;
   border-radius: 999px;
@@ -46,68 +45,82 @@
   white-space: nowrap;
 }
 
-.mlr-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: 10px; align-items: end; }
-.mlr-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.mlr-field > span { color: #526583; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
-.mlr-field input {
-  width: 100%;
-  min-height: 44px;
-  padding: 9px 11px;
+.mlr-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mlr-search {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 11px;
   border: 1px solid #c7d4e4;
   border-radius: 10px;
   background: #f9fbfe;
+  color: #7b8fa8;
+}
+.mlr-search:focus-within { border-color: #2f6fd0; background: #fff; box-shadow: 0 0 0 3px rgba(47, 111, 208, .16); }
+.mlr-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
   color: #12233b;
-  font-size: 14px;
+  font-size: 13.5px;
   font-family: inherit;
   outline: none;
+  padding: 9px 0;
 }
-.mlr-field input:focus { border-color: #2f6fd0; background: #fff; box-shadow: 0 0 0 3px rgba(47, 111, 208, .16); }
 
-.mlr-primary, .mlr-ghost {
+.mlr-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 44px;
-  padding: 0 16px;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #d5e0ee;
   border-radius: 10px;
-  font-size: 13px;
+  background: #fff;
+  color: #33507a;
+  font-size: 12px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
 }
-.mlr-primary { border: 1px solid #1556b7; background: #1556b7; color: #fff; }
-.mlr-primary:hover:not(:disabled) { background: #114a9e; }
-.mlr-primary:disabled, .mlr-ghost:disabled { opacity: .6; cursor: progress; }
-.mlr-ghost { border: 1px solid #d5e0ee; background: #fff; color: #33507a; min-height: 34px; padding: 0 11px; font-size: 12px; }
 .mlr-ghost:hover:not(:disabled) { background: #f3f8ff; }
+.mlr-ghost:disabled { opacity: .6; cursor: progress; }
 
-.mlr-error {
-  margin: 12px 0 0;
-  border: 1px solid #f2d6d9;
-  border-radius: 10px;
-  background: #fff3f4;
-  color: #a72a34;
-  padding: 10px 12px;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.mlr-verified {
+.mlr-filters {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 9px;
-  border: 1px solid #d7ecdf;
-  border-radius: 12px;
-  background: #f1faf5;
-  padding: 9px 11px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin: 10px 0 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+  color: #8ea1b8;
 }
-.mlr-verified-name { display: inline-flex; align-items: center; gap: 6px; color: #0e6b45; font-size: 13px; font-weight: 800; }
-.mlr-verified-id { color: #4c6478; font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
-.mlr-counts { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.mlr-filters::-webkit-scrollbar { display: none; }
+.mlr-filter {
+  flex: none;
+  border: 1px solid #dbe6f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4a5f78;
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.mlr-filter:hover { background: #f4f9ff; }
+.mlr-filter.is-active { border-color: #1556b7; background: #1556b7; color: #fff; }
+
+.mlr-counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.mlr-counts-wide { margin: 12px 0 0; align-items: center; }
 .mlr-counts > span {
   border: 1px solid #dbe6f2;
   border-radius: 999px;
@@ -120,8 +133,35 @@
 .mlr-counts .is-open { border-color: #f3cdd2; color: #a02a37; background: #fff6f7; }
 .mlr-counts .is-progress { border-color: #f3ddb0; color: #8a5b06; background: #fffaf0; }
 .mlr-counts .is-closed { border-color: #cbe8d8; color: #0f6b46; background: #f2fbf6; }
+.mlr-counts .mlr-updated { border: 0; background: transparent; color: #93a7bf; font-weight: 600; padding-left: 2px; }
 
-.mlr-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mlr-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0 0;
+  border: 1px solid #f2d6d9;
+  border-radius: 10px;
+  background: #fff3f4;
+  color: #a72a34;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.mlr-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: #5f7187;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.mlr-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 .mlr-report { border: 1px solid #e2eaf3; border-radius: 12px; background: #fff; overflow: hidden; }
 .mlr-report.is-open { border-color: #bcd4f0; }
 .mlr-report-head {
@@ -157,6 +197,9 @@
 .mlr-report.is-open .mlr-caret { transform: rotate(180deg); }
 .mlr-report-summary {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #23364f;
   font-size: 12.5px;
   font-weight: 600;
@@ -164,6 +207,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.mlr-photo-flag { flex: none; color: #2f6fd0; }
 .mlr-report-meta { display: inline-flex; gap: 10px; color: #7b8fa8; font-size: 11px; white-space: nowrap; }
 
 .mlr-report-body { border-top: 1px solid #eef3f9; padding: 12px; background: #fbfdff; }
@@ -174,10 +218,31 @@
 .mlr-report-text { margin: 0; color: #2b3d56; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; }
 .mlr-report-action { margin: 8px 0 0; border-radius: 9px; background: #f4f8ff; color: #33496a; padding: 8px 10px; font-size: 12px; line-height: 1.5; }
 
+.mlr-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin: 12px 0 0;
+  min-height: 40px;
+  border: 1px dashed #c7d8ea;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #2d4a72;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.mlr-load-more:hover:not(:disabled) { background: #f1f7ff; }
+.mlr-load-more:disabled { opacity: .65; cursor: progress; }
+
 .mlr-empty {
   display: grid;
   justify-items: center;
   gap: 5px;
+  margin-top: 12px;
   padding: 26px 16px;
   border: 1px dashed #cfdcea;
   border-radius: 12px;
@@ -204,13 +269,12 @@
 @keyframes mlr-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 760px) {
-  .mlr-form { grid-template-columns: 1fr; }
-  .mlr-primary { width: 100%; }
-  .mlr-counts { margin-left: 0; order: 3; width: 100%; }
+  .mlr-card { padding: 13px; }
+  .mlr-counts-wide { order: 4; width: 100%; }
   .mlr-report-head { grid-template-columns: auto auto minmax(0, 1fr); row-gap: 4px; }
   .mlr-report-summary { grid-column: 1 / -1; white-space: normal; }
-  .mlr-report-meta { grid-column: 1 / -1; }
+  .mlr-report-meta { grid-column: 1 / -1; flex-wrap: wrap; row-gap: 2px; }
   .mlr-caret { margin-left: auto; }
   .mlr-report-body dl { grid-template-columns: 1fr; }
-  .mlr-field input { font-size: 16px; }
+  .mlr-search input { font-size: 16px; }
 }

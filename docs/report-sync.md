@@ -155,32 +155,37 @@ the write. The response code tells you why:
 | 422 `EMPLOYEE_NOT_AVAILABLE` | Employee ID not active at that site | correct the Employee ID/site |
 | 422 `SITE_NOT_AVAILABLE` | site slug/id inactive for tenant | align site with `sites.slug` |
 
-## 6. Reading a report back in the app ("My logged reports")
+## 6. Reading reports back in the app ("Logged reports")
 
-`app/api/reports/mine` is the only path by which a worker can read a report out of the
-database. It is a `POST` so the registered mobile number stays out of URLs, proxy logs and
-`Referer`; it is same-origin, rate limited to 12 lookups per minute per IP, and answers
+`app/api/reports/site` is the only path by which the worker app reads reports out of the
+database. It is a `GET` because it now carries **no personal data at all** — no Employee ID,
+no mobile number — so nothing sensitive can land in a URL, a proxy log or a `Referer`. It is
+same-origin, rate limited to 40 reads per minute per IP, and answers
 `Cache-Control: no-store`.
 
-- **Own reports only**: the employee row is looked up by employee number **and** the mobile
-  number registered in the master (compared on the last ten digits, so `+91 98765 43210`,
-  `098765 43210` and `9876543210` are the same number). A wrong number reads nothing.
-- **Same answer for "no such employee" and "wrong number"**: both are `404 NOT_FOUND`, so the
-  endpoint cannot be used to test which Employee IDs exist.
+- **Scope**: `tenant_id = <resolved tenant>` plus `site_id = <the selected site>`, newest
+  first, 100 per page (max 200) with `offset` paging and an exact total, so a long list can
+  be read in full instead of being silently cut off.
+- **An unknown site slug reads nothing.** A typo must never widen the query to every report
+  in the tenant.
 - **The four confidential types are excluded in the query**, not in the UI:
-  `reporter_employee_id = <the employee> AND anonymous = false AND report_type IN
-  (near_miss, hazard, safety_observation, unsafe_condition, unsafe_act)`. Speak Up, Grievance,
-  Feedback and Suggestion therefore never leave the server through this path, and a report
-  type added to the database later stays hidden until the whitelist is changed deliberately.
-- **Anonymous rows can never match**, because an anonymous report is stored without a
-  reporter (enforced by the `anonymous_has_no_reporter` check constraint).
-- The worker screen (`app/components/MyLoggedReports.tsx`) shows the reference, type, area,
-  filled date and status (Open / In Progress / Closed) for each report, with the description
-  and immediate action behind a tap.
+  `anonymous = false AND report_type IN (near_miss, hazard, safety_observation,
+  unsafe_condition, unsafe_act)`. Speak Up, Grievance, Feedback and Suggestion therefore never
+  leave the server through this path, and a report type added to the database later stays
+  hidden until the whitelist is changed deliberately.
+- **No contact data**: the projection joins the reporter's display name only. `employee_no`,
+  `mobile_e164`, address, blood group and date of birth are never selected, and the screen
+  shows no Employee ID or mobile number anywhere.
+- **Photos** are reported as a flag (a second, cheap query on `report_attachments`); the file
+  itself is not served here.
+- The screen (`app/components/LoggedReports.tsx`) loads by itself when the page opens and when
+  the site changes, with search, type filters, status counts, refresh and "load more". Each row
+  expands to the full stored record: type, category, status, area, department, severity,
+  incident date, filed date, reporter name, photo flag, description and immediate action.
 
-The reports page no longer seeds `DEMO_REPORTS`: the list under "Saved on this device" is
-only ever what this browser actually saved, and the database history comes from the verified
-lookup above.
+The reports page no longer seeds `DEMO_REPORTS`. Below the database feed, "Pending on this
+device" lists only what this browser filed and has not yet synced — a receipt, not a second
+source of truth.
 
 ## 7. Still required before public production
 
