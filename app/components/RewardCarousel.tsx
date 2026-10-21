@@ -23,22 +23,19 @@ export type RecognitionGalleryItem = {
   rewardFor?: string | null;
 };
 
-const DEMO_RECOGNITION_CARDS: RecognitionGalleryItem[] = SLIDE_LABELS.map((altText, artworkIndex) => ({
-  id: `demo-recognition-${artworkIndex + 1}`,
-  altText,
-  artworkIndex,
-  isPublished: true
-}));
-
 type Props = { items?: readonly RecognitionGalleryItem[] };
 
-export default function RewardCarousel({ items = DEMO_RECOGNITION_CARDS }: Props) {
+export default function RewardCarousel({ items = [] }: Props) {
   const { T } = useI18n();
   const [paused, setPaused] = useState(false);
   const publishedItems = items.filter((item) => item.isPublished !== false);
   const namedItems = publishedItems.filter((item) => item.employeeName?.trim() && item.rewardFor?.trim());
 
-  if (!publishedItems.length) return null;
+  // Published recognitions come from the database; nothing is drawn in their place.
+  if (!publishedItems.length) return <div className="reward-gallery-empty">
+    <b>{T('No recognitions published yet')}</b>
+    <span>{T('Approved awards will appear here once the safety team publishes them.')}</span>
+  </div>;
 
   return <><div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery')}>
     <div className="reward-gallery-viewport">

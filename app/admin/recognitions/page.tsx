@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/admin-credentials';
 import type { AdminRecognitionItem } from '@/lib/recognitions';
 
 type Draft = Omit<AdminRecognitionItem, 'id'> & { id?: string };
@@ -43,7 +42,7 @@ export default function RecognitionManager() {
     event.preventDefault(); setBusy(true); setMessage('');
     try {
       // Same server check the app's login dialog uses. A workspace passcode also works —
-      // the route takes either — but the demo credentials are what this deployment has.
+      // the route accepts either.
       const response = await fetch('/api/admin/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username.trim(), password }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Sign-in failed.');
@@ -95,7 +94,6 @@ export default function RecognitionManager() {
       <label htmlFor="recognition-password">Password</label>
       <input id="recognition-password" type="password" minLength={6} required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
       <button type="submit" disabled={busy}>Sign in</button>
-      <button type="button" onClick={() => { setUsername(ADMIN_USERNAME); setPassword(ADMIN_PASSWORD); }}>Use demo credentials</button>
       <small>Signed in to the app already? This page reuses that session.</small>
     </form>}
     {configured && signedIn && <>

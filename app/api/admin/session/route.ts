@@ -14,9 +14,10 @@ export const dynamic = 'force-dynamic';
  * Two ways in, either accepted:
  *   - { passcode } — the operator's SAFEX_ADMIN_PASSCODE, which lives only in the server
  *     environment (kept for the console's workspace gate and for tooling);
- *   - { username, password } — the dummy demo credentials in lib/admin-credentials.ts,
- *     which the login dialog sends. The check happens here, on the server, in constant
- *     time; the browser never decides for itself.
+ *   - { username, password } — the shared admin account read from ADMIN_USERNAME /
+ *     ADMIN_PASSWORD (lib/admin-credentials.ts holds the server-side fallback). The check
+ *     happens here, on the server, in constant time; the browser never decides for itself
+ *     and the dialog no longer displays the pair.
  *
  * A wrong guess is rate limited hard (10 attempts per 10 minutes per IP) because a
  * single shared credential is exactly the kind of thing that gets brute forced.

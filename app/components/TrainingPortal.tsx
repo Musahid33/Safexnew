@@ -12,19 +12,10 @@ type Material = { title: string; description: string; type: 'Video' | 'Module'; 
 type TrainingCheck = { employee: Employee; completed: string[]; pending: string[]; hasRecords: boolean };
 type UiMessage = { key: string; params?: Record<string, string | number> };
 
-const TRAINING_VIDEOS: Material[] = [
-  { title: 'Safety Fundamentals · Part 1', description: 'Core workplace safety and hazard awareness.', type: 'Video', durationMinutes: 12 },
-  { title: 'PPE Usage & Care', description: 'Select, inspect and care for personal protective equipment.', type: 'Video', durationMinutes: 8 },
-  { title: 'Hazard Identification', description: 'Recognize unsafe conditions and report them promptly.', type: 'Video', durationMinutes: 15 }
-];
-
-const TRAINING_MODULES: Material[] = [
-  { title: 'Life Saving Rules', description: 'Key rules designed to prevent serious injury.', type: 'Module' },
-  { title: 'Working at Height', description: 'Fall prevention, permits and approved protection.', type: 'Module' },
-  { title: 'Hazard Identification Guide', description: 'Identify unsafe conditions, unsafe acts and controls.', type: 'Module' }
-];
-
-
+// The demo catalog (three videos and three modules with invented titles) was removed. The
+// catalog is filled by the training team; until it is, the sections say so.
+const TRAINING_VIDEOS: Material[] = [];
+const TRAINING_MODULES: Material[] = [];
 
 const ALL_TOPICS = [...TRAINING_VIDEOS.map((item) => item.title), ...TRAINING_MODULES.map((item) => item.title)];
 
@@ -76,13 +67,17 @@ export default function TrainingPortal({ site, directory }: Props) {
     <div className="page-heading"><div><span className="eyebrow">{T('LEARN & REFRESH')} · {site?.name ?? T('SITE')}</span><h1>{T('Training Management')}</h1><p>{T('Browse safety learning material and check your own training status.')}</p></div><BookOpen size={28} /></div>
 
     <section className="training-section training-videos">
-      <div className="training-section-heading"><span className="training-section-icon"><PlayCircle size={19} /></span><div><h2>📺 {T('Training Videos')}</h2><small>{T('Choose a video to preview')}</small></div><span className="training-section-tag">{T('DEMO CATALOG')}</span></div>
-      <div className="training-material-list">{TRAINING_VIDEOS.map((item) => <button type="button" className="training-material-row" key={item.title} onClick={() => setMaterial(item)}><span className="training-material-icon video"><PlayCircle size={18} /></span><span><b>{item.title}</b><small>{item.description}</small></span>{item.durationMinutes !== undefined && <span className="training-material-meta"><Clock3 size={13} />{T('{count} minutes', { count: new Intl.NumberFormat(locale).format(item.durationMinutes) })}</span>}</button>)}</div>
+      <div className="training-section-heading"><span className="training-section-icon"><PlayCircle size={19} /></span><div><h2>📺 {T('Training Videos')}</h2><small>{T('Choose a video to preview')}</small></div></div>
+      {TRAINING_VIDEOS.length
+        ? <div className="training-material-list">{TRAINING_VIDEOS.map((item) => <button type="button" className="training-material-row" key={item.title} onClick={() => setMaterial(item)}><span className="training-material-icon video"><PlayCircle size={18} /></span><span><b>{item.title}</b><small>{item.description}</small></span>{item.durationMinutes !== undefined && <span className="training-material-meta"><Clock3 size={13} />{T('{count} minutes', { count: new Intl.NumberFormat(locale).format(item.durationMinutes) })}</span>}</button>)}</div>
+        : <div className="training-empty">{T('No training videos have been published yet.')}</div>}
     </section>
 
     <section className="training-section training-modules">
-      <div className="training-section-heading"><span className="training-section-icon"><BookOpen size={19} /></span><div><h2>📚 {T('Training Modules')}</h2><small>{T('Reference guides and standards')}</small></div><span className="training-section-tag">{T('PDF / PPT / STANDARD')}</span></div>
-      <div className="training-module-grid">{TRAINING_MODULES.map((item) => <button type="button" className="training-module-card" key={item.title} onClick={() => setMaterial(item)}><FileText size={18} /><span><b>{item.title}</b><small>{item.description}</small></span></button>)}</div>
+      <div className="training-section-heading"><span className="training-section-icon"><BookOpen size={19} /></span><div><h2>📚 {T('Training Modules')}</h2><small>{T('Reference guides and standards')}</small></div></div>
+      {TRAINING_MODULES.length
+        ? <div className="training-module-grid">{TRAINING_MODULES.map((item) => <button type="button" className="training-module-card" key={item.title} onClick={() => setMaterial(item)}><FileText size={18} /><span><b>{item.title}</b><small>{item.description}</small></span></button>)}</div>
+        : <div className="training-empty">{T('No training material has been published yet.')}</div>}
     </section>
 
     <section className="training-section training-check">
@@ -94,13 +89,13 @@ export default function TrainingPortal({ site, directory }: Props) {
         <div className="training-employee-found"><span className="live-dot" /><b>{check.employee.name}</b><span>{check.employee.empNo} · {check.employee.designation}</span></div>
         {!check.hasRecords && <div className="inline-notice warning" role="status">{T('This profile was found in the employee master, but training completion records are not connected yet.')}</div>}
         {check.hasRecords && <div className="training-count-grid"><div><small>{T('Applicable')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Available')}</small><b>{ALL_TOPICS.length}</b></div><div><small>{T('Pending')}</small><b>{check.pending.length}</b></div><div><small>{T('Completed')}</small><b>{check.completed.length}</b></div></div>}
-        {check.completed.length > 0 && <div className="training-result-list"><h3>✅ {T('Completed Trainings')} ({check.completed.length})</h3>{check.completed.map((topic) => <div className="training-result-row completed" key={topic}><CheckCircle2 size={15} /><span>{topic}</span><small>{T('Demo record')}</small></div>)}</div>}
+        {check.completed.length > 0 && <div className="training-result-list"><h3>✅ {T('Completed Trainings')} ({check.completed.length})</h3>{check.completed.map((topic) => <div className="training-result-row completed" key={topic}><CheckCircle2 size={15} /><span>{topic}</span><small>{T('Completed')}</small></div>)}</div>}
         {check.pending.length > 0 && <div className="training-result-list"><h3>⏳ {T('Pending Trainings')} ({check.pending.length})</h3>{check.pending.map((topic) => <div className="training-result-row pending" key={topic}><Clock3 size={15} /><span>{topic}</span><small>{T('Not completed')}</small></div>)}</div>}
       </div>}
     </section>
 
-    <div className="privacy-note"><CheckCircle2 size={15} /> {T('Live training catalog, employee training records and material links are not connected in this demo.')}</div>
+    <div className="privacy-note"><CheckCircle2 size={15} /> {T('The training catalog and training records are not connected yet. The employee lookup below reads the live employee master.')}</div>
 
-    {material && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="training-material-title"><div className="modal training-material-modal"><div className="modal-header"><div><span className="eyebrow">{T('TRAINING VIEWER')} · {T(material.type)}</span><h2 id="training-material-title">{material.title}</h2></div><button className="close-button" type="button" onClick={() => setMaterial(null)} aria-label={T('Close training viewer')}><X /></button></div><p>{material.description}</p><div className="training-material-placeholder"><FileText size={27} /><b>{T('Learning material preview')}</b><small>{T('The demo catalog has no connected file or video link.')}</small></div><button className="secondary-button full-button" type="button" onClick={() => setMaterial(null)}>{T('Close')}</button></div></div>}
+    {material && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="training-material-title"><div className="modal training-material-modal"><div className="modal-header"><div><span className="eyebrow">{T('TRAINING VIEWER')} · {T(material.type)}</span><h2 id="training-material-title">{material.title}</h2></div><button className="close-button" type="button" onClick={() => setMaterial(null)} aria-label={T('Close training viewer')}><X /></button></div><p>{material.description}</p><div className="training-material-placeholder"><FileText size={27} /><b>{T('Learning material preview')}</b><small>{T('No file or video link has been published for this material yet.')}</small></div><button className="secondary-button full-button" type="button" onClick={() => setMaterial(null)}>{T('Close')}</button></div></div>}
   </section>;
 }

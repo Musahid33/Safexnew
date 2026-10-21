@@ -464,6 +464,7 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .preference-row { min-height: 54px; margin-top: 7px; background: var(--surface); }
 .settings-modal .primary-button { margin-top: 13px; }
 .sos-modal { width: min(100%, 440px); }
+.sos-fallback-note { margin: 9px 0 0; color: var(--muted, #64748b); font-size: 11px; text-align: center; }
 .sos-call-link { min-height: 48px; display: flex; align-items: center; justify-content: center; margin-top: 13px; border-radius: 11px; background: #d92d20; color: #fff; text-decoration: none; font-size: 12px; font-weight: 900; }
 .detail-modal { width: min(100%, 560px); }
 .detail-meta { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
@@ -486,6 +487,22 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .training-section-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
 .training-section-heading > div { min-width: 0; display: grid; gap: 3px; }
 .training-section-heading h2 { margin: 0; color: var(--text); font-size: 13px; }
+.training-empty, .vault-document-empty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 22px 14px;
+  border: 1px dashed var(--line, #dbe3ec);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--muted, #64748b);
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.training-empty b, .vault-document-empty b { color: var(--text, #12233b); font-size: 12.5px; }
+.vault-document-empty span { max-width: 44ch; }
+
 .training-section-heading small, .training-section-tag { color: var(--muted); font-size: 8px; }
 .training-section-tag { margin-left: auto; font-weight: 900; letter-spacing: .04em; text-align: right; }
 .training-section-icon { width: 34px; height: 34px; display: grid; place-items: center; flex: none; border-radius: 10px; background: var(--surface-2); color: var(--focus); }
@@ -944,6 +961,19 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .reward-wall-section .section-heading { margin-bottom: 10px; }
 .reward-wall-section .section-heading h2 { font-size: 17px; }
 .reward-wall-section .section-heading .eyebrow { font-size: 10px; }
+.reward-gallery-empty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 26px 16px;
+  border: 1px dashed var(--line, #dbe3ec);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  text-align: center;
+}
+.reward-gallery-empty b { color: var(--text, #12233b); font-size: 13px; }
+.reward-gallery-empty span { max-width: 48ch; color: var(--muted, #64748b); font-size: 11.5px; line-height: 1.55; }
+
 .reward-gallery { position: relative; width: 100%; }
 .reward-gallery-viewport { width: 100%; overflow: hidden; border-radius: 19px; }
 .reward-gallery-track { width: max-content; display: flex; align-items: flex-start; will-change: transform; animation: rewards-gallery-loop 24s linear infinite; }
@@ -2404,18 +2434,6 @@ textarea.form-control { min-height: 128px; }
   .admin-preview-footer { min-height: 38px; font-size: 8px; }
 }
 
-.admin-demo-credentials { display: grid; gap: 10px; margin-top: 13px; border: 1px solid #d8e2ef; border-radius: 13px; background: #f5f8fc; color: #17324e; padding: 12px; }
-.admin-demo-credentials-heading { display: flex; align-items: flex-start; gap: 9px; }
-.admin-demo-credentials-heading > svg { flex: none; margin-top: 1px; color: #1b5b87; }
-.admin-demo-credentials-heading > span { min-width: 0; display: grid; gap: 3px; }
-.admin-demo-credentials-heading b { font-size: 11px; font-weight: 900; }
-.admin-demo-credentials-heading small { color: #5f7187; font-size: 9px; line-height: 1.4; }
-.admin-demo-credential-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
-.admin-demo-credential-values > span { min-width: 0; display: grid; gap: 4px; border: 1px solid #dce5ef; border-radius: 9px; background: #fff; padding: 8px 9px; }
-.admin-demo-credential-values small { color: #6a7b90; font-size: 8px; font-weight: 850; text-transform: uppercase; }
-.admin-demo-credential-values code { overflow-wrap: anywhere; color: #142f4d; font-size: 10px; font-weight: 800; user-select: all; }
-.admin-demo-fill-button { width: 100%; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #bccce0; border-radius: 9px; background: #fff; color: #173a5e; padding: 7px 10px; font-size: 10px; font-weight: 900; cursor: pointer; }
-.admin-demo-fill-button:hover { border-color: #7796b8; background: #edf3fa; }
 @media (max-width: 520px) {
   .admin-demo-credential-values { grid-template-columns: 1fr; }
   .admin-demo-credentials { padding: 10px; }

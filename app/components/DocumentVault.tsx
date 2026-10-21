@@ -17,55 +17,18 @@ type VaultCategory = {
   documents: VaultDocument[];
 };
 
+/**
+ * The four shelves of the site library.
+ *
+ * The documents that used to sit inside them were sample files ("· Sample", "Demo") with
+ * invented revisions. They are gone: a shelf with no published file opens to an empty state.
+ * The shelves themselves stay, because they are the categories the site organises by.
+ */
 export const DOCUMENT_VAULT_CATEGORIES: VaultCategory[] = [
-  {
-    id: 'sop-swp',
-    title: 'SOP / SWP',
-    description: 'Standard & safe work procedures',
-    tone: 'red',
-    icon: FileText,
-    documents: [
-      { title: 'SOP · Lockout / Tagout', kind: 'SOP', revision: 'Rev 02', updated: '2026-09-12' },
-      { title: 'SWP · Working at Height', kind: 'SWP', revision: 'Rev 01', updated: '2026-08-29' },
-      { title: 'SOP · Hot Work Permit', kind: 'SOP', revision: 'Rev 03', updated: '2026-08-16' }
-    ]
-  },
-  {
-    id: 'risk-assessments',
-    title: 'Risk Assessments',
-    description: 'JHA, HIRA & task risk reviews',
-    tone: 'blue',
-    icon: ShieldAlert,
-    documents: [
-      { title: 'JHA · Work at Height', kind: 'JHA', revision: 'Rev 01', updated: '2026-09-18' },
-      { title: 'HIRA · Material Handling', kind: 'HIRA', revision: 'Rev 02', updated: '2026-09-05' },
-      { title: 'Risk Review · Confined Space', kind: 'JHA', revision: 'Rev 01', updated: '2026-08-22' }
-    ]
-  },
-  {
-    id: 'legal-compliance',
-    title: 'Legal & Statutory Compliance',
-    description: 'Registers, checklists & obligations',
-    tone: 'amber',
-    icon: Scale,
-    documents: [
-      { title: 'Statutory Compliance Checklist · Sample', kind: 'Checklist', revision: 'Demo', updated: '2026-10-01' },
-      { title: 'Applicable Law Matrix · Sample', kind: 'Register', revision: 'Demo', updated: '2026-09-15' },
-      { title: 'Permit & Certificate Index · Sample', kind: 'Index', revision: 'Demo', updated: '2026-09-01' }
-    ]
-  },
-  {
-    id: 'policies-procedures',
-    title: 'Policy & Procedures',
-    description: 'Safety policy and management process',
-    tone: 'purple',
-    icon: ScrollText,
-    documents: [
-      { title: 'Occupational Health & Safety Policy · Sample', kind: 'Policy', revision: 'Demo', updated: '2026-09-10' },
-      { title: 'Incident Reporting Procedure · Sample', kind: 'Procedure', revision: 'Demo', updated: '2026-09-04' },
-      { title: 'Emergency Response Procedure · Sample', kind: 'Procedure', revision: 'Demo', updated: '2026-08-20' }
-    ]
-  },
+  { id: 'sop-swp', title: 'SOP / SWP', description: 'Standard & safe work procedures', tone: 'red', icon: FileText, documents: [] },
+  { id: 'risk-assessments', title: 'Risk Assessments', description: 'JHA, HIRA & task risk reviews', tone: 'blue', icon: ShieldAlert, documents: [] },
+  { id: 'legal-compliance', title: 'Legal & Statutory Compliance', description: 'Registers, checklists & obligations', tone: 'amber', icon: Scale, documents: [] },
+  { id: 'policies-procedures', title: 'Policy & Procedures', description: 'Safety policy and management process', tone: 'purple', icon: ScrollText, documents: [] }
 ];
 
 export function DocumentVaultGrid({ onSelect }: { onSelect: (id: VaultCategoryId) => void }) {
@@ -95,15 +58,20 @@ export function VaultCategoryDialog({ categoryId, siteName, onClose }: { categor
         </div>
         <button className="close-button" type="button" onClick={onClose} aria-label={T('Close document category')}><X /></button>
       </div>
-      <p className="vault-dialog-intro">{T(category.description)}. {T('This is a sample index for the selected site.')}</p>
+      <p className="vault-dialog-intro">{T(category.description)}. {T('Documents published for the selected site appear here.')}</p>
       <div className="vault-document-list">
+        {category.documents.length === 0 && <div className="vault-document-empty">
+          <FileText size={22} aria-hidden="true" />
+          <b>{T('No documents published yet')}</b>
+          <span>{T('Approved files will be listed here once the safety team publishes them.')}</span>
+        </div>}
         {category.documents.map((document) => <article className="vault-document-row" key={document.title}>
           <span className="vault-document-icon"><BookOpen size={19} /></span>
           <span className="vault-document-copy"><b>{document.title}</b><small>{T(document.kind)} · {document.revision} · {T('Updated')} {new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE, day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${document.updated}T12:00:00+05:30`))}</small></span>
           <span className="vault-document-status"><CalendarDays size={13} /> {T('Index only')}</span>
         </article>)}
       </div>
-      <div className="modal-footnote"><LockKeyhole size={14} /> {T('Demo index only · no real document files or compliance records are connected.')}</div>
+      <div className="modal-footnote"><LockKeyhole size={14} /> {T('Only published files are listed. Nothing here is a sample entry.')}</div>
     </div>
   </div>;
 }

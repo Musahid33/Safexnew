@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { selectableSites } from '@/lib/site-config';
-import { DEMO_SITES, DEMO_TENANT } from '@/lib/demo-data';
 import { MASTER_DIRECTORY, type EmployeeDirectory } from '@/lib/employee-directory';
 import type { DirectoryUnavailableReason, Site } from '@/lib/types';
 
@@ -37,8 +36,10 @@ export type SafexBootstrap = {
 
 const INITIAL: SafexBootstrap = {
   ready: false,
-  sites: DEMO_SITES,
-  companyName: DEMO_TENANT.companyName,
+  // Empty until the server answers. A demo site here used to make the app look configured
+  // while the real tenant was unreachable.
+  sites: [],
+  companyName: null,
   directory: MASTER_DIRECTORY,
   directoryMode: 'unavailable',
   employeeCount: 0,
@@ -57,11 +58,11 @@ export function useSafexBootstrap(): SafexBootstrap {
       .then((response) => (response.ok ? response.json() as Promise<BootstrapResponse> : null))
       .then((payload) => {
         if (!active) return;
-        const sites = Array.isArray(payload?.sites) && payload.sites.length ? payload.sites : DEMO_SITES;
+        const sites = Array.isArray(payload?.sites) ? payload.sites : [];
         setState({
           ready: true,
           sites: selectableSites(sites),
-          companyName: payload?.companyName?.trim() || DEMO_TENANT.companyName,
+          companyName: payload?.companyName?.trim() || null,
           directory: MASTER_DIRECTORY,
           directoryMode: payload?.directory ?? 'unavailable',
           employeeCount: payload?.employeeCount ?? 0,

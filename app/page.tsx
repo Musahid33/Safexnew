@@ -8,8 +8,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { LIFE_SAVING_RULES } from '@/lib/life-saving-rules';
-import { DEMO_TENANT } from '@/lib/demo-data';
-import { DEMO_SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
+import { SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
+import { APP_FEATURES, brandingFor } from '@/lib/app-config';
+import { SOS_NUMBER, telHref } from '@/lib/emergency';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
 import LanguageStrip from './components/LanguageStrip';
 import { useI18n } from './components/I18nProvider';
@@ -126,9 +127,10 @@ export default function SafexHome() {
   // Site list and employee directory come from the server: the real employee master when
   // one is configured; otherwise lookups report unavailable.
   const { ready: directoryReady, sites, directory, companyName, directoryMode, directoryReason, employeeCount, degraded } = useSafexBootstrap();
-  // Brand the page with whatever the server actually knows. DEMO_TENANT is only the
-  // fallback used before bootstrap answers.
-  const brandCompanyName = companyName || DEMO_TENANT.companyName;
+  // Brand the page with whatever the server actually knows. Before it answers there is no
+  // name at all — an invented company is worse than a blank header for a second.
+  const brandCompanyName = (companyName ?? '').trim();
+  const company = brandingFor(brandCompanyName);
   const locale = LANGUAGE_LOCALE[language];
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [page, setPage] = useState<PageKey>('home');
@@ -179,10 +181,13 @@ export default function SafexHome() {
   const safetyAlertsTouchStart = useRef<{ x: number; y: number } | null>(null);
 
   const nextUpcomingEvent = useMemo(() => getUpcomingEvents()[0] ?? null, []);
-  const filteredSafetyAlerts = useMemo(() => DEMO_SAFETY_ALERTS
+  const filteredSafetyAlerts = useMemo(() => SAFETY_ALERTS
     .filter((alert) => safetyAlertFilter === 'All' || alert.category === safetyAlertFilter)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [safetyAlertFilter]);
   const currentSite = sites.find((site) => site.id === siteId) ?? null;
+  // The site row can carry its own emergency contact; until one is configured the company
+  // SOS line is dialled instead of showing an empty warning.
+  const sosNumber = currentSite?.sosNumber?.trim() || SOS_NUMBER;
   const isSingleSite = sites.length === 1;
   // Everything in this list came from this browser: an offline submission still waiting to
   // sync, or one it filed earlier in this visit. The database history is a separate read.
@@ -266,7 +271,7 @@ export default function SafexHome() {
       event.preventDefault();
       setInstallPrompt(event as InstallPromptEvent);
     };
-    const handleAppInstalled = () => setInstallMessage({ key: '{app} has been installed on this device.', params: { app: DEMO_TENANT.companyName || 'Company app' } });
+    const handleAppInstalled = () => setInstallMessage({ key: '{app} has been installed on this device.', params: { app: brandCompanyName || 'the company app' } });
     window.addEventListener('beforeinstallprompt', handleInstall);
     window.addEventListener('appinstalled', handleAppInstalled);
     if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
@@ -484,7 +489,7 @@ export default function SafexHome() {
     setToast({ key: 'Selected site {site}. Site content is now filtered for this visit.', params: { site: valid.name } });
   }
 
-  function completeDemoAdminLogin() {
+  function completeAdminSignIn() {
     setOfficerAccessOpen(false);
     setPage('adminDashboard');
   }
@@ -603,7 +608,9 @@ export default function SafexHome() {
   const nextEventStatus = nextUpcomingEvent ? getUpcomingEventStatus(nextUpcomingEvent.date) : null;
 
   const siteSelectionDialog = siteReady && siteDialog ? (
-    <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{brandCompanyName.trim().charAt(0) || 'S'}</span><span><b>{brandCompanyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button><div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>
+    <div className="overlay site-overlay" role="dialog" aria-modal="true" aria-labelledby="site-title"><div className="modal site-modal"><div className="modal-brand"><span className="brand-mark">{brandCompanyName.trim().charAt(0) || 'S'}</span><span><b>{brandCompanyName}</b><small>{T('Powered by')} Safex Safety</small></span><button className="close-button site-modal-close" type="button" onClick={() => setSiteDialog(false)} aria-label={T('Close site selection')}><X /></button></div><LanguageStrip language={language} onChange={setLanguage} className="site-language-strip" /><span className="eyebrow">{T('SITE SELECTION')}</span><h2 id="site-title">{T('sitePrompt')}</h2><p>{T('Select the site where you are working now. Home, reports and SOS will follow this site for this visit.')}</p>{sites.length === 0
+              ? <div className="inline-notice warning">{T('No site is configured for this deployment yet. Ask the Admin to verify the site and reload.')}</div>
+              : <><label className="field-label" htmlFor="site-select">{T('selectSite')}</label><select id="site-select" className="form-control" value={siteDraft} onChange={(e) => setSiteDraft(e.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.name} · {site.region}</option>)}</select><button className="primary-button full-button" onClick={() => chooseSite(siteDraft)}>{T('continue')} <ChevronRight size={17} /></button></>}<div className="modal-footnote"><LockKeyhole size={14} /> {T('Site selection filters the page; it does not verify employee identity.')}{employeeCount > 0 ? ` · ${T('{count} employees in this directory', { count: new Intl.NumberFormat(locale).format(employeeCount) })}` : ''}</div></div></div>
   ) : null;
 
   // The Admin / HSE Manager dashboard is the uploaded SafetyOS console itself. It is
@@ -690,10 +697,10 @@ export default function SafexHome() {
                     </li>)}
                   </ul>}
                 </div>
-                {DEMO_TENANT.features.pushNotifications && <button className="header-ui-button header-notification-button" onClick={() => setNotificationsOpen(true)} aria-label={T('Notification settings, 3 sample updates')}>
-                  <Bell size={19} aria-hidden="true" /><span className="header-notification-count">3</span>
+                {APP_FEATURES.pushNotifications && <button className="header-ui-button header-notification-button" onClick={() => setNotificationsOpen(true)} aria-label={T('Notification settings')}>
+                  <Bell size={19} aria-hidden="true" />
                 </button>}
-                <button className="header-ui-button header-sos-button" onClick={() => currentSite ? setSosOpen(true) : setSiteDialog(true)} aria-label={T('SOS emergency contact')}>SOS</button>
+                <button className="header-ui-button header-sos-button" onClick={() => setSosOpen(true)} aria-label={T('SOS emergency contact')}>SOS</button>
                 <button className="header-ui-button header-account-button" onClick={() => setOfficerAccessOpen(true)} aria-label={T('Login / account')}><UserRound size={19} aria-hidden="true" /></button>
               </div>
             </div>
@@ -744,7 +751,7 @@ export default function SafexHome() {
                 <span className="home-feature-copy"><b>{T('viewReports')}</b><small>{T('Track Open / Closed status')}</small></span>
                 <ChevronRight size={20} />
               </button>
-              {DEMO_TENANT.features.trainingManagement && <button className="home-feature-row" onClick={() => setPage('training')}>
+              {APP_FEATURES.trainingManagement && <button className="home-feature-row" onClick={() => setPage('training')}>
                 <span className="home-feature-icon"><Smartphone size={22} /></span>
                 <span className="home-feature-copy"><b>{T('Training Management')}</b><small>{T('Modules, videos and progress')}</small></span>
                 <ChevronRight size={20} />
@@ -752,12 +759,11 @@ export default function SafexHome() {
               <button className="home-feature-row safety-alerts-feature" type="button" onClick={openSafetyAlerts} aria-haspopup="dialog">
                 <span className="home-feature-icon safety-alerts-icon"><Bell size={22} /></span>
                 <span className="home-feature-copy"><b>{T('Safety Alerts')}</b><small>{T('Incident alerts, controls & lessons learned')}</small></span>
-                <span className="safety-alerts-demo-badge">{T('DEMO')}</span>
                 <ChevronRight size={20} />
               </button>
-              {(DEMO_TENANT.features.library || DEMO_TENANT.features.circulars) && <button className="home-feature-row" onClick={() => setPage('updates')}>
+              {(APP_FEATURES.library || APP_FEATURES.circulars) && <button className="home-feature-row" onClick={() => setPage('updates')}>
                 <span className="home-feature-icon"><FileText size={22} /></span>
-                <span className="home-feature-copy"><b>{T(DEMO_TENANT.features.library && !DEMO_TENANT.features.circulars ? 'Safety Library' : 'Circulars & Notices')}</b><small>{T('Browse all circulars and notices')}</small></span>
+                <span className="home-feature-copy"><b>{T(APP_FEATURES.library && !APP_FEATURES.circulars ? 'Safety Library' : 'Circulars & Notices')}</b><small>{T('Browse all circulars and notices')}</small></span>
                 <span className="home-feature-link">{T('See all ›')}</span>
               </button>}
               <section className="upcoming-events-module" aria-labelledby="upcoming-events-heading">
@@ -776,14 +782,14 @@ export default function SafexHome() {
               </section>
             </div>
           </section>
-          {DEMO_TENANT.features.library && <section className="section-block document-vault-section">
+          {APP_FEATURES.library && <section className="section-block document-vault-section">
             <div className="section-heading vault-section-heading"><div className="vault-section-title"><span className="vault-title-icon"><FolderOpen size={23} /></span><div className="vault-section-heading-copy"><h2>{T('Document Vault / Library')}</h2></div></div></div>
             <DocumentVaultGrid onSelect={setVaultCategoryId} />
-            <p className="home-demo-caption">{T('Site document categories · demo index only; files and compliance records are not connected.')}</p>
+            <p className="home-demo-caption">{T('Site document categories. Only files published by the safety team are listed.')}</p>
           </section>}
-          {DEMO_TENANT.features.rewardWall && <section className="section-block reward-wall-section">
+          {APP_FEATURES.rewardWall && <section className="section-block reward-wall-section">
             <div className="section-heading"><div><span className="eyebrow">{T('RECOGNITION')}</span><h2 className="rewards-gallery-title"><span aria-hidden="true">🏆</span> {T('Rewards & Recognition Gallery')}</h2></div></div>
-            <RewardCarousel items={recognitions.length ? recognitions : undefined} />
+            <RewardCarousel items={recognitions} />
           </section>}
         </>}
 
@@ -807,7 +813,7 @@ export default function SafexHome() {
         {page === 'library' && <section className="page-panel document-vault-page">
           <div className="page-heading"><div><span className="eyebrow">{T('DOCUMENTS')} · {currentSite?.name ?? T('SELECTED SITE')}</span><h1>{T('Document Vault / Library')}</h1><p>{T('Browse site safety procedures, risk assessments, compliance indexes, policies and meeting minutes.')}</p></div><FolderOpen size={28} /></div>
           <DocumentVaultGrid onSelect={setVaultCategoryId} />
-          <div className="privacy-note"><LockKeyhole size={15} /> {T('Demo index only · actual site documents and statutory records are not connected.')}</div>
+          <div className="privacy-note"><LockKeyhole size={15} /> {T('Only published files are listed. Nothing here is a sample entry.')}</div>
         </section>}
 
         {page === 'more' && <MoreMenuPage
@@ -830,18 +836,18 @@ export default function SafexHome() {
           <div className="privacy-note"><Check size={15} /> {T('Preferences save on this device. SOS and report-status colours keep their safety meaning.')}</div>
         </section>}
 
-        {page === 'install' && <InstallAppPage company={DEMO_TENANT} canInstall={Boolean(installPrompt)} installMessage={installMessage} onInstall={installApp} onBack={() => setPage('more')} />}
+        {page === 'install' && <InstallAppPage company={company} canInstall={Boolean(installPrompt)} installMessage={installMessage} onInstall={installApp} onBack={() => setPage('more')} />}
 
-        {page === 'company' && <CompanyAboutPage company={DEMO_TENANT} onBack={() => setPage('more')} />}
+        {page === 'company' && <CompanyAboutPage company={company} onBack={() => setPage('more')} />}
         {page === 'account' && <AccountManagementPage onBack={() => setPage('more')} onLogin={() => setOfficerAccessOpen(true)} onOpenInfo={setMoreInfoKind} />}
-        {page === 'aboutApp' && <AboutAppPage company={DEMO_TENANT} onBack={() => setPage('more')} onOpenInfo={setMoreInfoKind} />}
+        {page === 'aboutApp' && <AboutAppPage company={company} onBack={() => setPage('more')} onOpenInfo={setMoreInfoKind} />}
       </main>
 
       {<nav className="bottom-nav" aria-label={T('Main navigation')}>
         <NavItem active={page === 'home'} icon={<Home />} label={T('home')} onClick={() => setPage('home')} />
         <NavItem active={safetyAlertsOpen} icon={<Bell />} label={T('Safety Alerts')} onClick={openSafetyAlerts} />
         <button className="nav-report" onClick={() => setReportPickerOpen(true)} aria-label={T('report')} aria-haspopup="dialog"><PlusIcon /><span>{T('report')}</span></button>
-        {DEMO_TENANT.features.trainingManagement && <NavItem active={page === 'training'} icon={<BookOpen />} label={T('training')} onClick={() => setPage('training')} />}
+        {APP_FEATURES.trainingManagement && <NavItem active={page === 'training'} icon={<BookOpen />} label={T('training')} onClick={() => setPage('training')} />}
         <NavItem active={page === 'more' || page === 'appearance' || page === 'install' || page === 'library' || page === 'company' || page === 'account' || page === 'aboutApp'} icon={<MoreHorizontal />} label={T('more')} onClick={() => setPage('more')} />
       </nav>}
 
@@ -866,11 +872,10 @@ export default function SafexHome() {
             <button type="button" className="safety-alerts-close" onClick={closeSafetyAlerts} aria-label={T('Close safety alerts')}><X size={21} /></button>
           </header>
           <div className="safety-alerts-scroll" ref={safetyAlertsScrollRef}>
-            <div className="safety-alerts-demo-note"><AlertTriangle size={17} aria-hidden="true" /><span><b>{T('DEMO ALERTS')}</b> · {T('Synthetic examples only; no live incident feed is connected.')}</span></div>
             <div className="safety-alert-filter-row" role="group" aria-label={T('Filter safety alerts')}>
               {SAFETY_ALERT_FILTERS.map((filter) => <button key={filter} type="button" className={`safety-alert-filter-chip ${safetyAlertFilter === filter ? 'active' : ''}`} aria-pressed={safetyAlertFilter === filter} onClick={() => { setSafetyAlertFilter(filter); setExpandedSafetyAlertId(null); }}>{T(filter)}</button>)}
             </div>
-            <div className="safety-alerts-results-heading"><h3>{safetyAlertFilter === 'All' ? T('All safety alerts') : T(safetyAlertFilter)}</h3><span>{T('{count} sample alerts', { count: new Intl.NumberFormat(locale).format(filteredSafetyAlerts.length) })}</span></div>
+            <div className="safety-alerts-results-heading"><h3>{safetyAlertFilter === 'All' ? T('All safety alerts') : T(safetyAlertFilter)}</h3><span>{T('{count} alerts', { count: new Intl.NumberFormat(locale).format(filteredSafetyAlerts.length) })}</span></div>
             <div className="safety-alert-list">
               {filteredSafetyAlerts.map((alert) => {
                 const expanded = expandedSafetyAlertId === alert.id;
@@ -893,12 +898,11 @@ export default function SafexHome() {
                       <section><h4>{T('Immediate response')}</h4><ul>{alert.immediateActions.map((action) => <li key={action}>{action}</li>)}</ul></section>
                       <section><h4>{T('Corrective actions')}</h4><ul>{alert.correctiveActions.map((action) => <li key={action}>{action}</li>)}</ul></section>
                       <section><h4>{T('Lessons learned')}</h4><ul>{alert.lessonsLearned.map((lesson) => <li key={lesson}>{lesson}</li>)}</ul></section>
-                      <small className="safety-alert-demo-reference">{T('Sample reference')} · {alert.id}</small>
                     </div>
                   </div>
                 </article>;
               })}
-              {filteredSafetyAlerts.length === 0 && <div className="safety-alerts-empty">{T('No alerts match this filter.')}</div>}
+              {filteredSafetyAlerts.length === 0 && <div className="safety-alerts-empty">{T('No safety alerts have been published for this site yet.')}</div>}
             </div>
           </div>
         </section>
@@ -915,23 +919,23 @@ export default function SafexHome() {
             {REPORT_KINDS.map(({ type, icon: Icon, tone, labelKey, prefix, suffix, desc }) => <button key={type} type="button" className="report-picker-option" aria-label={T(type)} onClick={() => { setReportPickerOpen(false); openReport(type); }}>
               <span className={`tile-icon ${tone}`}><Icon size={24} aria-hidden="true" /></span>
               <span className="report-picker-copy"><b>{prefix ? `${prefix} · ` : ''}{labelKey ? T(labelKey) : T(type)}{suffix ? ` ${suffix}` : ''}</b><small className="sr-only">{T(desc)}</small></span>
-              {DEMO_TENANT.features.voiceReporting && <span className="report-picker-voice" aria-hidden="true"><Mic size={22} /></span>}
+              {APP_FEATURES.voiceReporting && <span className="report-picker-voice" aria-hidden="true"><Mic size={22} /></span>}
             </button>)}
           </div>
         </div>
       </div>}
 
-      {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} directory={directory} language={language} onLanguageChange={setLanguage} voiceEnabled={DEMO_TENANT.features.voiceReporting} syncEnabled={reportSyncEnabled} onClose={() => setReportType(null)} onSubmit={submitReport} />}
+      {reportType && currentSite && <ReportWorkflow key={`${reportType}-${currentSite.id}`} type={reportType} site={currentSite} directory={directory} language={language} onLanguageChange={setLanguage} voiceEnabled={APP_FEATURES.voiceReporting} syncEnabled={reportSyncEnabled} onClose={() => setReportType(null)} onSubmit={submitReport} />}
       {profileSearchOpen && <ProfileSearchDialog site={currentSite} companyName={companyName} directory={directory} directoryMode={directoryMode} directoryReason={directoryReason} employeeCount={employeeCount} onClose={() => setProfileSearchOpen(false)} />}
-      {officerAccessOpen && <OfficerAccessDialog onClose={() => setOfficerAccessOpen(false)} onDemoLogin={completeDemoAdminLogin} />}
-      {moreInfoKind && <MoreInfoDialog kind={moreInfoKind} company={DEMO_TENANT} onClose={() => setMoreInfoKind(null)} onLogin={() => { setMoreInfoKind(null); setOfficerAccessOpen(true); }} />}
+      {officerAccessOpen && <OfficerAccessDialog onClose={() => setOfficerAccessOpen(false)} onSignedIn={completeAdminSignIn} />}
+      {moreInfoKind && <MoreInfoDialog kind={moreInfoKind} company={company} onClose={() => setMoreInfoKind(null)} onLogin={() => { setMoreInfoKind(null); setOfficerAccessOpen(true); }} />}
 
 
       {notificationsOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="notification-title"><div className="modal settings-modal"><div className="modal-header"><div><span className="eyebrow">{T('DEVICE SETTINGS')}</span><h2 id="notification-title">{T('Push notifications')}</h2></div><button className="close-button" onClick={() => setNotificationsOpen(false)} aria-label={T('Close')}><X /></button></div><p>{T('Choose which published updates reach this device. Avoid sending every draft or internal edit.')}</p><div className="notification-status"><Bell size={17} /><span>{T('Browser permission:')} <b>{T(notificationPermission)}</b></span></div><Preference label="Safety Alerts and urgent notices" detail="New published safety alerts" checked={pushPrefs.safety} onChange={() => setPref('safety')} /><Preference label="Circulars and published updates" detail="Notices, events and training" checked={pushPrefs.notices} onChange={() => setPref('notices')} /><Preference label="My report status" detail="Updates only for your reports" checked={pushPrefs.ownReports} onChange={() => setPref('ownReports')} /><Preference label="All vendor-site updates" detail="Opt in for this vendor only" checked={pushPrefs.allVendorSites} onChange={() => setPref('allVendorSites')} /><Preference label="Hide details on lock screen" detail="Recommended for privacy" checked={pushPrefs.hideLockScreen} onChange={() => setPref('hideLockScreen')} /><button className="primary-button full-button" onClick={requestPushPermission}>{T('Allow notifications on this device')}</button><div className="modal-footnote">{T('Production push still requires a service worker subscription and server-side VAPID sender.')}</div></div></div>}
 
-      {sosOpen && currentSite && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="sos-title"><div className="modal sos-modal"><div className="modal-header"><div><span className="eyebrow">{T('CURRENT SITE · EMERGENCY CONTACT')}</span><h2 id="sos-title">SOS · {currentSite.name}</h2></div><button className="close-button" onClick={() => setSosOpen(false)} aria-label={T('Close SOS')}><X /></button></div><p>{T('Safex will use the emergency number configured for {site}.', { site: currentSite.name })}</p>{currentSite.sosNumber ? <a className="sos-call-link" href={`tel:${currentSite.sosNumber}`}>{T('Call site emergency contact · {phone}', { phone: currentSite.sosNumber })}</a> : <div className="inline-notice warning">{T('No SOS number is configured for this demo site. Add and verify the real site contact before launch.')}</div>}<div className="modal-footnote"><AlertTriangle size={14} /> {T('Confirm the displayed site before calling. Emergency numbers must come from site Admin configuration.')}</div></div></div>}
+      {sosOpen && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="sos-title"><div className="modal sos-modal"><div className="modal-header"><div><span className="eyebrow">{T('CURRENT SITE · EMERGENCY CONTACT')}</span><h2 id="sos-title">{currentSite ? `SOS · ${currentSite.name}` : 'SOS'}</h2></div><button className="close-button" onClick={() => setSosOpen(false)} aria-label={T('Close SOS')}><X /></button></div><p>{T('Call the emergency number immediately for any injury, fire, fall or trapped person.')}</p><a className="sos-call-link" href={telHref(sosNumber)}>{T('Call emergency contact · {phone}', { phone: sosNumber })}</a>{sosNumber !== SOS_NUMBER && <p className="sos-fallback-note">{T('Company SOS line · {phone}', { phone: SOS_NUMBER })}</p>}<div className="modal-footnote"><AlertTriangle size={14} /> {T('Confirm the displayed number before calling. Site Admin can set a site-specific contact.')}</div></div></div>}
 
-      {reportDetail && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="modal detail-modal"><div className="modal-header"><div><span className="eyebrow">{sites.find((site) => site.id === reportDetail.siteId)?.name}</span><h2 id="detail-title">{reportDetail.id}</h2></div><button className="close-button" onClick={() => setReportDetail(null)} aria-label={T('Close')}><X /></button></div><div className="detail-meta"><span className="type-chip">{T(reportDetail.type)}</span>{reportDetail.category && <span className="type-chip">{T(reportDetail.category)}</span>}<span className={`status-pill ${STATUS_CLASS[reportDetail.status]}`}>{T(reportDetail.status)}</span></div><dl className="detail-grid"><div><dt>{T('Reported by')}</dt><dd>{T(reportDetail.anonymous ? 'Anonymous' : maskEmpNo(reportDetail.reporterEmpNo))}</dd></div><div><dt>{T('Site')}</dt><dd>{sites.find((site) => site.id === reportDetail.siteId)?.name}</dd></div><div><dt>{T('Area')}</dt><dd>{reportDetail.area}</dd></div><div><dt>{T('Department')}</dt><dd>{reportDetail.department ?? T('N/A')}</dd></div><div><dt>{T('Severity')}</dt><dd>{reportDetail.severity ? T(reportDetail.severity) : T('N/A')}</dd></div><div><dt>{T('Incident date & time')}</dt><dd>{formatDate(reportDetail.incidentAt ?? reportDetail.reportedAt, locale)}</dd></div><div><dt>{T('Submitted on')}</dt><dd>{formatDate(reportDetail.reportedAt, locale)}</dd></div></dl><p className="detail-description">{reportDetail.description ?? reportDetail.shortDescription}</p>{reportDetail.immediateAction && <div className="detail-description"><b>{T('Immediate action:')}</b> {reportDetail.immediateAction}</div>}{reportDetail.hasAttachment && <div className="attachment-preview"><ImagePlus /><span>{T('Photo evidence noted')}</span><small>{T('Demo placeholder · original image is not uploaded or stored')}</small></div>}<div className="modal-footnote">{T('Worker view is redacted. Full IDs and unredacted evidence require authorized staff access.')}</div></div></div>}
+      {reportDetail && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="modal detail-modal"><div className="modal-header"><div><span className="eyebrow">{sites.find((site) => site.id === reportDetail.siteId)?.name}</span><h2 id="detail-title">{reportDetail.id}</h2></div><button className="close-button" onClick={() => setReportDetail(null)} aria-label={T('Close')}><X /></button></div><div className="detail-meta"><span className="type-chip">{T(reportDetail.type)}</span>{reportDetail.category && <span className="type-chip">{T(reportDetail.category)}</span>}<span className={`status-pill ${STATUS_CLASS[reportDetail.status]}`}>{T(reportDetail.status)}</span></div><dl className="detail-grid"><div><dt>{T('Reported by')}</dt><dd>{T(reportDetail.anonymous ? 'Anonymous' : maskEmpNo(reportDetail.reporterEmpNo))}</dd></div><div><dt>{T('Site')}</dt><dd>{sites.find((site) => site.id === reportDetail.siteId)?.name}</dd></div><div><dt>{T('Area')}</dt><dd>{reportDetail.area}</dd></div><div><dt>{T('Department')}</dt><dd>{reportDetail.department ?? T('N/A')}</dd></div><div><dt>{T('Severity')}</dt><dd>{reportDetail.severity ? T(reportDetail.severity) : T('N/A')}</dd></div><div><dt>{T('Incident date & time')}</dt><dd>{formatDate(reportDetail.incidentAt ?? reportDetail.reportedAt, locale)}</dd></div><div><dt>{T('Submitted on')}</dt><dd>{formatDate(reportDetail.reportedAt, locale)}</dd></div></dl><p className="detail-description">{reportDetail.description ?? reportDetail.shortDescription}</p>{reportDetail.immediateAction && <div className="detail-description"><b>{T('Immediate action:')}</b> {reportDetail.immediateAction}</div>}{reportDetail.hasAttachment && <div className="attachment-preview"><ImagePlus /><span>{T('Photo evidence noted')}</span><small>{T('The image itself is not shown in this view')}</small></div>}<div className="modal-footnote">{T('Worker view is redacted. Full IDs and unredacted evidence require authorized staff access.')}</div></div></div>}
       {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setVaultCategoryId(null)} />}
       {feedDetail && <HomeFeedDetailDialog item={feedDetail} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setFeedDetail(null)} />}
 
@@ -945,7 +949,7 @@ function ReportCard({ report, site, onOpen }: { report: SafetyReport; site?: Sit
   const locale = LANGUAGE_LOCALE[language];
   const reporter = T(report.anonymous ? 'Anonymous' : maskEmpNo(report.reporterEmpNo));
   const syncLabel = report.syncState === 'synced' ? T('Synced to database') : report.syncState === 'needs-attention' ? T('Needs sync review') : report.syncState ? T('Saved on device · waiting to sync') : '';
-  return <button className="report-card" onClick={onOpen}><div className="report-card-top"><b>{report.id}</b><span className={`status-pill ${STATUS_CLASS[report.status]}`}>{T(report.status)}</span></div><div className="report-card-type">{T(report.type)}{report.category && <span> · {T(report.category)}</span>}</div>{report.syncState && <span className={`report-sync-pill ${report.syncState}`}>{syncLabel}</span>}<p>{report.shortDescription}</p><div className="report-card-meta"><span><MapPin size={13} />{site?.name} · {report.area}</span><span>{T('By {name}', { name: reporter })}</span><span>{formatDate(report.reportedAt, locale)}</span></div>{report.hasAttachment && <span className="attachment-tag"><ImagePlus size={13} /> {T('Photo noted in demo')}</span>}</button>;
+  return <button className="report-card" onClick={onOpen}><div className="report-card-top"><b>{report.id}</b><span className={`status-pill ${STATUS_CLASS[report.status]}`}>{T(report.status)}</span></div><div className="report-card-type">{T(report.type)}{report.category && <span> · {T(report.category)}</span>}</div>{report.syncState && <span className={`report-sync-pill ${report.syncState}`}>{syncLabel}</span>}<p>{report.shortDescription}</p><div className="report-card-meta"><span><MapPin size={13} />{site?.name} · {report.area}</span><span>{T('By {name}', { name: reporter })}</span><span>{formatDate(report.reportedAt, locale)}</span></div>{report.hasAttachment && <span className="attachment-tag"><ImagePlus size={13} /> {T('Photo attached')}</span>}</button>;
 }
 
 function NavItem({ active, icon, label, onClick }: { active: boolean; icon: ReactNode; label: string; onClick: () => void }) {
