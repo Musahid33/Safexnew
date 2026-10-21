@@ -641,8 +641,3 @@ export function filledModuleCount(plan: DmPlan): number {
 
 // Row types, derived from the plan so the form, the API and the PDF cannot drift apart.
 export type DmPpeRow = DmPlan['modules']['ppe'][number];
-export type DmWalkthroughRow = DmPlan['modules']['walkthrough'][number];
-export type DmEquipmentRow = DmPlan['modules']['equipment'][number];
-export type DmToolRow = DmPlan['modules']['tools'][number];
-export type DmAdminRow = DmPlan['modules']['admin'][number];
-export type DmHousekeepingItem = (typeof HOUSEKEEPING_ITEMS)[number];

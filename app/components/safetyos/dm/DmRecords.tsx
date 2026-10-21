@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { MODULE_TITLES, filledModuleCount, type DmPlan } from '@/lib/dm/plan';
+import type { DmRecordSummary } from '@/lib/dm/store';
 
 /**
  * DM Records — the archive.
@@ -9,20 +10,6 @@ import { MODULE_TITLES, filledModuleCount, type DmPlan } from '@/lib/dm/plan';
  * Every filed plan is a numbered PDF (DM-DD-MM-YY). This screen is the index: what was
  * filed, when, by whom, how much of the eleven modules it covers, and the document itself.
  */
-
-export type DmRecordSummary = {
-  id: string;
-  reference: string;
-  planDate: string;
-  shift: string | null;
-  supervisor: string | null;
-  supervisorNo: string | null;
-  location: string | null;
-  modulesFilled: number;
-  status: string;
-  hasPdf: boolean;
-  createdAt: string;
-};
 
 type Props = {
   siteId: string;
