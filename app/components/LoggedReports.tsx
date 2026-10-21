@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ClipboardList, Filter, ImagePlus, Loader2, LockKeyhole, RefreshCw, Search, ShieldCheck } from 'lucide-react';
+import { ClipboardList, Filter, ImagePlus, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import type { ReportStatus, ReportType } from '@/lib/types';
 import './logged-reports.css';
 
@@ -9,8 +9,8 @@ import './logged-reports.css';
  * "Logged reports" — every report the selected site has stored in the database.
  *
  * No Employee ID and no mobile number: the list loads by itself, newest first, and a refresh
- * button re-reads it. The screen only ever renders what the server sends; the server decides
- * the scope (this site, five safety types, never anonymous) in `lib/reports/site-feed.ts`.
+ * button re-reads it. Tapping a report opens it in a modal with the full stored record and,
+ * when one was attached, the photo (served as a short-lived signed URL).
  *
  * What the payload deliberately does not contain: employee number, mobile number, address —
  * anything that would turn a public feed into a contact list. The reporter's name is shown,
@@ -32,6 +32,7 @@ type LoggedReport = {
   immediateAction: string | null;
   reporterName: string | null;
   hasPhoto: boolean;
+  photoUrl: string | null;
 };
 
 type Feed = { reports: LoggedReport[]; total: number };
@@ -61,8 +62,7 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'All' | ReportType>('All');
-  const [openRef, setOpenRef] = useState<string | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [selected, setSelected] = useState<LoggedReport | null>(null);
   // A faster site switch must not be overwritten by the answer to the previous request.
   const requestSeq = useRef(0);
 
@@ -88,7 +88,6 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
         total: Number(data.total ?? incoming.length)
       }));
       setError('');
-      setUpdatedAt(new Date());
     } catch {
       if (seq !== requestSeq.current) return;
       setError('The reports service could not be reached. Check your connection and try again.');
@@ -99,7 +98,7 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
   useEffect(() => {
     let active = true;
     setFeed({ reports: [], total: 0 });
-    setOpenRef(null);
+    setSelected(null);
     setError('');
     if (!siteId) {
       setLoading(false);
@@ -109,6 +108,16 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
     void load(0).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [load, siteId]);
+
+  // Escape closes the modal, the same way the rest of the app's dialogs behave.
+  useEffect(() => {
+    if (!selected) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSelected(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
 
   async function refresh() {
     if (loading) return;
@@ -144,15 +153,10 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
 
   return <section className="mlr-card">
     <div className="mlr-head">
-      <span className="mlr-head-icon"><ClipboardList size={22} aria-hidden="true" /></span>
-      <div className="mlr-head-copy">
-        <h2>Logged reports</h2>
-        <p>
-          {siteName ? `${siteName}` : 'This site'} ke saare reports seedha database se — jo bhi log
-          hua hai, sab yahan dikhta hai. Employee ID ya mobile number daalne ki zaroorat nahi.
-        </p>
-      </div>
-      <span className="mlr-head-badge"><ShieldCheck size={12} aria-hidden="true" /> Live from database</span>
+      <h2>Logged reports</h2>
+      <button className="mlr-ghost" type="button" onClick={() => void refresh()} disabled={loading}>
+        {loading ? <Loader2 size={14} className="mlr-spin" /> : <RefreshCw size={14} />} Refresh
+      </button>
     </div>
 
     <div className="mlr-toolbar">
@@ -166,9 +170,6 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
           maxLength={80}
         />
       </div>
-      <button className="mlr-ghost" type="button" onClick={() => void refresh()} disabled={loading}>
-        {loading ? <Loader2 size={14} className="mlr-spin" /> : <RefreshCw size={14} />} Refresh
-      </button>
     </div>
 
     <div className="mlr-filters" role="group" aria-label="Filter by report type">
@@ -182,12 +183,11 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
       >{type}</button>)}
     </div>
 
-    {!loading && !error && <div className="mlr-counts mlr-counts-wide">
+    {!loading && !error && <div className="mlr-counts">
       <span>{feed.total} logged</span>
       <span className="is-open">{counts.open} open</span>
       <span className="is-progress">{counts.progress} in progress</span>
       <span className="is-closed">{counts.closed} closed</span>
-      {updatedAt && <span className="mlr-updated">updated {updatedAt.toLocaleTimeString()}</span>}
     </div>}
 
     {error && <div className="mlr-error" role="alert">
@@ -195,21 +195,18 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
       <button className="mlr-ghost" type="button" onClick={() => void refresh()}>Try again</button>
     </div>}
 
-    {loading && <div className="mlr-loading"><Loader2 size={18} className="mlr-spin" /> Loading reports from the database…</div>}
+    {loading && <div className="mlr-loading"><Loader2 size={18} className="mlr-spin" /> Loading reports…</div>}
 
     {!siteId && !loading && <div className="mlr-empty">
       <ClipboardList size={26} aria-hidden="true" />
       <b>Choose a site first</b>
-      <span>Logged reports are shown per site. Site select karo, phir yahan us site ke saare reports dikhenge.</span>
+      <span>Logged reports are shown per site.</span>
     </div>}
 
     {siteId && !loading && !error && feed.reports.length === 0 && <div className="mlr-empty">
       <ClipboardList size={26} aria-hidden="true" />
       <b>No reports logged yet</b>
-      <span>
-        {siteName ? `${siteName}` : 'Is site'} ke liye database me abhi ek bhi report nahi hai. Report
-        submit hote hi woh yahan apne aap dikhegi.
-      </span>
+      <span>{siteName ? `${siteName} me` : 'Is site me'} abhi koi report database me nahi hai.</span>
     </div>}
 
     {!loading && !error && feed.reports.length > 0 && visible.length === 0 && <div className="mlr-empty">
@@ -219,51 +216,25 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
     </div>}
 
     {visible.length > 0 && <ul className="mlr-list">
-      {visible.map((report) => {
-        const open = openRef === report.reference;
-        return <li key={report.reference} className={`mlr-report${open ? ' is-open' : ''}`}>
-          <button
-            className="mlr-report-head"
-            type="button"
-            onClick={() => setOpenRef(open ? null : report.reference)}
-            aria-expanded={open}
-          >
+      {visible.map((report) => <li key={report.reference} className="mlr-report">
+        <button className="mlr-report-head" type="button" onClick={() => setSelected(report)}>
+          <span className="mlr-report-line">
             <span className="mlr-report-ref">{report.reference}</span>
             <span className={`mlr-report-type ${STATUS_CLASS[report.status]}`}>
               <i aria-hidden="true" />{report.status}
             </span>
-            <ChevronDown size={16} className="mlr-caret" aria-hidden="true" />
-            <span className="mlr-report-summary">
-              {report.type}{report.category ? ` · ${report.category}` : ''} — {report.summary}
-              {report.hasPhoto && <ImagePlus size={13} className="mlr-photo-flag" aria-label="Photo attached" />}
-            </span>
-            <span className="mlr-report-meta">
-              <span>{report.area || 'Area not stated'}</span>
-              <span>{report.reporterName || 'Reporter not recorded'}</span>
-              <span>{formatDay(report.filedAt)}</span>
-            </span>
-          </button>
-
-          {open && <div className="mlr-report-body">
-            <dl>
-              <div><dt>Report type</dt><dd>{report.type}</dd></div>
-              <div><dt>Category</dt><dd>{report.category || 'Not stated'}</dd></div>
-              <div><dt>Status</dt><dd>{report.status}</dd></div>
-              <div><dt>Area / location</dt><dd>{report.area || 'Not stated'}</dd></div>
-              <div><dt>Department</dt><dd>{report.department || 'Not stated'}</dd></div>
-              <div><dt>Severity</dt><dd>{report.severity || 'Not stated'}</dd></div>
-              <div><dt>Incident date</dt><dd>{formatDay(report.occurredAt)}</dd></div>
-              <div><dt>Filed on</dt><dd>{formatDay(report.filedAt)}</dd></div>
-              <div><dt>Reported by</dt><dd>{report.reporterName || 'Not recorded'}</dd></div>
-              <div><dt>Photo</dt><dd>{report.hasPhoto ? 'Attached' : 'None'}</dd></div>
-            </dl>
-            <p className="mlr-report-text">{report.description || report.summary}</p>
-            {report.immediateAction && <p className="mlr-report-action">
-              <b>Immediate action:</b> {report.immediateAction}
-            </p>}
-          </div>}
-        </li>;
-      })}
+          </span>
+          <span className="mlr-report-summary">
+            {report.type}{report.category ? ` · ${report.category}` : ''} — {report.summary}
+          </span>
+          <span className="mlr-report-meta">
+            {report.hasPhoto && <ImagePlus size={13} className="mlr-photo-flag" aria-label="Photo attached" />}
+            <span>{report.area || 'Area not stated'}</span>
+            <span>{report.reporterName || 'Reporter not recorded'}</span>
+            <span>{formatDay(report.filedAt)}</span>
+          </span>
+        </button>
+      </li>)}
     </ul>}
 
     {!loading && !error && feed.reports.length < feed.total && <button
@@ -275,11 +246,58 @@ export default function LoggedReports({ siteId, siteName }: { siteId?: string; s
       {loadingMore ? <><Loader2 size={15} className="mlr-spin" /> Loading…</> : `Load ${Math.min(PAGE_SIZE, feed.total - feed.reports.length)} more`}
     </button>}
 
-    <p className="mlr-note">
-      <LockKeyhole size={13} aria-hidden="true" />
-      Employee ID aur mobile number yahan kabhi nahi dikhte. Speak Up, Grievance, Feedback aur
-      Suggestion is list me nahi aate — woh safety console me confidential process se handle hote
-      hain. Anonymous report bhi yahan nahi aati.
-    </p>
+    {selected && <div
+      className="overlay mlr-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logged-report-title"
+      onClick={(event) => { if (event.target === event.currentTarget) setSelected(null); }}
+    >
+      <div className="modal mlr-modal">
+        <div className="mlr-modal-head">
+          <div>
+            <span className="mlr-report-ref mlr-modal-ref" id="logged-report-title">{selected.reference}</span>
+            <span className={`mlr-report-type ${STATUS_CLASS[selected.status]}`}>
+              <i aria-hidden="true" />{selected.status}
+            </span>
+          </div>
+          <button className="mlr-modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close report">
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="mlr-modal-summary">{selected.type}{selected.category ? ` · ${selected.category}` : ''} — {selected.summary}</p>
+
+        <dl className="mlr-modal-grid">
+          <div><dt>Type</dt><dd>{selected.type}</dd></div>
+          <div><dt>Category</dt><dd>{selected.category || 'Not stated'}</dd></div>
+          <div><dt>Area / location</dt><dd>{selected.area || 'Not stated'}</dd></div>
+          <div><dt>Department</dt><dd>{selected.department || 'Not stated'}</dd></div>
+          <div><dt>Severity</dt><dd>{selected.severity || 'Not stated'}</dd></div>
+          <div><dt>Incident date</dt><dd>{formatDay(selected.occurredAt)}</dd></div>
+          <div><dt>Filed on</dt><dd>{formatDay(selected.filedAt)}</dd></div>
+          <div><dt>Reported by</dt><dd>{selected.reporterName || 'Not recorded'}</dd></div>
+        </dl>
+
+        <div className="mlr-modal-section">
+          <b>Description</b>
+          <p>{selected.description || selected.summary}</p>
+        </div>
+
+        {selected.immediateAction && <div className="mlr-modal-section">
+          <b>Immediate action</b>
+          <p>{selected.immediateAction}</p>
+        </div>}
+
+        <div className="mlr-modal-section">
+          <b>Photo</b>
+          {selected.photoUrl
+            ? <a href={selected.photoUrl} target="_blank" rel="noreferrer noopener" className="mlr-modal-photo-link">
+              <img src={selected.photoUrl} alt={`Photo attached to ${selected.reference}`} className="mlr-modal-photo" loading="lazy" />
+            </a>
+            : <p className="mlr-modal-nophoto">No photo attached to this report.</p>}
+        </div>
+      </div>
+    </div>}
   </section>;
 }
