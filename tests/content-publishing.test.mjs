@@ -435,8 +435,7 @@ test('the public route reads published content and asks for no credentials', () 
 
 test('the publishing API is staff-only and site-scoped', () => {
   const route = readFileSync('app/api/admin/content/route.ts', 'utf8');
-  assert.ok(route.includes('readSession(request)'), 'writes require the admin session');
-  assert.ok(route.includes('sameOrigin(request)'));
+  assert.ok(route.includes('createAdminGuard('), 'writes require the shared session gate');
   assert.ok(route.includes('validDocumentInput'));
   assert.ok(route.includes('validAnnouncementInput'));
   assert.ok(route.includes('validEventInput'));
@@ -447,7 +446,7 @@ test('the publishing API is staff-only and site-scoped', () => {
   assert.ok(writes.includes(".eq('location_id', siteId)"));
 
   const upload = readFileSync('app/api/admin/content/upload/route.ts', 'utf8');
-  assert.ok(upload.includes('readSession(request)'));
+  assert.ok(upload.includes('createAdminGuard('));
   assert.ok(upload.includes('application/pdf'));
   assert.ok(upload.includes('MAX_BYTES'));
 });

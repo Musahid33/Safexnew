@@ -9,6 +9,7 @@ import {
 import { compressPhoto } from './dm/photo';
 import '../employee-passport.css';
 import '../employee-admin.css';
+import { initials } from '@/lib/initials';
 
 /**
  * The admin console's Employee Passport.
@@ -109,10 +110,6 @@ function patchOf(draft: Draft, original: Draft | null, photo: { changed: boolean
   if (!original && draft.employeeNo.trim()) fields.employeeNo = draft.employeeNo.trim();
   if (photo.changed) fields.photo = photo.value || null;
   return fields;
-}
-
-function initials(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'SA';
 }
 
 export default function EmployeePassportAdmin({ siteId, siteName }: { siteId: string; siteName: string }) {

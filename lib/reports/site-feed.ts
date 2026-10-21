@@ -4,6 +4,7 @@ import { resolveSiteId, resolveTenantId } from '@/lib/employee-master/db-source'
 import { ATTACHMENT_BUCKET, PHOTO_URL_TTL_SECONDS } from '@/lib/reports/attachments';
 import { displayReportRef } from '@/lib/reports/report-ref';
 import type { ReportStatus, ReportType } from '@/lib/types';
+import { withTimeout } from '@/lib/with-timeout';
 
 /**
  * The logged reports a worker can browse in the app.
@@ -108,21 +109,6 @@ const REPORT_COLUMNS =
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
-const QUERY_TIMEOUT_MS = 5000;
-
-async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const timeout = new Promise<null>((resolve) => {
-      timer = setTimeout(() => resolve(null), QUERY_TIMEOUT_MS);
-    });
-    return await Promise.race([Promise.resolve(work), timeout]) as T | null;
-  } catch {
-    return null;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 function reporterName(value: ReporterField): string | null {
   const row = Array.isArray(value) ? value[0] ?? null : value;

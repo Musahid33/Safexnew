@@ -3,6 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin';
 import { resolveSiteId, resolveTenantId } from '@/lib/employee-master/db-source';
 import { filledModuleCount, normalisePlan, referenceFor, type DmPlan } from './plan';
 import { renderDmPdf } from './pdf';
+import { withTimeout } from '@/lib/with-timeout';
 
 /**
  * Storage for Daily Management Plans.
@@ -12,21 +13,8 @@ import { renderDmPdf } from './pdf';
  * is missing, so a failed upload never costs a record its document.
  */
 
-const QUERY_TIMEOUT_MS = 5000;
 const BUCKET = 'dm-records';
 const MAX_PAGE = 200;
-
-async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), QUERY_TIMEOUT_MS); });
-    return await Promise.race([Promise.resolve(work), timeout]) as T | null;
-  } catch {
-    return null;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 type Row = {
   id: string;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminApiConfigured, readSession } from '@/lib/admin-auth';
-import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
+import { createAdminGuard, deny } from '@/lib/http/admin-gate';
+import { NO_STORE } from '@/lib/http/request-guard';
 import { isReportStatus, listAdminReports, updateAdminReportStatus } from '@/lib/admin-reports';
 
 export const runtime = 'nodejs';
@@ -18,25 +18,10 @@ export const dynamic = 'force-dynamic';
  */
 
 const MAX_PAGE_SIZE = 100;
-const allowRequest = createRateLimiter({ windowMs: 60_000, max: 120 });
-
-function deny(status: number, code: string, error: string) {
-  return NextResponse.json({ ok: false, code, error }, { status, headers: NO_STORE });
-}
-
-/** Shared gate: origin, configuration, session and rate limit, in that order. */
-function gate(request: NextRequest) {
-  if (!sameOrigin(request)) return deny(403, 'CROSS_ORIGIN_REJECTED', 'Cross-origin requests are not accepted.');
-  if (!isAdminApiConfigured()) {
-    return deny(503, 'ADMIN_API_NOT_CONFIGURED', 'The admin API is disabled. Set SAFEX_ADMIN_PASSCODE on the server to enable it.');
-  }
-  if (readSession(request) === null) return deny(401, 'ADMIN_SESSION_REQUIRED', 'Sign in to view reports.');
-  if (!allowRequest(clientIp(request))) return deny(429, 'RATE_LIMITED', 'Too many requests. Slow down.');
-  return null;
-}
+const guard = createAdminGuard({ windowMs: 60_000, max: 120 });
 
 export async function GET(request: NextRequest) {
-  const blocked = gate(request);
+  const blocked = guard(request, 'Sign in to view reports.');
   if (blocked) return blocked;
 
   const params = request.nextUrl.searchParams;
@@ -62,7 +47,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const blocked = gate(request);
+  const blocked = guard(request, 'Sign in to view reports.');
   if (blocked) return blocked;
 
   let reportRef = '';

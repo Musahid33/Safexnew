@@ -135,10 +135,12 @@ test('the generated console reads reports from the host seam', () => {
 
 test('the reports API cannot skip the session or the tenant scope', () => {
   const route = readFileSync('app/api/admin/reports/route.ts', 'utf8');
-  // Every handler passes through the gate, which is where the session check lives.
-  assert.equal((route.match(/const blocked = gate\(request\);/g) ?? []).length, 2);
-  assert.ok(route.includes('readSession(request) === null'));
-  assert.ok(route.includes('sameOrigin(request)'));
+  // Every handler passes through the shared gate, which is where the session check lives.
+  assert.equal((route.match(/const blocked = guard\(request,/g) ?? []).length, 2);
+  assert.ok(route.includes('createAdminGuard('));
+  const gate = readFileSync('lib/http/admin-gate.ts', 'utf8');
+  assert.ok(gate.includes('readSession(request) === null'));
+  assert.ok(gate.includes('sameOrigin(request)'));
 
   const store = readFileSync('lib/admin-reports.ts', 'utf8');
   // The service role bypasses RLS, so tenant scoping has to be explicit on every query.

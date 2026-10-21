@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminApiConfigured, isAdminPiiEnabled, readSession } from '@/lib/admin-auth';
-import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
+import { isAdminPiiEnabled } from '@/lib/admin-auth';
+import { createAdminGuard, deny } from '@/lib/http/admin-gate';
+import { NO_STORE } from '@/lib/http/request-guard';
 import { findEmployeeProfileInDatabase, getCompanyNameFromDatabase } from '@/lib/employee-master/db-source';
 import { deactivateEmployeeProfile, updateEmployeeProfile } from '@/lib/employee-master/writes';
 import { isEmployeeNo, type EmployeeProfileInput } from '@/lib/employee-master/profile-fields';
@@ -16,19 +17,7 @@ export const dynamic = 'force-dynamic';
  * verified session as the roster itself — this is the employee master, not a public form.
  */
 
-const allowWrite = createRateLimiter({ windowMs: 60_000, max: 60 });
-
-function deny(status: number, code: string, error: string) {
-  return NextResponse.json({ ok: false, code, error }, { status, headers: NO_STORE });
-}
-
-function gate(request: NextRequest): NextResponse | null {
-  if (!sameOrigin(request)) return deny(403, 'CROSS_ORIGIN_REJECTED', 'Cross-origin requests are not accepted.');
-  if (!isAdminApiConfigured()) return deny(503, 'ADMIN_API_NOT_CONFIGURED', 'The admin API is disabled.');
-  if (readSession(request) === null) return deny(401, 'ADMIN_SESSION_REQUIRED', 'Sign in to change the employee master.');
-  if (!allowWrite(clientIp(request))) return deny(429, 'RATE_LIMITED', 'Too many requests. Slow down.');
-  return null;
-}
+const guard = createAdminGuard({ windowMs: 60_000, max: 60 });
 
 /**
  * The employee number from the URL, or null when it is not one.
@@ -63,7 +52,7 @@ function statusFor(code: string): number {
  * them, and only while PII release is on.
  */
 export async function GET(request: NextRequest, context: { params: Promise<{ employeeNo: string }> }) {
-  const blocked = gate(request);
+  const blocked = guard(request, 'Sign in to change the employee master.');
   if (blocked) {
     // Listing read the passcode but not the write rate limit; keep the same answer shape.
     return blocked;
@@ -119,7 +108,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ emp
 }
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ employeeNo: string }> }) {
-  const blocked = gate(request);
+  const blocked = guard(request, 'Sign in to change the employee master.');
   if (blocked) return blocked;
 
   const currentNo = readEmployeeNo((await context.params).employeeNo);
@@ -146,7 +135,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ e
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ employeeNo: string }> }) {
-  const blocked = gate(request);
+  const blocked = guard(request, 'Sign in to change the employee master.');
   if (blocked) return blocked;
 
   const employeeNo = readEmployeeNo((await context.params).employeeNo);

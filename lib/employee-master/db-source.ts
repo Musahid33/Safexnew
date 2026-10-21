@@ -2,6 +2,7 @@ import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import type { MasterEmployeeRecord } from './parse';
 import type { DirectoryUnavailableReason, Site } from '@/lib/types';
+import { withTimeout as withTimeoutDefault } from '@/lib/with-timeout';
 
 /**
  * Supabase-backed employee directory.
@@ -55,6 +56,9 @@ let tenantCache: { id: string; slug: string; companyName: string | null; expires
 const TENANT_TTL_MS = 300_000;
 
 const QUERY_TIMEOUT_MS = 4000;
+
+// The directory query is on the first-paint path, so it gives up sooner than the stores.
+const withTimeout = <T>(work: PromiseLike<T>) => withTimeoutDefault(work, QUERY_TIMEOUT_MS);
 const CIRCUIT_OPEN_MS = 30_000;
 /**
  * When Supabase is misconfigured or unreachable every request would otherwise pay the
@@ -69,23 +73,6 @@ function circuitIsOpen(): boolean {
 
 function tripCircuit(): void {
   circuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS;
-}
-
-async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const timeout = new Promise<null>((resolve) => {
-      timer = setTimeout(() => resolve(null), QUERY_TIMEOUT_MS);
-    });
-    const result = await Promise.race([Promise.resolve(work), timeout]);
-    if (result === null) tripCircuit();
-    return result as T | null;
-  } catch {
-    tripCircuit();
-    return null;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 /** Credentials exist and the operator has not forced another source. */

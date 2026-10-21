@@ -1,6 +1,7 @@
 import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import { resolveSiteId, resolveTenantId } from '@/lib/employee-master/db-source';
+import { withTimeout } from '@/lib/with-timeout';
 
 /**
  * Server-side reads and writes for the reports workers submit.
@@ -68,26 +69,7 @@ type ReportRow = {
 const REPORT_COLUMNS =
   'report_ref, report_type, report_category, anonymous, area, department, occurred_at, created_at, client_submitted_at, severity, short_description, description, immediate_action, status, reporter:employees!reports_reporter_employee_id_fkey(full_name, employee_no)';
 
-const QUERY_TIMEOUT_MS = 5000;
 const MAX_PAGE = 200;
-
-/**
- * A timeout of its own rather than the directory's shared one: a slow reports query must
- * not trip the employee-directory circuit breaker, and vice versa.
- */
-async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const timeout = new Promise<null>((resolve) => {
-      timer = setTimeout(() => resolve(null), QUERY_TIMEOUT_MS);
-    });
-    return await Promise.race([Promise.resolve(work), timeout]) as T | null;
-  } catch {
-    return null;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 function firstReporter(value: ReporterField): ReporterRow | null {
   if (Array.isArray(value)) return value[0] ?? null;

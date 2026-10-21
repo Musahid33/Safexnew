@@ -134,10 +134,14 @@ test('every write route is behind the same session gate', () => {
   const collection = readFileSync('app/api/admin/employees/route.ts', 'utf8');
   const single = readFileSync('app/api/admin/employees/[employeeNo]/route.ts', 'utf8');
 
+  // Both routes use the one shared gate; the checks themselves live in lib/http/admin-gate.ts,
+  // so a route cannot be written that remembers the session but forgets the origin.
+  const gate = readFileSync('lib/http/admin-gate.ts', 'utf8');
+  assert.ok(gate.includes('readSession(request) === null'));
+  assert.ok(gate.includes('sameOrigin(request)'));
+  assert.ok(gate.includes('isAdminApiConfigured()'));
   for (const source of [collection, single]) {
-    assert.ok(source.includes('readSession(request) === null'));
-    assert.ok(source.includes('sameOrigin(request)'));
-    assert.ok(source.includes('isAdminApiConfigured()'));
+    assert.ok(source.includes('createAdminGuard('), 'the route must use the shared gate');
   }
 
   // The update path matches the tenant as well as the employee number: the service role
@@ -249,7 +253,7 @@ test('the console can read one employee with a face, and only one', () => {
   assert.ok(single.includes('export async function GET'));
   assert.ok(single.includes('findEmployeeProfileInDatabase(employeeNo)'));
   // The same gate as the writes, and no caching of a personal record.
-  assert.ok(single.includes('readSession(request) === null'));
+  assert.ok(single.includes('createAdminGuard('));
   assert.ok(single.includes('isAdminPiiEnabled()'));
   assert.ok(single.includes('NO_STORE'));
 });

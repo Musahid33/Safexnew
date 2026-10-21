@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { readSession } from '@/lib/admin-auth';
-import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
+import { createAdminGuard } from '@/lib/http/admin-gate';
+import { NO_STORE } from '@/lib/http/request-guard';
 import { CONTENT_BUCKET, contentStore, findContentSite } from '@/lib/content/store';
 
 export const runtime = 'nodejs';
@@ -26,12 +26,11 @@ const ALLOWED = new Map<string, string>([
   ['image/webp', 'webp']
 ]);
 
-const allowUpload = createRateLimiter({ windowMs: 60_000, max: 20 });
+const guard = createAdminGuard({ windowMs: 60_000, max: 20 });
 
 export async function POST(request: NextRequest) {
-  if (!sameOrigin(request)) return NextResponse.json({ ok: false, error: 'Cross-origin request rejected.' }, { status: 403, headers: NO_STORE });
-  if (!readSession(request)) return NextResponse.json({ ok: false, error: 'Admin sign-in required.' }, { status: 401, headers: NO_STORE });
-  if (!allowUpload(clientIp(request))) return NextResponse.json({ ok: false, error: 'Too many uploads. Wait a minute.' }, { status: 429, headers: NO_STORE });
+  const blocked = guard(request, 'Admin sign-in required.');
+  if (blocked) return blocked;
 
   const store = await contentStore();
   if (!store) return NextResponse.json({ ok: false, error: 'Supabase is not configured for this deployment.' }, { status: 503, headers: NO_STORE });
