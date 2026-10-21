@@ -11,6 +11,7 @@ import { LIFE_SAVING_RULES } from '@/lib/life-saving-rules';
 import { SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { APP_FEATURES, brandingFor } from '@/lib/app-config';
 import { SOS_NUMBER, telHref } from '@/lib/emergency';
+import { reportRefForType } from '@/lib/reports/report-ref';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
 import LanguageStrip from './components/LanguageStrip';
 import { useI18n } from './components/I18nProvider';
@@ -96,7 +97,8 @@ function getUpcomingEventStatus(value: string): 'Today' | 'Tomorrow' | 'Upcoming
 function queuedReportToSafetyReport(entry: QueuedReport): SafetyReport {
   const payload = entry.payload;
   return {
-    id: `LOCAL-${entry.id.slice(0, 8).toUpperCase()}`,
+    // The reference it will keep after sync: no LOCAL-/OFFLINE- placeholder.
+    id: reportRefForType(payload.type, entry.id),
     clientSubmissionId: entry.id,
     type: payload.type,
     category: payload.category,
@@ -186,7 +188,12 @@ export default function SafexHome() {
   const isSingleSite = sites.length === 1;
   // Everything in this list came from this browser: an offline submission still waiting to
   // sync, or one it filed earlier in this visit. The database history is a separate read.
-  const deviceReports = useMemo(() => reports.filter((report) => report.siteId === siteId), [reports, siteId]);
+  // Only what this browser still has to upload. Anything already stored in the database is in
+  // the feed above, so it is not repeated here.
+  const pendingReports = useMemo(
+    () => reports.filter((report) => report.siteId === siteId && report.syncState !== 'synced'),
+    [reports, siteId]
+  );
 
   async function refreshOutboxState() {
     const entries = await listQueuedReports();
@@ -789,12 +796,11 @@ export default function SafexHome() {
         </>}
 
         {page === 'reports' && <section className="page-panel">
-          <div className="page-heading"><div><span className="eyebrow">{currentSite?.name ?? T('SITE')}</span><h1>{T('reportsTitle')}</h1><p>{T('Every report this site has logged, read straight from the database. No Employee ID or mobile number is needed.')}</p></div><button className="secondary-button" onClick={() => !isSingleSite && openSitePicker('reports')}>{T('changeSite')}</button></div>
+          <div className="page-heading"><div><span className="eyebrow">{currentSite?.name ?? T('SITE')}</span><h1>{T('reportsTitle')}</h1></div><button className="secondary-button" onClick={() => !isSingleSite && openSitePicker('reports')}>{T('changeSite')}</button></div>
           <LoggedReports siteId={currentSite?.id} siteName={currentSite?.name} />
           <section className="section-block device-reports">
-            <div className="section-heading"><div><span className="eyebrow">{T('THIS DEVICE')}</span><h2>{T('Pending on this device')}</h2></div></div>
-            <p className="home-demo-caption">{T('Only what this browser filed. Reports already stored in the database are listed above, with the rest of the site.')}</p>
-            <div className="report-list">{deviceReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((site) => site.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{deviceReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('Nothing pending on this device')}</b><span>{T('A report filed offline waits here until it reaches the database.')}</span></div>}</div>
+            <div className="section-heading"><div><span className="eyebrow">{T('THIS DEVICE')}</span><h2>{T('Pending upload')}</h2></div></div>
+            <div className="report-list">{pendingReports.map((item) => <ReportCard key={item.id} report={item} site={sites.find((site) => site.id === item.siteId)} onOpen={() => setReportDetail(item)} />)}{pendingReports.length === 0 && <div className="empty-state"><ClipboardList size={28} /><b>{T('Nothing pending')}</b><span>{T('Reports waiting to sync appear here.')}</span></div>}</div>
           </section>
         </section>}
 

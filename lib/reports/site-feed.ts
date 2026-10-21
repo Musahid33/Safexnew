@@ -1,6 +1,8 @@
 import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import { resolveSiteId, resolveTenantId } from '@/lib/employee-master/db-source';
+import { ATTACHMENT_BUCKET, PHOTO_URL_TTL_SECONDS } from '@/lib/reports/attachments';
+import { displayReportRef } from '@/lib/reports/report-ref';
 import type { ReportStatus, ReportType } from '@/lib/types';
 
 /**
@@ -60,6 +62,8 @@ export type LoggedReport = {
   /** Display name only. The employee number and mobile are not part of this payload. */
   reporterName: string | null;
   hasPhoto: boolean;
+  /** Short-lived signed URL for the attached photo, or null. Never a public bucket path. */
+  photoUrl: string | null;
 };
 
 export type LoggedReportsResult =
@@ -126,14 +130,16 @@ function reporterName(value: ReporterField): string | null {
   return name ? name : null;
 }
 
-function toLoggedReport(row: ReportRow, photoRefs: Set<string>): LoggedReport | null {
+function toLoggedReport(row: ReportRow, photos: Map<string, string>): LoggedReport | null {
   const type = DB_TO_TYPE[row.report_type];
   const status = DB_TO_STATUS[row.status];
   // Defence in depth: the query already whitelists these, and the table has a check
   // constraint. An unknown value is dropped rather than shown as its raw slug.
   if (!type || !status || !LOGGED_REPORT_DB_TYPES.includes(row.report_type as never)) return null;
+  const photoUrl = photos.get(row.id) ?? null;
   return {
-    reference: row.report_ref,
+    // Old rows are stored as OFFLINE-<uuid>; the app shows `NM-<code>` instead.
+    reference: displayReportRef(row.report_ref, row.report_type),
     type,
     category: row.report_category,
     area: row.area,
@@ -146,7 +152,8 @@ function toLoggedReport(row: ReportRow, photoRefs: Set<string>): LoggedReport | 
     description: row.description,
     immediateAction: row.immediate_action,
     reporterName: reporterName(row.reporter),
-    hasPhoto: photoRefs.has(row.id)
+    hasPhoto: Boolean(photoUrl),
+    photoUrl
   };
 }
 
@@ -202,7 +209,7 @@ export async function listLoggedReports(options: {
   if (result.error) return { ok: false, code: 'UNAVAILABLE', error: 'Reports are not reachable right now.' };
 
   const rows = (result.data ?? []) as unknown as ReportRow[];
-  const photoRefs = await findReportsWithPhotos(admin, rows.map((row) => row.id));
+  const photos = await findReportPhotos(admin, rows.map((row) => row.id));
 
   return {
     ok: true,
@@ -211,28 +218,55 @@ export async function listLoggedReports(options: {
     limit,
     siteRef,
     reports: rows
-      .map((row) => toLoggedReport(row, photoRefs))
+      .map((row) => toLoggedReport(row, photos))
       .filter((report): report is LoggedReport => report !== null)
   };
 }
 
 /**
- * Which of these reports have a photo on file.
+ * Sign a short-lived URL for each report photo.
  *
- * A second, tiny query rather than a nested aggregate: PostgREST's `count` embed is easy to
- * get wrong through supabase-js, and a missing flag is a cosmetic loss, so a failure here
- * just leaves every row without the badge.
+ * The bucket is private, so this is the only way the browser can see the evidence that was
+ * attached to a report. `reviewed_preview_path` wins when a safety officer has produced a
+ * redacted preview; otherwise the original is signed. A failure here just means no photo in
+ * the modal — it must never take the whole feed down.
  */
-async function findReportsWithPhotos(
+async function findReportPhotos(
   admin: NonNullable<ReturnType<typeof getAdminSupabase>>,
   ids: string[]
-): Promise<Set<string>> {
+): Promise<Map<string, string>> {
+  const photos = new Map<string, string>();
   const wanted = ids.filter(Boolean);
-  if (wanted.length === 0) return new Set();
+  if (wanted.length === 0) return photos;
+
   const result = await withTimeout(admin
     .from('report_attachments')
-    .select('report_id')
+    .select('report_id, original_storage_path, reviewed_preview_path')
     .in('report_id', wanted));
-  if (!result || result.error || !result.data) return new Set();
-  return new Set((result.data as { report_id: string }[]).map((row) => row.report_id));
+  if (!result || result.error || !result.data) return photos;
+
+  const rows = result.data as unknown as Array<{
+    report_id: string;
+    original_storage_path: string | null;
+    reviewed_preview_path: string | null;
+  }>;
+  const paths = rows
+    .map((row) => ({ reportId: row.report_id, path: row.reviewed_preview_path || row.original_storage_path }))
+    .filter((entry): entry is { reportId: string; path: string } => Boolean(entry.path));
+  if (paths.length === 0) return photos;
+
+  const signed = await withTimeout(admin.storage
+    .from(ATTACHMENT_BUCKET)
+    .createSignedUrls(paths.map((entry) => entry.path), PHOTO_URL_TTL_SECONDS));
+  if (!signed || signed.error || !signed.data) return photos;
+
+  const byPath = new Map<string, string>();
+  for (const item of signed.data as Array<{ path: string | null; signedUrl: string | null }>) {
+    if (item.path && item.signedUrl) byPath.set(item.path, item.signedUrl);
+  }
+  for (const entry of paths) {
+    const url = byPath.get(entry.path);
+    if (url) photos.set(entry.reportId, url);
+  }
+  return photos;
 }

@@ -63,8 +63,27 @@ function fakeAdmin(config = {}) {
     };
     return api;
   }
+  const signed = [];
   return {
     queries,
+    signed,
+    storage: {
+      from(bucket) {
+        return {
+          async createSignedUrls(paths, ttl) {
+            signed.push({ bucket, paths, ttl });
+            if (config.signing === 'fail') return { data: null, error: { message: 'storage down' } };
+            return {
+              data: paths.map((path) => ({
+                path,
+                signedUrl: `https://storage.test/${bucket}/${encodeURIComponent(path)}?token=abc`
+              })),
+              error: null
+            };
+          }
+        };
+      }
+    },
     from(table) {
       if (table === 'reports') return builder(table, config.reports ?? { data: [], error: null, count: 0 });
       if (table === 'report_attachments') return builder(table, config.attachments ?? { data: [], error: null });
@@ -195,29 +214,46 @@ test('rows are mapped to the app vocabulary and unknown types are dropped', asyn
   assert.equal('mobile' in result.reports[0], false);
 });
 
-test('a report with a stored photo is flagged, without fetching the file itself', async () => {
+test('a report photo is signed into a short-lived link', async () => {
   const client = fakeAdmin({
     reports: { count: 1, error: null, data: [reportRow()] },
-    attachments: { data: [{ report_id: 'report-1' }], error: null }
+    attachments: { data: [{ report_id: 'report-1', original_storage_path: 't/s/NM-1.jpg', reviewed_preview_path: null }], error: null }
   });
   const feed = loadFeed(client);
   const result = await feed.listLoggedReports({ siteRef: 'wbd' });
 
   assert.equal(result.reports[0].hasPhoto, true);
+  assert.match(result.reports[0].photoUrl, /^https:\/\/storage\.test\//);
+  assert.equal('original_storage_path' in result.reports[0], false, 'the bucket path never reaches the browser');
+
   const attachments = client.queries.find((entry) => entry.table === 'report_attachments');
   assert.deepEqual(filtersOf(attachments).get('report_id'), { in: ['report-1'] });
+  assert.equal(client.signed.length, 1);
+  assert.equal(client.signed[0].bucket, 'safex-report-attachments');
+  assert.deepEqual(client.signed[0].paths, ['t/s/NM-1.jpg']);
+  assert.ok(client.signed[0].ttl <= 900, 'the link must expire quickly');
 });
 
-test('a missing attachment table only costs the badge', async () => {
+test('a reviewed preview is preferred over the original photo', async () => {
   const client = fakeAdmin({
     reports: { count: 1, error: null, data: [reportRow()] },
-    attachments: { data: null, error: { message: 'relation does not exist' } }
+    attachments: { data: [{ report_id: 'report-1', original_storage_path: 't/s/original.jpg', reviewed_preview_path: 't/s/preview.jpg' }], error: null }
   });
-  const feed = loadFeed(client);
-  const result = await feed.listLoggedReports({ siteRef: 'wbd' });
+  await loadFeed(client).listLoggedReports({ siteRef: 'wbd' });
+  assert.deepEqual(client.signed[0].paths, ['t/s/preview.jpg']);
+});
+
+test('storage being down only costs the photo', async () => {
+  const client = fakeAdmin({
+    reports: { count: 1, error: null, data: [reportRow()] },
+    attachments: { data: [{ report_id: 'report-1', original_storage_path: 't/s/NM-1.jpg', reviewed_preview_path: null }], error: null },
+    signing: 'fail'
+  });
+  const result = await loadFeed(client).listLoggedReports({ siteRef: 'wbd' });
 
   assert.equal(result.ok, true);
   assert.equal(result.reports[0].hasPhoto, false);
+  assert.equal(result.reports[0].photoUrl, null);
 });
 
 test('the page size is bounded and the offset is passed through', async () => {
@@ -240,6 +276,48 @@ test('a database that is down says so instead of pretending the site has no repo
   const result = await loadFeed(client).listLoggedReports({ siteRef: 'wbd' });
   assert.equal(result.ok, false);
   assert.equal(result.code, 'UNAVAILABLE');
+});
+
+test('a readable reference is derived for old OFFLINE rows', async () => {
+  const client = fakeAdmin({
+    reports: {
+      count: 1,
+      error: null,
+      data: [reportRow({ report_ref: 'OFFLINE-72138a64-cb38-445d-88c9-7bfa7a328c19', report_type: 'unsafe_act' })]
+    }
+  });
+  const result = await loadFeed(client).listLoggedReports({ siteRef: 'wbd' });
+  assert.equal(result.reports[0].reference, 'UA-72138A64');
+});
+
+test('reference prefixes follow the report type and stay stable per submission', () => {
+  const refs = loader()('lib/reports/report-ref.ts');
+  const cases = {
+    near_miss: 'NM', hazard: 'HZ', safety_observation: 'SO', unsafe_condition: 'UC',
+    unsafe_act: 'UA', speak_up: 'SU', grievance: 'GR', feedback: 'FB', suggestion: 'SG'
+  };
+  for (const [type, prefix] of Object.entries(cases)) {
+    assert.equal(refs.reportRefPrefix(type), prefix);
+  }
+
+  const id = '72138a64-cb38-445d-88c9-7bfa7a328c19';
+  // Deterministic: a retry of the same submission computes the same reference, which is what
+  // makes the unique (tenant_id, report_ref) row idempotent without a sequence.
+  assert.equal(refs.buildReportRef('near_miss', id), 'NM-72138A64');
+  assert.equal(refs.buildReportRef('near_miss', id), refs.buildReportRef('near_miss', id));
+  assert.equal(refs.buildReportRef('near_miss', 'offline-abc123'), 'NM-OFFLINEA');
+  assert.equal(refs.buildReportRef('near_miss', ''), 'NM-00000000');
+
+  assert.equal(refs.displayReportRef('NM-72138A64', 'near_miss'), 'NM-72138A64');
+  assert.equal(refs.displayReportRef('OFFLINE-72138a64-cb38-445d-88c9-7bfa7a328c19', 'hazard'), 'HZ-72138A64');
+  assert.equal(refs.displayReportRef('', 'unsafe_act'), 'UA-00000000');
+});
+
+test('the submission route stores a readable reference and reuses a legacy row', () => {
+  const route = readFileSync('app/api/reports/route.ts', 'utf8');
+  assert.ok(route.includes('buildReportRef(reportTypeDb, payload.clientSubmissionId)'));
+  assert.equal(route.includes('`OFFLINE-${payload.clientSubmissionId}`'), false, 'new reports never get an OFFLINE ref');
+  assert.ok(route.includes('LEGACY_REF_PREFIX'), 'a retry of a pre-existing row still finds it');
 });
 
 test('the route asks for no credentials and keeps the guards', () => {
@@ -278,4 +356,19 @@ test('the device copy of a report shows no employee number either', () => {
   assert.equal(page.includes('maskEmpNo'), false, 'the masked Employee ID helper is gone');
   assert.ok(page.includes("T(report.anonymous ? 'Anonymous' : 'This device')"));
   assert.ok(page.includes('<LoggedReports siteId={currentSite?.id} siteName={currentSite?.name} />'));
+});
+
+test('a report opens in a modal with its photo', () => {
+  const component = readFileSync('app/components/LoggedReports.tsx', 'utf8');
+  assert.ok(component.includes('role="dialog"'));
+  assert.ok(component.includes('aria-modal="true"'));
+  assert.ok(component.includes('setSelected(report)'), 'clicking a row opens the modal');
+  assert.ok(component.includes('selected.photoUrl'));
+  assert.ok(component.includes('<img src={selected.photoUrl}'));
+  assert.ok(component.includes("event.key === 'Escape'"));
+  // No inline expansion left behind.
+  assert.equal(component.includes('openRef'), false);
+  // The extra captions the screen used to carry are gone.
+  assert.equal(component.includes('Employee ID aur mobile number yahan kabhi nahi dikhte'), false);
+  assert.equal(component.includes('Live from database'), false);
 });

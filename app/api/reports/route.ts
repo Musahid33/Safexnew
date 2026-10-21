@@ -2,13 +2,14 @@ import { createHmac } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAdminSupabase } from '@/lib/supabase/admin';
+import { ATTACHMENT_BUCKET } from '@/lib/reports/attachments';
+import { LEGACY_REF_PREFIX, buildReportRef } from '@/lib/reports/report-ref';
 import type { ReportType } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BODY_BYTES = 12 * 1024 * 1024 + 64 * 1024;
-const ATTACHMENT_BUCKET = 'safex-report-attachments';
 const REPORT_TYPES: ReportType[] = ['Near Miss', 'Hazard', 'Safety Observation', 'Unsafe Condition', 'Unsafe Act', 'Feedback', 'Grievance', 'Speak Up', 'Suggestion'];
 const REPORT_TYPE_DB: Record<ReportType, string> = {
   'Near Miss': 'near_miss',
@@ -234,9 +235,26 @@ export async function POST(request: NextRequest) {
   const { data: site, error: siteError } = await siteQuery.maybeSingle();
   if (siteError || !site?.id) return jsonError(422, 'SITE_NOT_AVAILABLE', 'The selected site is not active for this tenant.');
 
-  const reportRef = `OFFLINE-${payload.clientSubmissionId}`;
-  const { data: existing, error: existingError } = await findExistingReport(admin, domain.tenant_id, reportRef);
+  // A readable, type-prefixed reference (`NM-72138A64`) instead of the old `OFFLINE-<uuid>`.
+  // It is derived from the submission id, so a retry computes the same one and finds the row
+  // it created last time rather than inserting a duplicate.
+  const reportTypeDb = REPORT_TYPE_DB[payload.type];
+  const reportRef = buildReportRef(reportTypeDb, payload.clientSubmissionId);
+  let { data: existing, error: existingError } = await findExistingReport(admin, domain.tenant_id, reportRef);
   if (existingError) return jsonError(503, 'REPORT_LOOKUP_UNAVAILABLE', 'The report database is temporarily unavailable.');
+
+  // A report queued before this change may still be stored under the legacy reference. Reuse
+  // that row and rename it once, so old and new references never point at two copies.
+  if (!existing) {
+    const legacyRef = `${LEGACY_REF_PREFIX}${payload.clientSubmissionId}`;
+    const legacy = await findExistingReport(admin, domain.tenant_id, legacyRef);
+    if (legacy.error) return jsonError(503, 'REPORT_LOOKUP_UNAVAILABLE', 'The report database is temporarily unavailable.');
+    if (legacy.data) {
+      const renamed = await admin.from('reports').update({ report_ref: reportRef }).eq('id', legacy.data.id);
+      existing = renamed.error ? legacy.data : { ...legacy.data, report_ref: reportRef };
+    }
+  }
+
   if (existing && existing.site_id !== site.id) return jsonError(409, 'SUBMISSION_ID_CONFLICT', 'This report submission ID was already used for a different site.');
 
   let reporterEmployeeId: string | null = null;
@@ -263,7 +281,7 @@ export async function POST(request: NextRequest) {
       site_id: site.id,
       reporter_employee_id: reporterEmployeeId,
       report_ref: reportRef,
-      report_type: REPORT_TYPE_DB[payload.type],
+      report_type: reportTypeDb,
       report_category: payload.category,
       anonymous: payload.anonymous,
       area: payload.area || null,

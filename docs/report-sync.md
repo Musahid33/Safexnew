@@ -176,12 +176,25 @@ same-origin, rate limited to 40 reads per minute per IP, and answers
 - **No contact data**: the projection joins the reporter's display name only. `employee_no`,
   `mobile_e164`, address, blood group and date of birth are never selected, and the screen
   shows no Employee ID or mobile number anywhere.
-- **Photos** are reported as a flag (a second, cheap query on `report_attachments`); the file
-  itself is not served here.
+- **Photos**: a second, cheap query reads `report_attachments` and the server signs each path
+  with `createSignedUrls` for ten minutes, preferring `reviewed_preview_path` over the original.
+  The bucket stays private and no storage path reaches the browser — only the expiring link.
+  If signing fails the report still shows, just without a photo.
 - The screen (`app/components/LoggedReports.tsx`) loads by itself when the page opens and when
-  the site changes, with search, type filters, status counts, refresh and "load more". Each row
-  expands to the full stored record: type, category, status, area, department, severity,
-  incident date, filed date, reporter name, photo flag, description and immediate action.
+  the site changes, with search, type filters, status counts, refresh and "load more". Tapping a
+  row opens a modal with the full stored record — type, category, status, area, department,
+  severity, incident date, filed date, reporter name, description, immediate action — and the
+  attached photo when there is one.
+
+### Report references
+
+`lib/reports/report-ref.ts` produces a readable reference: the type prefix (`NM`, `HZ`, `SO`,
+`UC`, `UA`, `SU`, `GR`, `FB`, `SG`) plus the first eight alphanumerics of the submission id, e.g.
+`NM-72138A64`. It is derived from the submission id rather than a counter, so a retry computes
+the same reference and finds its own row; the app also uses it for a report that is still
+queued, so the number no longer changes when it syncs. Rows created earlier are stored as
+`OFFLINE-<uuid>`; the app renders them in the new form and `202610210004_readable_report_refs.sql`
+backfills the stored value (skipping any reference that would collide).
 
 The reports page no longer seeds `DEMO_REPORTS`. Below the database feed, "Pending on this
 device" lists only what this browser filed and has not yet synced — a receipt, not a second
