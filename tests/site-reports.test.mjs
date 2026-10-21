@@ -369,11 +369,34 @@ test('the reports page shows the database feed only — no device copy underneat
     assert.equal(page.includes(gone), false, `${gone} must not come back`);
   }
 
-  // The outbox itself still runs: a queued report is counted and retried, and the sync banner
-  // is what tells the worker about it now.
-  assert.ok(page.includes('setQueuedReportCount'));
+  // The outbox still runs silently: a queued report is retried on open, focus and reconnect,
+  // but nothing on the screen says "saved on this device" any more.
   assert.ok(page.includes('syncPendingReports'));
-  assert.ok(page.includes('queuedCount: queuedReportCount'));
+  assert.ok(page.includes('retryReportsNeedingAttention'));
+  assert.equal(page.includes('sync-status-banner'), false, 'the sync banner is gone');
+  assert.equal(page.includes('Sync now'), false);
+  assert.equal(page.includes('saved on this device'), false);
+  assert.equal(page.includes('reportSyncEnabled ?'), false);
+  // A synced report drops the cached list so the new row is read next time.
+  assert.ok(page.includes("invalidateLoggedReports(currentSite?.id)"));
+  assert.ok(page.includes('{report} submitted. It will sync automatically.'));
+});
+
+test('logged reports are cached, not reloaded from the database every time', () => {
+  const component = readFileSync('app/components/LoggedReports.tsx', 'utf8');
+
+  assert.ok(component.includes('CACHE_TTL_MS'));
+  assert.ok(component.includes('localStorage.setItem(cacheKey(siteId)'));
+  assert.ok(component.includes('localStorage.getItem(cacheKey(siteId)'));
+  assert.ok(component.includes('export function invalidateLoggedReports'));
+  // A cached list is painted first; the request only runs when the copy is old, and it is a
+  // quiet revalidation rather than a blocking load.
+  assert.ok(component.includes('const cached = readCache(siteId)'));
+  assert.ok(component.includes('Date.now() - cached.savedAt < CACHE_TTL_MS'));
+  assert.ok(component.includes('quiet: Boolean(cached)'));
+  assert.ok(component.includes('cache: \'no-store\''), 'a real read never trusts the HTTP cache');
+  // The Refresh button is the only path that always asks the database again.
+  assert.ok(component.includes('async function refresh()'));
 });
 
 test('a report opens in a modal with its photo', () => {
@@ -382,7 +405,8 @@ test('a report opens in a modal with its photo', () => {
   assert.ok(component.includes('aria-modal="true"'));
   assert.ok(component.includes('setSelected(report)'), 'clicking a row opens the modal');
   assert.ok(component.includes('selected.photoUrl'));
-  assert.ok(component.includes('<img src={selected.photoUrl}'));
+  assert.ok(component.includes('src={selected.photoUrl}'));
+  assert.ok(component.includes('onError={() => setPhotoBroken(true)}'));
   assert.ok(component.includes("event.key === 'Escape'"));
   // No inline expansion left behind.
   assert.equal(component.includes('openRef'), false);
