@@ -1,7 +1,7 @@
 'use client';
 
-import { ArrowLeft, BellRing, CalendarDays, ChevronRight, Clock3, FileText, MapPin, X, type LucideIcon } from 'lucide-react';
-import { formatHomeFeedDate, formatHomeFeedTime, getHomeFeedItems, type HomeFeedItem, type HomeFeedKind } from '@/lib/home-content';
+import { ArrowLeft, BellRing, CalendarDays, ChevronRight, Clock3, ExternalLink, FileText, MapPin, X, type LucideIcon } from 'lucide-react';
+import { formatHomeFeedDate, formatHomeFeedTime, type HomeFeedItem, type HomeFeedKind } from '@/lib/home-content';
 import { LANGUAGE_LOCALE } from '@/lib/i18n';
 import { useI18n } from './I18nProvider';
 
@@ -20,11 +20,12 @@ const FEED_ICON: Record<HomeFeedKind, LucideIcon> = {
   updates: FileText
 };
 
-export function HomeFeedSection({ kind, title, eyebrow, item, siteName, onViewAll, onOpenItem }: {
+export function HomeFeedSection({ kind, title, eyebrow, item, items = [], siteName, onViewAll, onOpenItem }: {
   kind: Exclude<HomeFeedKind, 'updates'>;
   title: string;
   eyebrow: string;
   item: HomeFeedItem | null;
+  items?: HomeFeedItem[];
   siteName: string;
   onViewAll: () => void;
   onOpenItem: (item: HomeFeedItem) => void;
@@ -35,7 +36,7 @@ export function HomeFeedSection({ kind, title, eyebrow, item, siteName, onViewAl
   const allLabel = T(kind === 'events' ? 'View all events' : kind === 'circulars' ? 'View all circulars' : 'View all notices');
   const countLabel = T(kind === 'events' ? 'Browse the full event schedule' : kind === 'circulars' ? 'Browse the complete circular library' : 'Browse the complete notice list');
   const itemType = T(kind === 'events' ? 'events' : kind);
-  const count = getHomeFeedItems(kind).length;
+  const count = filterFeedItems(items, kind).length;
   const countText = new Intl.NumberFormat(locale).format(count);
 
   return <section className={`section-block home-feed-section home-feed-${kind}`}>
@@ -55,11 +56,29 @@ export function HomeFeedSection({ kind, title, eyebrow, item, siteName, onViewAl
   </section>;
 }
 
-export function FeedArchivePage({ kind, siteName, onOpenItem, onBack }: { kind: HomeFeedKind; siteName: string; onOpenItem: (item: HomeFeedItem) => void; onBack: () => void }) {
+/**
+ * Which published entries belong on an archive screen. `updates` merges circulars and notices;
+ * everything else is a single type, so the same rows can serve the home cards and the archive.
+ */
+export function filterFeedItems(items: HomeFeedItem[], kind: HomeFeedKind): HomeFeedItem[] {
+  if (kind === 'events') return items.filter((item) => item.type === 'Event');
+  if (kind === 'circulars') return items.filter((item) => item.type === 'Circular');
+  if (kind === 'notices') return items.filter((item) => item.type === 'Notice');
+  return items.filter((item) => item.type === 'Circular' || item.type === 'Notice');
+}
+
+export function FeedArchivePage({ kind, siteName, items: published, onOpenItem, onBack }: {
+  kind: HomeFeedKind;
+  siteName: string;
+  /** Published entries from the database. Nothing is invented when this is empty. */
+  items: HomeFeedItem[];
+  onOpenItem: (item: HomeFeedItem) => void;
+  onBack: () => void;
+}) {
   const { language, T } = useI18n();
   const locale = LANGUAGE_LOCALE[language];
   const config = ARCHIVE_CONFIG[kind];
-  const items = getHomeFeedItems(kind);
+  const items = filterFeedItems(published, kind);
   const ArchiveIcon = FEED_ICON[kind];
   const countText = new Intl.NumberFormat(locale).format(items.length);
 
@@ -78,6 +97,7 @@ export function FeedArchivePage({ kind, siteName, onOpenItem, onBack }: { kind: 
             <b>{item.title}</b>
             <small>{item.summary}</small>
             {item.location && <span className="feed-archive-location"><MapPin size={13} />{item.location}</span>}
+            {item.attachmentUrl && <span className="feed-archive-location"><ExternalLink size={13} />{T('Attachment')}</span>}
           </span>
           <ChevronRight className="feed-archive-arrow" size={19} />
         </button>;
@@ -101,6 +121,7 @@ export function HomeFeedDetailDialog({ item, siteName, onClose }: { item: HomeFe
       <div className="feed-detail-meta"><span><Icon size={16} />{formatHomeFeedDate(item.date, locale)}</span>{item.type === 'Event' && <span><Clock3 size={16} />{formatHomeFeedTime(item.date, locale)}</span>}{item.location && <span><MapPin size={16} />{item.location}</span>}</div>
       <p className="feed-detail-summary">{item.summary}</p>
       <div className="feed-detail-body">{item.details}</div>
+      {item.attachmentUrl && <a className="feed-detail-attachment" href={item.attachmentUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> {T('Open attachment')}</a>}
       <div className="modal-footnote">{T('Confirm event dates and site instructions through official channels.')}</div>
     </article>
   </div>;

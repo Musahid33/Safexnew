@@ -11,14 +11,16 @@ export type HomeFeedItem = {
   summary: string;
   details: string;
   location?: string;
+  /** Present when a published circular/notice carries a file or a link. */
+  attachmentUrl?: string | null;
 };
 
 /**
  * Events, circulars and notices.
  *
- * These used to be a synthetic set; they are empty now because no publishing feed exists yet.
- * The helpers stay in place so a real source can fill them without touching the screens —
- * every screen renders its empty state until then.
+ * The feed itself is read from the database (`/api/content`) and passed to the screens as
+ * props. This static list stays empty on purpose: it is the fallback the helpers below use,
+ * so a screen rendered without a feed shows an honest empty state, never sample rows.
  */
 const HOME_FEED: HomeFeedItem[] = [];
 

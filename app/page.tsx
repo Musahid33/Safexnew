@@ -20,14 +20,14 @@ import TrainingPortal from './components/TrainingPortal';
 import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
 import SafetyOsApp from './components/safetyos/SafetyOsApp';
-import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId } from './components/DocumentVault';
+import { DocumentVaultGrid, VaultCategoryDialog, type VaultCategoryId, type VaultDocument } from './components/DocumentVault';
 import LoggedReports from './components/LoggedReports';
 import RewardCarousel, { type RecognitionGalleryItem } from './components/RewardCarousel';
 import type { RecognitionItem } from '@/lib/recognitions';
 import { FeedArchivePage, HomeFeedDetailDialog } from './components/HomeFeedViews';
 import { useSafexBootstrap } from './components/useSafexBootstrap';
 import { AboutAppPage, AccountManagementPage, CompanyAboutPage, InstallAppPage, MoreInfoDialog, MoreMenuPage, type MoreInfoKind } from './components/MorePages';
-import { APP_TIME_ZONE, formatHomeFeedDate, formatHomeFeedTime, getUpcomingEvents, type HomeFeedItem } from '@/lib/home-content';
+import { APP_TIME_ZONE, formatHomeFeedDate, formatHomeFeedTime, type HomeFeedItem } from '@/lib/home-content';
 import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports, type OutboxSyncResult } from '@/lib/report-outbox';
 import { describeSyncStatus, SYNC_BANNER_AUTO_DISMISS_MS } from '@/lib/sync-status';
 import type { Palette as PaletteName, ReportType, Site, ThemeMode } from '@/lib/types';
@@ -106,6 +106,9 @@ export default function SafexHome() {
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [page, setPage] = useState<PageKey>('home');
   const [recognitions, setRecognitions] = useState<RecognitionGalleryItem[]>([]);
+  // Published content from Supabase: the vault shelves and the circulars / notices / events feed.
+  const [vaultDocuments, setVaultDocuments] = useState<VaultDocument[]>([]);
+  const [contentFeed, setContentFeed] = useState<HomeFeedItem[]>([]);
   const [siteId, setSiteId] = useState('');
   const [siteReady, setSiteReady] = useState(false);
   const [siteDialog, setSiteDialog] = useState(false);
@@ -147,7 +150,9 @@ export default function SafexHome() {
   const safetyAlertsScrollRef = useRef<HTMLDivElement>(null);
   const safetyAlertsTouchStart = useRef<{ x: number; y: number } | null>(null);
 
-  const nextUpcomingEvent = useMemo(() => getUpcomingEvents()[0] ?? null, []);
+  const nextUpcomingEvent = useMemo(() => contentFeed
+    .filter((item) => item.type === 'Event' && new Date(item.date).getTime() >= Date.now())
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] ?? null, [contentFeed]);
   const filteredSafetyAlerts = useMemo(() => SAFETY_ALERTS
     .filter((alert) => safetyAlertFilter === 'All' || alert.category === safetyAlertFilter)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [safetyAlertFilter]);
@@ -258,6 +263,25 @@ export default function SafexHome() {
     }
     setSiteReady(true);
   }, [directoryReady, siteReady, sites]);
+
+  useEffect(() => {
+    if (!siteId) {
+      setVaultDocuments([]);
+      setContentFeed([]);
+      return;
+    }
+    let active = true;
+    fetch(`/api/content?site=${encodeURIComponent(siteId)}`, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!active || !data?.ok) return;
+        // The server only returns published rows, so whatever arrives here is safe to show.
+        setVaultDocuments(Array.isArray(data.documents) ? data.documents as VaultDocument[] : []);
+        setContentFeed(Array.isArray(data.feed) ? data.feed as HomeFeedItem[] : []);
+      })
+      .catch(() => { /* Offline or not configured: the screens keep their empty states. */ });
+    return () => { active = false; };
+  }, [siteId, page]);
 
   useEffect(() => {
     if (page !== 'home') return;
@@ -734,7 +758,7 @@ export default function SafexHome() {
           </section>
           {APP_FEATURES.library && <section className="section-block document-vault-section">
             <div className="section-heading vault-section-heading"><div className="vault-section-title"><span className="vault-title-icon"><FolderOpen size={23} /></span><div className="vault-section-heading-copy"><h2>{T('Document Vault / Library')}</h2></div></div></div>
-            <DocumentVaultGrid onSelect={setVaultCategoryId} />
+            <DocumentVaultGrid onSelect={setVaultCategoryId} documents={vaultDocuments} />
             <p className="home-demo-caption">{T('Site document categories. Only files published by the safety team are listed.')}</p>
           </section>}
           {APP_FEATURES.rewardWall && <section className="section-block reward-wall-section">
@@ -748,16 +772,16 @@ export default function SafexHome() {
           <LoggedReports siteId={currentSite?.id} siteName={currentSite?.name} />
         </section>}
 
-        {page === 'alerts' && <FeedArchivePage kind="notices" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
-        {page === 'events' && <FeedArchivePage kind="events" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
-        {page === 'circulars' && <FeedArchivePage kind="circulars" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
-        {page === 'updates' && <FeedArchivePage kind="updates" siteName={currentSite?.name ?? T('Selected site')} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
+        {page === 'alerts' && <FeedArchivePage kind="notices" siteName={currentSite?.name ?? T('Selected site')} items={contentFeed} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
+        {page === 'events' && <FeedArchivePage kind="events" siteName={currentSite?.name ?? T('Selected site')} items={contentFeed} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
+        {page === 'circulars' && <FeedArchivePage kind="circulars" siteName={currentSite?.name ?? T('Selected site')} items={contentFeed} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
+        {page === 'updates' && <FeedArchivePage kind="updates" siteName={currentSite?.name ?? T('Selected site')} items={contentFeed} onOpenItem={setFeedDetail} onBack={() => setPage('home')} />}
 
         {page === 'training' && <TrainingPortal site={currentSite} directory={directory} />}
 
         {page === 'library' && <section className="page-panel document-vault-page">
           <div className="page-heading"><div><span className="eyebrow">{T('DOCUMENTS')} · {currentSite?.name ?? T('SELECTED SITE')}</span><h1>{T('Document Vault / Library')}</h1><p>{T('Browse site safety procedures, risk assessments, compliance indexes, policies and meeting minutes.')}</p></div><FolderOpen size={28} /></div>
-          <DocumentVaultGrid onSelect={setVaultCategoryId} />
+          <DocumentVaultGrid onSelect={setVaultCategoryId} documents={vaultDocuments} />
           <div className="privacy-note"><LockKeyhole size={15} /> {T('Only published files are listed. Nothing here is a sample entry.')}</div>
         </section>}
 
@@ -908,7 +932,7 @@ export default function SafexHome() {
         </div>
       </div>}
 
-      {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setVaultCategoryId(null)} />}
+      {vaultCategoryId && <VaultCategoryDialog categoryId={vaultCategoryId} siteName={currentSite?.name ?? T('Selected site')} documents={vaultDocuments} onClose={() => setVaultCategoryId(null)} />}
       {feedDetail && <HomeFeedDetailDialog item={feedDetail} siteName={currentSite?.name ?? T('Selected site')} onClose={() => setFeedDetail(null)} />}
 
       {toast && <div className="toast" role="status">{T(toast.key, { ...toast.params, ...(toast.report ? { report: toast.report.category ? `${T(toast.report.type)} · ${T(toast.report.category)}` : T(toast.report.type) } : {}) })}</div>}
