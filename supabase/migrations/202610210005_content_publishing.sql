@@ -12,6 +12,15 @@ alter table public.documents
 alter table public.site_announcements
   add column if not exists external_url text;
 
+-- The panel lets the safety team order a shelf; the app sorts on this column.
+alter table public.documents
+  add column if not exists sort_order integer not null default 0;
+
+alter table public.documents
+  drop constraint if exists documents_sort_order_range;
+alter table public.documents
+  add constraint documents_sort_order_range check (sort_order between 0 and 9999);
+
 alter table public.documents
   drop constraint if exists documents_external_url_https;
 alter table public.documents

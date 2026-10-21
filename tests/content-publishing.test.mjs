@@ -428,6 +428,18 @@ test('the publishing API is staff-only and site-scoped', () => {
   assert.ok(upload.includes('MAX_BYTES'));
 });
 
+test('the migration adds every column the store reads', () => {
+  const sql = readFileSync('supabase/migrations/202610210005_content_publishing.sql', 'utf8');
+  // A column the store selects but the migration never adds makes every read fail with 42703.
+  for (const column of ['external_url', 'sort_order']) {
+    assert.match(sql, new RegExp(`add column if not exists ${column}`), `${column} must be added`);
+  }
+  assert.ok(sql.includes('documents_external_url_https'));
+  assert.ok(sql.includes('site_announcements_external_url_https'));
+  assert.ok(sql.includes("'safex-content'"));
+  assert.ok(sql.includes('to service_role'));
+});
+
 test('the worker app loads documents and the feed from the database', () => {
   const page = readFileSync('app/page.tsx', 'utf8');
   assert.ok(page.includes('fetch(`/api/content?site=${encodeURIComponent(siteId)}`'));
