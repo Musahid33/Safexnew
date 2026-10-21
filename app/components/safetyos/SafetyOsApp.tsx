@@ -9,6 +9,7 @@ import { DESIGN_SCRIPT } from './generated/script';
 import type { Site } from '@/lib/types';
 import DmWorkspace from './dm/DmWorkspace';
 import EmployeePassportAdmin from './EmployeePassportAdmin';
+import PublishingHandoff from './PublishingHandoff';
 import {
   CASE_STATUS, CASE_STATUS_DB, toCaseReport,
   type AdminReport, type DesignCaseReport
@@ -169,6 +170,8 @@ export default function SafetyOsApp({
   const [dmHost, setDmHost] = useState<HTMLElement | null>(null);
   /** The design's Employee Profile page, which the passport screen is portalled into. */
   const [epHost, setEpHost] = useState<HTMLElement | null>(null);
+  /** The design's demo Documents and Communications pages, replaced by a real handoff card. */
+  const [publishHosts, setPublishHosts] = useState<{ documents: HTMLElement; communications: HTMLElement } | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [gateUsername, setGateUsername] = useState('');
   const [gatePassword, setGatePassword] = useState('');
@@ -438,6 +441,23 @@ export default function SafetyOsApp({
       setEpHost(host);
     }
 
+    // Documents & Library and Communications in the design are previews: their buttons only
+    // redraw the screen they are on and never touch Supabase, so anything "published" there
+    // never reached the worker app. Both pages keep their nodes (the design's script binds to
+    // them) but every one of them is hidden, and a card linking to the real publishing panel
+    // takes their place.
+    const documentsPage = container.querySelector<HTMLElement>('#documentsPage');
+    const communicationsPage = container.querySelector<HTMLElement>('#communicationsPage');
+    if (documentsPage && communicationsPage) {
+      const documentsHost = document.createElement('div');
+      documentsHost.className = 'publishing-host';
+      documentsPage.append(documentsHost);
+      const communicationsHost = document.createElement('div');
+      communicationsHost.className = 'publishing-host';
+      communicationsPage.append(communicationsHost);
+      setPublishHosts({ documents: documentsHost, communications: communicationsHost });
+    }
+
     // The design's sidebar is a 224 px column (66 px below 1250 px) and it hides its own
     // menu button, so every screen pays for navigation it may not be using. Here it becomes
     // a drawer: closed by default, opened from the topbar, dismissed by the scrim, Escape or
@@ -528,6 +548,7 @@ export default function SafetyOsApp({
       }
       container.innerHTML = '';
       setDmHost(null);
+      setPublishHosts(null);
       delete window.__SAFEX_EMPLOYEES__;
       delete window.__SAFEX_EMPLOYEE_CHANGED__;
       delete window.__SAFEX_CASE_REPORTS__;
@@ -655,6 +676,14 @@ export default function SafetyOsApp({
         siteName={site?.name ?? 'Site'}
       />,
       epHost
+    )}
+    {publishHosts && createPortal(
+      <PublishingHandoff section="documents" siteName={site?.name ?? 'this site'} />,
+      publishHosts.documents
+    )}
+    {publishHosts && createPortal(
+      <PublishingHandoff section="communications" siteName={site?.name ?? 'this site'} />,
+      publishHosts.communications
     )}
     {(note || reportState === 'unavailable') && <div
       className={`sos-sync-note ${note ? `is-${note.tone}` : 'is-error'}`}
