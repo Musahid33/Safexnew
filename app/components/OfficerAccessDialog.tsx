@@ -140,7 +140,6 @@ export default function OfficerAccessDialog({ onClose, onSignedIn }: Props) {
 
       {message && <div className="account-login-message" role="status">{T(message)}</div>}
       {mode !== 'reset' && <div className="account-login-footer"><span /><button type="button" onClick={openReset}>{T('Forgot Password?')}</button></div>}
-      <div className="account-demo-note"><LockKeyhole size={14} /> {T('Password reset and live Supabase authentication are not connected. The admin sign-in is verified by the Safex server and credentials are not saved.')}</div>
     </div>
   </div>;
 }

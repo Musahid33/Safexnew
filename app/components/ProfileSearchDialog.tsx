@@ -91,6 +91,6 @@ export default function ProfileSearchDialog({ site, companyName, directory, dire
       {directoryMode !== 'unavailable' && <span>· {employeeCount.toLocaleString('en-IN')} active employees at this site</span>}
       {directoryMode === 'unavailable' && <span>· {directoryReason ? UNAVAILABLE_HINT[directoryReason] : 'no employee source answered'}</span>}
     </div>}
-    <div className="modal-footnote">{T('Lookup runs on the server and is limited to the selected site. The passport shows Employee ID, name, designation, department and skill grade; contact and health details are withheld.')}</div>
+    <div className="modal-footnote">{T('The passport shows Employee ID, name, designation, department and skill grade; contact and health details are withheld.')}</div>
   </div></div>;
 }

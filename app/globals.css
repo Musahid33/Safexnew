@@ -765,7 +765,7 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .photo-file-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; color: var(--muted); font-size: 9px; }
 .photo-file-row > span { min-width: 0; display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
 .photo-file-row button { border: 0; background: transparent; color: var(--red); font-size: 9px; font-weight: 800; cursor: pointer; }
-.report-submit-footer { border-top: 1px solid var(--line); padding-top: 12px; }
+.report-submit-footer { border-top: 1px solid var(--line); padding-top: 12px; justify-content: flex-end; }
 .report-demo-note { margin-top: 9px; }
 .mic-button.recording { background: var(--red-soft); color: var(--red); animation: mic-pulse 1s infinite alternate; }
 @keyframes mic-pulse { from { box-shadow: 0 0 0 0 rgba(217,45,32,.08); } to { box-shadow: 0 0 0 5px rgba(217,45,32,.16); } }

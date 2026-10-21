@@ -33,7 +33,6 @@ type Props = {
   language: Language;
   onLanguageChange: (language: Language) => void;
   voiceEnabled: boolean;
-  syncEnabled: boolean;
   onClose: () => void;
   onSubmit: (data: ReportSubmission) => Promise<void> | void;
 };
@@ -109,7 +108,7 @@ function descriptionConfig(type: ReportType, category: string | null): { label: 
   return { label: '📝 Description', placeholder: 'Describe the details...' };
 }
 
-export default function ReportWorkflow({ type, site, directory, language, onLanguageChange, voiceEnabled, syncEnabled, onClose, onSubmit }: Props) {
+export default function ReportWorkflow({ type, site, directory, language, onLanguageChange, voiceEnabled, onClose, onSubmit }: Props) {
   const { T } = useI18n();
   const categories = CATEGORY_OPTIONS[type] ?? [];
   const [screen, setScreen] = useState<'category' | 'form'>(categories.length ? 'category' : 'form');
@@ -361,8 +360,7 @@ export default function ReportWorkflow({ type, site, directory, language, onLang
         {photo && <div className="photo-file-row"><span><ImagePlus size={14} />{photo.name}</span><button type="button" onClick={() => setPhoto(null)} aria-label={T('Remove photo')}>{T('Remove')}</button></div>}
 
         {error && <div className="inline-notice warning" role="alert">{T(error)}</div>}
-        <div className="form-footer report-submit-footer"><span>{T(syncEnabled ? 'Saved on this device first · automatic database sync is enabled' : 'Saved on this device · database sync is not configured')}</span><button className="primary-button" type="submit" disabled={submitting}><Send size={16} /> {T(submitting ? 'Saving report…' : 'Save report')}</button></div>
-        <div className="modal-footnote report-demo-note"><LockKeyhole size={14} /> {T('Pending report details and any photo stay in this browser until sync succeeds. Avoid shared devices. Database delivery requires a configured Safex server.')}</div>
+        <div className="form-footer report-submit-footer"><button className="primary-button" type="submit" disabled={submitting}><Send size={16} /> {T(submitting ? 'Saving report…' : 'Save report')}</button></div>
       </form>}
     </div>
   </div>;

@@ -94,8 +94,6 @@ export default function TrainingPortal({ site, directory }: Props) {
       </div>}
     </section>
 
-    <div className="privacy-note"><CheckCircle2 size={15} /> {T('The training catalog and training records are not connected yet. The employee lookup below reads the live employee master.')}</div>
-
     {material && <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="training-material-title"><div className="modal training-material-modal"><div className="modal-header"><div><span className="eyebrow">{T('TRAINING VIEWER')} · {T(material.type)}</span><h2 id="training-material-title">{material.title}</h2></div><button className="close-button" type="button" onClick={() => setMaterial(null)} aria-label={T('Close training viewer')}><X /></button></div><p>{material.description}</p><div className="training-material-placeholder"><FileText size={27} /><b>{T('Learning material preview')}</b><small>{T('No file or video link has been published for this material yet.')}</small></div><button className="secondary-button full-button" type="button" onClick={() => setMaterial(null)}>{T('Close')}</button></div></div>}
   </section>;
 }
