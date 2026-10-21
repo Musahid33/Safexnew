@@ -108,7 +108,7 @@ test('validity is computed from the review date, with a 30-day warning', () => {
   assert.deepEqual(register.registerValidity('2027-10-15', '2026-10-21'), { key: 'valid', label: 'Valid' });
   assert.deepEqual(register.registerValidity('2026-11-05', '2026-10-21'), { key: 'due', label: 'Due soon' });
   assert.deepEqual(register.registerValidity('2026-10-20', '2026-10-21'), { key: 'expired', label: 'Expired' });
-  assert.deepEqual(register.registerValidity(null, '2026-10-21'), { key: 'none', label: 'No date' });
+  assert.deepEqual(register.registerValidity(null, '2026-10-21'), { key: 'valid', label: 'Valid' }, 'no review date still reads Valid');
   // The boundary itself is still upcoming, not expired.
   assert.deepEqual(register.registerValidity('2026-10-21', '2026-10-21'), { key: 'due', label: 'Due soon' });
 });
@@ -129,22 +129,31 @@ test('the shelf shows the register columns and opens the document in place', () 
   assert.equal(shelf.includes('demo'), false, 'the register has no sample rows');
 });
 
-test('a phone gets two horizontal rows per document, not a stacked list', () => {
+test('a phone card keeps one structure on every shelf', () => {
   const shelf = readFileSync('app/components/VaultShelf.tsx', 'utf8');
   const css = readFileSync('app/globals.css', 'utf8');
 
-  // Row one: number, name, status, View. Row two: the register columns, side by side.
+  // Line one: serial number + document name. Line two: document number, status, View.
   assert.ok(shelf.includes('vault-card-top'));
-  assert.ok(shelf.includes('vault-card-row'));
-  assert.ok(shelf.includes("T('Dept.')"));
-  assert.ok(shelf.includes("T('Sec.')"));
-  assert.ok(shelf.includes("T('Validity Upto')"));
+  assert.ok(shelf.includes('vault-card-index'));
+  assert.ok(shelf.includes('vault-card-code'));
+  assert.ok(shelf.includes('vault-card-meta'));
+
+  const card = shelf.slice(shelf.indexOf('<div className="vault-card-list">'), shelf.indexOf('{open && <div className="vault-detail"'));
+  assert.ok(card.includes('{index + 1}'), 'the card carries the serial number');
+  assert.ok(card.includes('document.title'), 'the card carries the document name');
+  assert.ok(card.includes('document.documentCode'), 'the card carries the document number');
+  assert.ok(card.includes('vault-status'), 'the card carries the status');
+  assert.ok(card.includes("T('View')"), 'the card carries View');
+  for (const gone of ['Dept.', 'Sec.', 'Type of Doc', 'Validity Upto']) {
+    assert.equal(card.includes(`T('${gone}')`), false, `${gone} is not repeated on a phone card`);
+  }
 
   const phone = css.slice(css.indexOf('@media (max-width: 760px) {'), css.indexOf('@media (max-width: 460px)'));
   assert.ok(phone.includes('.vault-register-wrap { display: none; }'), 'the wide table steps aside on a phone');
   assert.ok(phone.includes('.vault-card-list { display: grid;'));
-  assert.ok(phone.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'), 'the second row stays horizontal');
-  assert.equal(phone.includes('grid-template-columns: 92px minmax(0, 1fr)'), false, 'the old stacked field list is gone');
+  assert.ok(phone.includes('.vault-card-meta { display: flex'), 'the second line stays horizontal');
+  assert.equal(phone.includes('grid-template-columns: 92px minmax(0, 1fr)'), false, 'no stacked field list');
 });
 
 test('the register has no filter bar', () => {

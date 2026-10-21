@@ -8,7 +8,7 @@ import { APP_TIME_ZONE } from '@/lib/home-content';
  * so the app and the tests agree on where the boundary sits.
  */
 
-export type RegisterValidityKey = 'valid' | 'due' | 'expired' | 'none';
+export type RegisterValidityKey = 'valid' | 'due' | 'expired';
 export type RegisterValidity = { key: RegisterValidityKey; label: string };
 
 /** A document inside 30 days of its review date is flagged before it expires. */
@@ -32,7 +32,10 @@ export function registerDate(value: string | null): string {
 }
 
 export function registerValidity(validUpto: string | null, today: string = registerToday()): RegisterValidity {
-  if (!validUpto) return { key: 'none', label: 'No date' };
+  // A published document with no review date has not expired — publishing is the approval.
+  // Only a date that is actually set can make it due or expired, so the register reads
+  // "Valid" rather than an empty-looking status.
+  if (!validUpto) return { key: 'valid', label: 'Valid' };
   const value = validUpto.slice(0, 10);
   if (value < today) return { key: 'expired', label: 'Expired' };
   const boundary = new Date(`${today}T00:00:00Z`);
