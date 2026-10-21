@@ -24,7 +24,7 @@ export function createAdminGuard(options: { windowMs?: number; max?: number } = 
   return function guard(request, message = 'Sign in to continue.') {
     if (!sameOrigin(request)) return deny(403, 'CROSS_ORIGIN_REJECTED', 'Cross-origin requests are not accepted.');
     if (!isAdminApiConfigured()) {
-      return deny(503, 'ADMIN_API_NOT_CONFIGURED', 'The admin API is disabled. Set SAFEX_ADMIN_PASSCODE on the server to enable it.');
+      return deny(503, 'ADMIN_API_NOT_CONFIGURED', 'The admin API is disabled. Set SAFEX_ADMIN_PASSCODE or ADMIN_USERNAME + ADMIN_PASSWORD on the server to enable it.');
     }
     if (readSession(request) === null) return deny(401, 'ADMIN_SESSION_REQUIRED', message);
     if (!allowRequest(clientIp(request))) return deny(429, 'RATE_LIMITED', 'Too many requests. Slow down.');

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Startup payload for the client shell: which site list to show and whether the employee
- * directory is backed by Supabase, the published sheet, or synthetic demo records.
+ * directory is reachable from the server.
  *
  * No employee rows are returned here — the directory is only reachable through the
  * query-scoped /api/employees endpoint.

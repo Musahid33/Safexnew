@@ -355,12 +355,6 @@ export async function findEmployeeInDatabase(
   return row ? toRecord(row) : null;
 }
 
-/** Test/ops helper. */
-export function clearTenantCache(): void {
-  tenantCache = null;
-  circuitOpenUntil = 0;
-}
-
 // Written out in full rather than built from SELECT_COLUMNS: supabase-js parses the
 // select string at the type level, and a template literal defeats that.
 // home_address is intentionally absent — nothing renders it yet, and the cheapest way to

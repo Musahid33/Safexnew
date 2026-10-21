@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, hkdfSync } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAdminSupabase } from '@/lib/supabase/admin';
@@ -137,7 +137,13 @@ async function validateAttachment(file: File | null): Promise<ValidatedAttachmen
 async function consumeRateLimit(admin: AdminClient, request: NextRequest, host: string, tenantId: string): Promise<boolean | null> {
   const windowMs = 60 * 60 * 1000;
   const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs);
-  const salt = process.env.SAFEX_REPORT_RATE_LIMIT_SALT || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // A dedicated salt is best. Falling back to the service-role key would reuse a
+  // high-privilege secret for a second purpose, so it is run through HKDF with its own
+  // label instead — the rate-limit bucket key can then never be reversed into the key.
+  const salt = process.env.SAFEX_REPORT_RATE_LIMIT_SALT
+    || (process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? Buffer.from(hkdfSync('sha256', process.env.SUPABASE_SERVICE_ROLE_KEY, 'safex', 'report-rate-limit', 32)).toString('hex')
+      : '');
   if (!salt) return null;
   const key = createHmac('sha256', salt).update(`${host}|${tenantId}|${clientIp(request)}|${windowStart.toISOString()}`).digest('hex');
   const { data, error } = await admin.rpc('safex_consume_report_limit', {
