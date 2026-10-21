@@ -47,11 +47,6 @@ export type ContentFeedItem = {
   attachmentUrl: string | null;
 };
 
-export type ContentPayload = {
-  documents: PublishedDocument[];
-  feed: ContentFeedItem[];
-};
-
 export type ContentStatus = 'draft' | 'published' | 'archived';
 
 /** A row as the publishing panel sees it — every field, including the drafts. */
@@ -102,5 +97,3 @@ export type AdminEvent = {
   publishedAt: string | null;
   updatedAt: string | null;
 };
-
-export type AdminContentKind = 'document' | 'announcement' | 'event';

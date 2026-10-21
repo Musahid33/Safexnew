@@ -3,15 +3,14 @@
 import {
   AlertTriangle, ArrowLeft, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Clock3,
   Eye, FileText, FolderOpen, Globe2, Home, Lightbulb, LockKeyhole, MapPin,
-  Monitor, Mic, Moon, MoreHorizontal, Palette, PhoneCall, Settings2, Shield, ShieldAlert,
-  Smartphone, Sun, Trophy, UserRound, X, Zap, MessageSquare
+  Monitor, Mic, Moon, MoreHorizontal, Palette, PhoneCall, Shield, ShieldAlert,
+  Smartphone, Sun, UserRound, X, Zap, MessageSquare
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { LIFE_SAVING_RULES } from '@/lib/life-saving-rules';
 import { SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { APP_FEATURES, brandingFor } from '@/lib/app-config';
 import { SOS_NUMBER, telHref } from '@/lib/emergency';
-import { reportRefForType } from '@/lib/reports/report-ref';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
 import LanguageStrip from './components/LanguageStrip';
 import { useI18n } from './components/I18nProvider';
@@ -226,7 +225,7 @@ export default function SafexHome() {
   }, []);
 
   // Waits for /api/bootstrap so a genuinely single-site tenant auto-selects instead of
-  // briefly showing the demo multi-site chooser.
+  // briefly showing a site chooser that cannot match anything.
   useEffect(() => {
     if (!directoryReady || siteReady) return;
     try {

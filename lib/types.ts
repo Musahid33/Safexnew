@@ -36,26 +36,6 @@ export type Employee = {
   /** The public lookup only matches active employees; carried through for the badge. */
   active?: boolean;
 };
-export type SafetyReport = {
-  id: string;
-  type: ReportType;
-  siteId: string;
-  area: string;
-  category?: string | null;
-  department?: string | null;
-  incidentAt?: string | null;
-  severity?: 'Low' | 'Medium' | 'High' | null;
-  immediateAction?: string | null;
-  description?: string;
-  shortDescription: string;
-  status: ReportStatus;
-  reportedAt: string;
-  reporterEmpNo: string | null;
-  anonymous: boolean;
-  hasAttachment: boolean;
-  syncState?: 'queued' | 'synced' | 'needs-attention';
-  clientSubmissionId?: string;
-};
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Palette = 'safex' | 'ocean' | 'forest' | 'contrast';
 export type TenantFeatures = {
@@ -73,7 +53,7 @@ export type TenantBranding = {
   mobile: string | null;
   logoPath: string | null;
   features: TenantFeatures;
-  /** Optional admin-managed About Us and support fields; absent in the synthetic demo tenant. */
+  /** Optional admin-managed About Us and support fields; absent when the deployment does not publish them. */
   companyIntroduction?: string | null;
   services?: string[];
   website?: string | null;

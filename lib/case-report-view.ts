@@ -7,24 +7,10 @@
  * story about someone's safety report.
  */
 
-/** A report as /api/admin/reports returns it. */
-export type AdminReport = {
-  reportRef: string;
-  type: string;
-  category: string | null;
-  anonymous: boolean;
-  area: string | null;
-  department: string | null;
-  occurredAt: string | null;
-  submittedAt: string | null;
-  severity: string | null;
-  shortDescription: string | null;
-  description: string | null;
-  immediateAction: string | null;
-  status: string;
-  reporterName: string | null;
-  reporterNumber: string | null;
-};
+import type { AdminReport } from './admin-reports';
+
+/** A report as /api/admin/reports returns it — defined once, in the API contract. */
+export type { AdminReport };
 
 /** The shape the design's Case Management screen expects. */
 export type DesignCaseReport = {
