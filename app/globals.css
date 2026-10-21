@@ -463,9 +463,98 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .notification-status b { color: var(--text); }
 .preference-row { min-height: 54px; margin-top: 7px; background: var(--surface); }
 .settings-modal .primary-button { margin-top: 13px; }
-.sos-modal { width: min(100%, 440px); }
-.sos-fallback-note { margin: 9px 0 0; color: var(--muted, #64748b); font-size: 11px; text-align: center; }
-.sos-call-link { min-height: 48px; display: flex; align-items: center; justify-content: center; margin-top: 13px; border-radius: 11px; background: #d92d20; color: #fff; text-decoration: none; font-size: 12px; font-weight: 900; }
+/* SOS — fixed red/navy on purpose. It must look identical in every theme, because the one
+   thing a worker needs in a panic is to recognise the card instantly. */
+.sos-overlay { z-index: 80; }
+.sos-modal {
+  width: min(100%, 400px);
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px;
+  background: #0b1f33;
+  color: #fff;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .45);
+}
+.sos-hero {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 17px 16px 15px;
+  background: linear-gradient(180deg, #ec1c1c, #d81818);
+  color: #fff;
+  text-align: center;
+}
+.sos-hero-icon { display: grid; place-items: center; color: #fff; }
+.sos-hero h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: .085em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+.sos-body { display: grid; padding: 18px 18px 20px; }
+.sos-company {
+  margin: 0 0 6px;
+  color: #a8bccf;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.4;
+}
+.sos-number {
+  margin: 0 0 17px;
+  color: #fff;
+  font-size: clamp(27px, 8.2vw, 33px);
+  font-weight: 900;
+  letter-spacing: .015em;
+  text-align: center;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.sos-call-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 50px;
+  border: 0;
+  border-radius: 12px;
+  background: #e51c1c;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background .15s, transform .1s;
+}
+.sos-call-button:hover { background: #cf1414; color: #fff; }
+.sos-call-button:active { transform: scale(.99); }
+.sos-cancel-button {
+  min-height: 48px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: #17334f;
+  color: #cfe0f0;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+}
+.sos-cancel-button:hover { background: #1d3d5d; }
+.sos-fallback-note {
+  margin: 11px 0 0;
+  color: #93a9bf;
+  font-size: 11px;
+  text-align: center;
+}
+.sos-fallback-note b { color: #cfe0f0; font-weight: 800; }
 .detail-modal { width: min(100%, 560px); }
 .detail-meta { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
