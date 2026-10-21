@@ -351,11 +351,29 @@ test('the screen loads by itself, with no Employee ID or mobile form', () => {
   assert.equal(component.trimStart().startsWith("'use client';"), true);
 });
 
-test('the device copy of a report shows no employee number either', () => {
+test('the reports page shows the database feed only — no device copy underneath', () => {
   const page = readFileSync('app/page.tsx', 'utf8');
   assert.equal(page.includes('maskEmpNo'), false, 'the masked Employee ID helper is gone');
-  assert.ok(page.includes("T(report.anonymous ? 'Anonymous' : 'This device')"));
   assert.ok(page.includes('<LoggedReports siteId={currentSite?.id} siteName={currentSite?.name} />'));
+
+  // The "THIS DEVICE / Pending upload" block was removed on request: its heading, its empty
+  // state and the duplicated report cards under the database feed must all stay gone.
+  for (const gone of [
+    'device-reports',
+    'Pending upload',
+    'Nothing pending',
+    'Reports waiting to sync appear here.',
+    'ReportCard',
+    'pendingReports'
+  ]) {
+    assert.equal(page.includes(gone), false, `${gone} must not come back`);
+  }
+
+  // The outbox itself still runs: a queued report is counted and retried, and the sync banner
+  // is what tells the worker about it now.
+  assert.ok(page.includes('setQueuedReportCount'));
+  assert.ok(page.includes('syncPendingReports'));
+  assert.ok(page.includes('queuedCount: queuedReportCount'));
 });
 
 test('a report opens in a modal with its photo', () => {
