@@ -7,10 +7,10 @@ import { useI18n } from './I18nProvider';
 
 type ArchiveConfig = { eyebrow: string; title: string; description: string };
 const ARCHIVE_CONFIG: Record<HomeFeedKind, ArchiveConfig> = {
-  events: { eyebrow: 'EVENTS', title: 'All Events', description: 'Upcoming and archived sample events for the selected site.' },
+  events: { eyebrow: 'EVENTS', title: 'All Events', description: 'Upcoming and archived events published for the selected site.' },
   circulars: { eyebrow: 'DOCUMENTS & UPDATES', title: 'All Circulars', description: 'Published circular examples for the selected site.' },
-  notices: { eyebrow: 'SITE UPDATES', title: 'All Notices', description: 'Recent sample safety notices for the selected site.' },
-  updates: { eyebrow: 'SITE UPDATES', title: 'Circulars & Notices', description: 'Browse all sample circulars and notices for the selected site.' }
+  notices: { eyebrow: 'SITE UPDATES', title: 'All Notices', description: 'Recent safety notices published for the selected site.' },
+  updates: { eyebrow: 'SITE UPDATES', title: 'Circulars & Notices', description: 'Browse circulars and notices published for the selected site.' }
 };
 
 const FEED_ICON: Record<HomeFeedKind, LucideIcon> = {
@@ -41,15 +41,15 @@ export function HomeFeedSection({ kind, title, eyebrow, item, siteName, onViewAl
   return <section className={`section-block home-feed-section home-feed-${kind}`}>
     <div className="section-heading"><div><span className="eyebrow">{T(eyebrow)}</span><h2>{T(title)}</h2></div><span className="section-note">{siteName}</span></div>
     {item ? <button className="home-feed-feature" type="button" onClick={() => onOpenItem(item)} aria-label={T('Open details for {title}', { title: item.title })}>
-      <span className="home-feed-feature-top"><span className="home-feed-tag">{T(kind === 'events' ? 'NEXT UPCOMING · DEMO' : 'LATEST · DEMO')}</span><span className="home-feed-date">{formatHomeFeedDate(item.date, locale)}{kind === 'events' ? ` · ${formatHomeFeedTime(item.date, locale)}` : ''}</span></span>
+      <span className="home-feed-feature-top"><span className="home-feed-tag">{T(kind === 'events' ? 'NEXT UPCOMING' : 'LATEST')}</span><span className="home-feed-date">{formatHomeFeedDate(item.date, locale)}{kind === 'events' ? ` · ${formatHomeFeedTime(item.date, locale)}` : ''}</span></span>
       <span className="home-feed-title">{item.title}</span>
       {kind === 'events' && item.location && <span className="home-feed-meta"><MapPin size={14} />{item.location}</span>}
       <span className="home-feed-summary">{item.summary}</span>
       <span className="home-feed-open-details">{T('View details')} <ChevronRight size={16} /></span>
-    </button> : <div className="home-feed-empty">{T('No upcoming demo events are scheduled right now.')}</div>}
-    <button className="home-feed-all-card" type="button" onClick={onViewAll} aria-label={T('{label}, {count} sample entries', { label: allLabel, count: countText })}>
+    </button> : <div className="home-feed-empty">{T('No events have been published yet.')}</div>}
+    <button className="home-feed-all-card" type="button" onClick={onViewAll} aria-label={T('{label}, {count} entries', { label: allLabel, count: countText })}>
       <span className={`home-feed-all-icon ${kind}`}><Icon size={20} /></span>
-      <span className="home-feed-all-copy"><b>{allLabel}</b><small>{countLabel} · {countText} {T('sample')} {itemType}</small></span>
+      <span className="home-feed-all-copy"><b>{allLabel}</b><small>{countLabel} · {countText} {itemType}</small></span>
       <ChevronRight className="home-feed-all-arrow" size={19} />
     </button>
   </section>;
@@ -83,8 +83,8 @@ export function FeedArchivePage({ kind, siteName, onOpenItem, onBack }: { kind: 
         </button>;
       })}
     </div>
-    {items.length === 0 && <div className="empty-state"><ArchiveIcon size={28} /><b>{T('No entries available')}</b><span>{T('There are no sample entries in this section.')}</span></div>}
-    <p className="home-demo-caption">{T('Demo examples only · live event and document feeds are not connected.')}</p>
+    {items.length === 0 && <div className="empty-state"><ArchiveIcon size={28} /><b>{T('No entries available')}</b><span>{T('Nothing has been published in this section yet.')}</span></div>}
+    <p className="home-demo-caption">{T('Only published items are listed. Nothing here is a sample entry.')}</p>
   </section>;
 }
 
@@ -101,7 +101,7 @@ export function HomeFeedDetailDialog({ item, siteName, onClose }: { item: HomeFe
       <div className="feed-detail-meta"><span><Icon size={16} />{formatHomeFeedDate(item.date, locale)}</span>{item.type === 'Event' && <span><Clock3 size={16} />{formatHomeFeedTime(item.date, locale)}</span>}{item.location && <span><MapPin size={16} />{item.location}</span>}</div>
       <p className="feed-detail-summary">{item.summary}</p>
       <div className="feed-detail-body">{item.details}</div>
-      <div className="modal-footnote">{T('Sample content only · confirm actual event dates and site instructions through official channels.')}</div>
+      <div className="modal-footnote">{T('Confirm event dates and site instructions through official channels.')}</div>
     </article>
   </div>;
 }

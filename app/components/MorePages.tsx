@@ -155,7 +155,7 @@ export function CompanyAboutPage({ company, onBack }: { company: TenantBranding;
         <CompanyDetail icon={Phone} label="Support phone" value={company.supportMobile} href={phoneHref(company.supportMobile)} />
       </div>
     </div>
-    <div className="more-demo-note"><Info size={15} /> {T('Blank company fields are intentionally shown as not configured; no contact information is guessed in this demo.')}</div>
+    <div className="more-demo-note"><Info size={15} /> {T('Blank company fields are shown as not configured; no contact information is guessed.')}</div>
   </section>;
 }
 
@@ -167,7 +167,7 @@ export function AccountManagementPage({ onBack, onLogin, onOpenInfo }: {
   const { T } = useI18n();
   return <section className="page-panel more-subpage-panel account-management-page">
     <MoreSubpageHeading eyebrow="ACCOUNT" title="Account Login" description="Access and account preferences." icon={LockKeyhole} onBack={onBack} />
-    <div className="account-session-note"><span><LockKeyhole size={19} /></span><div><b>{T('Demo mode · no active session')}</b><small>{T('Authentication is not connected. No login or logout state is stored.')}</small></div></div>
+    <div className="account-session-note"><span><LockKeyhole size={19} /></span><div><b>{T('No active session')}</b><small>{T('Authentication is not connected. No login or logout state is stored.')}</small></div></div>
     <div className="more-option-list account-option-list" aria-label={T('Account actions')}>
       <MoreOptionCard icon={LogIn} tone="employee" title="Login" description="Safety supervisor or admin access" onClick={onLogin} />
       <button type="button" className="more-option-card disabled" disabled aria-disabled="true">
@@ -178,7 +178,7 @@ export function AccountManagementPage({ onBack, onLogin, onOpenInfo }: {
       <MoreOptionCard icon={KeyRound} tone="company" title="Change Password" description="Password changes require a connected account" onClick={() => onOpenInfo('change-password')} />
       <MoreOptionCard icon={Palette} tone="appearance" title="Account Settings" description="Review account-specific settings and preferences" onClick={() => onOpenInfo('account-settings')} />
     </div>
-    <div className="more-demo-note"><Info size={15} /> {T('Login, logout and password services remain demo-only until secure authentication is configured.')}</div>
+    <div className="more-demo-note"><Info size={15} /> {T('Account login is verified by the Safex server; password reset and Supabase authentication are not connected.')}</div>
   </section>;
 }
 
@@ -247,7 +247,7 @@ export function InstallAppPage({ company, canInstall, installMessage, onInstall,
       {installMessage && <div className="inline-notice" role="status">{T(installMessage.key, installMessage.params)}</div>}
       {!installMessage && <div className="install-availability"><span className={`install-availability-dot ${canInstall ? 'available' : ''}`} />{canInstall ? T('One-tap installation is available in this browser.') : T('If no prompt appears, use your browser menu to install or add to the Home Screen.')}</div>}
     </div>
-    <div className="company-logo-install-note"><Info size={16} /><span>{company.logoPath ? T('The PWA manifest uses the Admin-configured Company Logo.') : T('No Company Logo is configured in this demo tenant; the bundled Safex icon is used until Admin uploads one.')}</span></div>
+    <div className="company-logo-install-note"><Info size={16} /><span>{company.logoPath ? T('The Admin-configured company logo is shown inside the app.') : T('No Company Logo is configured yet; the bundled Safex icon is used until Admin uploads one.')}</span></div>
     <div className="settings-card install-branding-note"><h2>{T('Install branding')}</h2><p>{T('The PWA manifest, browser title and install name use the configured Company Name. The manifest icon uses the configured Company Logo, with a Safex fallback when none is set. Production admin changes must be published to the tenant manifest before installation.')}</p></div>
   </section>;
 }
@@ -268,14 +268,14 @@ export function MoreInfoDialog({ kind, company, onClose, onLogin }: {
   return <div className="overlay more-info-overlay" role="dialog" aria-modal="true" aria-labelledby="more-info-title">
     <div className="modal more-info-modal">
       <div className="modal-header"><div><span className="eyebrow">{T('MORE · INFORMATION')}</span><h2 id="more-info-title">{title}</h2></div><button type="button" className="close-button" onClick={onClose} aria-label={T('Close {title}', { title })}><X size={18} /></button></div>
-      {kind === 'privacy' && <div className="more-info-copy"><p>{T('An approved Privacy Policy has not been published for this demo tenant.')}</p><p>{T('Ask the company Admin to configure the policy URL before collecting or processing production employee information.')}</p></div>}
-      {kind === 'terms' && <div className="more-info-copy"><p>{T('Terms & Conditions have not been published for this demo tenant.')}</p><p>{T('Ask the company Admin to configure the approved terms before production use.')}</p></div>}
+      {kind === 'privacy' && <div className="more-info-copy"><p>{T('An approved Privacy Policy has not been published for this company yet.')}</p><p>{T('Ask the company Admin to configure the policy URL before collecting or processing production employee information.')}</p></div>}
+      {kind === 'terms' && <div className="more-info-copy"><p>{T('Terms & Conditions have not been published for this company yet.')}</p><p>{T('Ask the company Admin to configure the approved terms before production use.')}</p></div>}
       {kind === 'support' && <div className="more-info-copy"><p>{T('Support contacts for {company}:', { company: company.companyName || T('this company') })}</p>{hasSupport ? <div className="company-detail-list support-dialog-details">
         <CompanyDetail icon={Mail} label="Support email" value={company.supportEmail} href={emailHref(company.supportEmail)} />
         <CompanyDetail icon={Phone} label="Support phone" value={company.supportMobile} href={phoneHref(company.supportMobile)} />
       </div> : <div className="more-info-unconfigured">{T('Support email and phone have not been configured by Admin.')}</div>}</div>}
-      {kind === 'change-password' && <div className="more-info-copy"><p>{T('Password changes are unavailable because authentication is not connected in this demo. No password was changed.')}</p><p>{T('Once account authentication is configured, use the verified account flow to change or recover a password.')}</p><button type="button" className="primary-button full-button more-info-primary" onClick={onLogin}><LogIn size={16} /> {T('Open Account Login')}</button></div>}
-      {kind === 'account-settings' && <div className="more-info-copy"><p>{T('There is no signed-in account in this demo, so account-specific settings are unavailable.')}</p><p>{T('Appearance and notification preferences remain available locally. Secure account preferences require an authenticated server session.')}</p></div>}
+      {kind === 'change-password' && <div className="more-info-copy"><p>{T('Password changes are unavailable because account authentication is not connected. No password was changed.')}</p><p>{T('Once account authentication is configured, use the verified account flow to change or recover a password.')}</p><button type="button" className="primary-button full-button more-info-primary" onClick={onLogin}><LogIn size={16} /> {T('Open Account Login')}</button></div>}
+      {kind === 'account-settings' && <div className="more-info-copy"><p>{T('There is no signed-in account, so account-specific settings are unavailable.')}</p><p>{T('Appearance and notification preferences remain available locally. Secure account preferences require an authenticated server session.')}</p></div>}
       <div className="modal-footnote"><Info size={14} /> {T('Missing company policy and support details are not replaced with guessed content.')}</div>
     </div>
   </div>;

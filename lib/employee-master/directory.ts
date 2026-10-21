@@ -1,5 +1,4 @@
 import 'server-only';
-import { WEST_BOKARO_SITE } from '@/lib/site-config';
 import type { DirectoryUnavailableReason, Site } from '@/lib/types';
 import { getBrandingCompanyName, getEmployeeMasterConfig } from './config';
 import {
@@ -66,7 +65,7 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
       }));
       return {
         mode: 'sheet',
-        sites: sites.length ? sites : [WEST_BOKARO_SITE],
+        sites,
         employeeCount: snapshot.records.length,
         companyName: getBrandingCompanyName(),
         dataIssueCount: snapshot.issues.length,
@@ -78,7 +77,8 @@ export async function getDirectoryStatus(): Promise<DirectoryStatus> {
 
   return {
     mode: 'unavailable',
-    sites: [WEST_BOKARO_SITE],
+    // No synthetic site: an empty list is the truthful answer when the master is unreachable.
+    sites: [],
     employeeCount: 0,
     companyName: getBrandingCompanyName(),
     dataIssueCount: 0,

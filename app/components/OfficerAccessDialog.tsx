@@ -2,10 +2,9 @@
 
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Info, LockKeyhole, Mail, ShieldCheck, UserRound, UsersRound, X } from 'lucide-react';
-import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/admin-credentials';
 import { useI18n } from './I18nProvider';
 
-type Props = { onClose: () => void; onDemoLogin: () => void };
+type Props = { onClose: () => void; onSignedIn: () => void };
 /**
  * Staff sign-in only. Employees never hold an account here: they use the public app
  * (report submission needs no login) and identify themselves through the Employee-ID
@@ -14,7 +13,7 @@ type Props = { onClose: () => void; onDemoLogin: () => void };
 type Role = 'supervisor' | 'admin';
 type Mode = 'login' | 'reset';
 
-export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
+export default function OfficerAccessDialog({ onClose, onSignedIn }: Props) {
   const { T } = useI18n();
   const [role, setRole] = useState<Role>('supervisor');
   const [mode, setMode] = useState<Mode>('login');
@@ -39,7 +38,7 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
     // Supervisor sign-in is not wired to a backend yet — admin login is the flow that
     // talks to the server during this hookup phase.
     if (role !== 'admin') {
-      setMessage('Authentication is not connected in this demo. No credentials were sent or stored.');
+      setMessage('Supervisor sign-in is not connected yet. No credentials were sent or stored.');
       return;
     }
 
@@ -58,7 +57,7 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
       if (response.ok && data?.ok) {
         // The server accepted the credentials and set the signed session cookie —
         // the dashboard opens through the same session it reads.
-        onDemoLogin();
+        onSignedIn();
         return;
       }
       setMessage(response.status === 429
@@ -71,15 +70,9 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
     }
   }
 
-  function fillDemoAdminCredentials() {
-    setUsername(ADMIN_USERNAME);
-    setPassword(ADMIN_PASSWORD);
-    setMessage('Demo credentials filled. Press Login to open the admin dashboard.');
-  }
-
   function submitReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage('Password reset is not connected in this demo. No email was sent.');
+    setMessage('Password reset is not connected yet. No email was sent.');
   }
 
   function openReset() {
@@ -101,7 +94,7 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
     ? T('Enter your account ID and registered email to request a password reset.')
     : role === 'supervisor'
       ? T('Sign in with your Safety Supervisor or Site Supervisor account.')
-      : T('Sign in with the demo admin account to open the admin dashboard. The Safex server checks the credentials and issues the session; Supabase authentication is not used.');
+      : T('Sign in with your admin User ID and password. The Safex server checks them and issues the session; Supabase authentication is not used.');
 
   return <div className="overlay account-login-overlay" role="dialog" aria-modal="true" aria-labelledby="officer-access-title">
     <div className="modal account-login-modal">
@@ -145,14 +138,9 @@ export default function OfficerAccessDialog({ onClose, onDemoLogin }: Props) {
         <button className="account-primary-button" type="submit" disabled={signingIn}>{signingIn ? T('Signing in…') : T('Login')} <ArrowRight size={21} /></button>
       </form>}
 
-      {role === 'admin' && mode === 'login' && <section className="admin-demo-credentials" aria-label={T('Demo credentials')}>
-        <div className="admin-demo-credentials-heading"><ShieldCheck size={18} /><span><b>{T('Local demo account')}</b><small>{T('These public demo credentials are verified by the Safex server to open the admin dashboard. Supabase authentication is not used.')}</small></span></div>
-        <div className="admin-demo-credential-values"><span><small>{T('Username')}</small><code>{ADMIN_USERNAME}</code></span><span><small>{T('Password')}</small><code>{ADMIN_PASSWORD}</code></span></div>
-        <button type="button" className="admin-demo-fill-button" onClick={fillDemoAdminCredentials}>{T('Use demo credentials')}</button>
-      </section>}
       {message && <div className="account-login-message" role="status">{T(message)}</div>}
       {mode !== 'reset' && <div className="account-login-footer"><span /><button type="button" onClick={openReset}>{T('Forgot Password?')}</button></div>}
-      <div className="account-demo-note"><LockKeyhole size={14} /> {T('Demo interface only. Password reset and live Supabase authentication are not connected. The admin sign-in is verified by the Safex server and credentials are not saved.')}</div>
+      <div className="account-demo-note"><LockKeyhole size={14} /> {T('Password reset and live Supabase authentication are not connected. The admin sign-in is verified by the Safex server and credentials are not saved.')}</div>
     </div>
   </div>;
 }

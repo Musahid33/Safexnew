@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next';
-import { DEMO_TENANT } from '@/lib/demo-data';
 import { I18nProvider } from './components/I18nProvider';
 import './globals.css';
 
-const appName = DEMO_TENANT.companyName.trim() || 'Safex Safety';
-const companyLogo = DEMO_TENANT.logoPath?.trim();
+// The static shell cannot know the tenant: the real company name arrives from
+// /api/bootstrap and brands the page at runtime.
+const appName = 'Safex Safety';
 
 export const metadata: Metadata = {
   title: appName,
@@ -13,8 +13,8 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, title: appName, statusBarStyle: 'black-translucent' },
   icons: {
-    icon: companyLogo ? [{ url: companyLogo }] : [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { url: '/icon.svg', type: 'image/svg+xml' }],
-    apple: companyLogo ?? '/icon-192.png'
+    icon: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { url: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }],
+    apple: '/icon-192.png'
   }
 };
 
