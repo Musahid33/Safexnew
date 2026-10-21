@@ -1,4 +1,4 @@
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * Shared request hardening for the API routes that touch personal data.
@@ -9,6 +9,16 @@ import type { NextRequest } from 'next/server';
  */
 
 export const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+/** JSON with the no-store header every API route here must send. */
+export function json(body: object, status = 200): NextResponse {
+  return NextResponse.json(body, { status, headers: NO_STORE });
+}
+
+/** The one refusal shape every guarded route returns. */
+export function deny(status: number, code: string, error: string): NextResponse {
+  return json({ ok: false, code, error }, status);
+}
 
 function validIp(value: string): boolean {
   return /^[0-9a-fA-F.:]{3,45}$/.test(value);

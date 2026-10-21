@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminApiConfigured, isAdminPiiEnabled, readSession } from '@/lib/admin-auth';
-import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
+import { isAdminPiiEnabled } from '@/lib/admin-auth';
+import { createAdminGuard } from '@/lib/http/admin-gate';
+import { NO_STORE } from '@/lib/http/request-guard';
 import { listDirectory } from '@/lib/employee-master/directory';
 import type { MasterEmployeeRecord } from '@/lib/employee-master/parse';
 import { createEmployeeProfile } from '@/lib/employee-master/writes';
@@ -22,7 +23,7 @@ export const dynamic = 'force-dynamic';
  */
 
 const MAX_PAGE_SIZE = 50;
-const allowRequest = createRateLimiter({ windowMs: 60_000, max: 120 });
+const guard = createAdminGuard({ windowMs: 60_000, max: 120 });
 
 type AdminEmployee = {
   empNo: string;
@@ -78,34 +79,8 @@ function project(record: MasterEmployeeRecord, includePii: boolean): AdminEmploy
 }
 
 export async function GET(request: NextRequest) {
-  if (!sameOrigin(request)) {
-    return NextResponse.json({ ok: false, code: 'CROSS_ORIGIN_REJECTED' }, { status: 403, headers: NO_STORE });
-  }
-
-  if (!isAdminApiConfigured()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        code: 'ADMIN_API_NOT_CONFIGURED',
-        error: 'The admin API is disabled. Set SAFEX_ADMIN_PASSCODE on the server to enable it.'
-      },
-      { status: 503, headers: NO_STORE }
-    );
-  }
-
-  if (readSession(request) === null) {
-    return NextResponse.json(
-      { ok: false, code: 'ADMIN_SESSION_REQUIRED', error: 'Sign in to view the employee master.' },
-      { status: 401, headers: NO_STORE }
-    );
-  }
-
-  if (!allowRequest(clientIp(request))) {
-    return NextResponse.json(
-      { ok: false, code: 'RATE_LIMITED', error: 'Too many requests. Slow down.' },
-      { status: 429, headers: NO_STORE }
-    );
-  }
+  const blocked = guard(request, 'Sign in to view the employee master.');
+  if (blocked) return blocked;
 
   const params = request.nextUrl.searchParams;
   const siteId = (params.get('siteId') ?? '').trim().slice(0, 96);
@@ -142,24 +117,8 @@ export async function GET(request: NextRequest) {
  * an employee number is unique per tenant, and a number without a site is not a roster row.
  */
 export async function POST(request: NextRequest) {
-  if (!sameOrigin(request)) {
-    return NextResponse.json({ ok: false, code: 'CROSS_ORIGIN_REJECTED' }, { status: 403, headers: NO_STORE });
-  }
-  if (!isAdminApiConfigured()) {
-    return NextResponse.json(
-      { ok: false, code: 'ADMIN_API_NOT_CONFIGURED', error: 'The admin API is disabled.' },
-      { status: 503, headers: NO_STORE }
-    );
-  }
-  if (readSession(request) === null) {
-    return NextResponse.json(
-      { ok: false, code: 'ADMIN_SESSION_REQUIRED', error: 'Sign in to change the employee master.' },
-      { status: 401, headers: NO_STORE }
-    );
-  }
-  if (!allowRequest(clientIp(request))) {
-    return NextResponse.json({ ok: false, code: 'RATE_LIMITED', error: 'Too many requests. Slow down.' }, { status: 429, headers: NO_STORE });
-  }
+  const blocked = guard(request, 'Sign in to change the employee master.');
+  if (blocked) return blocked;
 
   let body: Record<string, unknown>;
   try {

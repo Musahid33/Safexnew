@@ -2,6 +2,7 @@ import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import { resolveTenantId } from '@/lib/employee-master/db-source';
 import { VAULT_CATEGORIES, vaultCategoryFromDbKey, type DocumentType, type VaultCategoryKey } from './catalog';
+import { withTimeout } from '@/lib/with-timeout';
 import type {
   AdminAnnouncement, AdminDocument, AdminEvent, ContentFeedItem, ContentStatus,
   PublishedDocument
@@ -17,25 +18,12 @@ import type {
  */
 
 export const CONTENT_BUCKET = 'safex-content';
-const QUERY_TIMEOUT_MS = 5000;
 const MAX_DOCUMENTS = 300;
 const MAX_POSTS = 200;
 const MAX_EVENTS = 200;
 
 type Admin = NonNullable<ReturnType<typeof getAdminSupabase>>;
 export type ContentStore = { admin: Admin; tenantId: string };
-
-async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), QUERY_TIMEOUT_MS); });
-    return await Promise.race([Promise.resolve(work), timeout]) as T | null;
-  } catch {
-    return null;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 /** The tenant this deployment serves, or null when Supabase is not configured. */
 export async function contentStore(): Promise<ContentStore | null> {

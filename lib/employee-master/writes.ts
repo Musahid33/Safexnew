@@ -2,6 +2,7 @@ import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import { isPhotoColumnSupported, resolveSiteId, resolveTenantId } from './db-source';
 import { isEmployeeNo, normaliseEmployeePatch, type EmployeeProfileInput } from './profile-fields';
+import { withTimeout } from '@/lib/with-timeout';
 
 /**
  * Writes for the admin console's employee profile screen.
@@ -14,22 +15,6 @@ import { isEmployeeNo, normaliseEmployeePatch, type EmployeeProfileInput } from 
  * Deletes are deactivations. A worker's reports, training records and recognitions point at
  * this row; removing it would orphan safety history that is kept for the audit trail.
  */
-
-const QUERY_TIMEOUT_MS = 5000;
-
-async function withTimeout<T>(work: PromiseLike<T>): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const timeout = new Promise<null>((resolve) => {
-      timer = setTimeout(() => resolve(null), QUERY_TIMEOUT_MS);
-    });
-    return await Promise.race([Promise.resolve(work), timeout]) as T | null;
-  } catch {
-    return null;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 export type EmployeeWriteResult =
   | { ok: true; employeeNo: string; photoSkipped?: boolean }

@@ -12,6 +12,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { Employee, Site } from '@/lib/types';
 import { useI18n } from './I18nProvider';
 import './employee-passport.css';
+import { initials } from '@/lib/initials';
 
 type Category =
   | 'nearMiss' | 'hazard' | 'unsafeAct' | 'unsafeCondition'
@@ -73,10 +74,6 @@ function formatPassportDate(date: Date) {
   return new Intl.DateTimeFormat('en-IN', {
     timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
   }).format(date);
-}
-
-function initials(name: string) {
-  return name.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'SA';
 }
 
 async function copyToClipboard(text: string) {

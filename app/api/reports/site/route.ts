@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
+import { NO_STORE, clientIp, createRateLimiter, sameOrigin, deny } from '@/lib/http/request-guard';
 import { listLoggedReports } from '@/lib/reports/site-feed';
 
 export const runtime = 'nodejs';
@@ -24,10 +24,6 @@ export const dynamic = 'force-dynamic';
 
 const MAX_PAGE = 200;
 const allowRead = createRateLimiter({ windowMs: 60_000, max: 40 });
-
-function deny(status: number, code: string, error: string) {
-  return NextResponse.json({ ok: false, code, error }, { status, headers: NO_STORE });
-}
 
 export async function GET(request: NextRequest) {
   if (!sameOrigin(request)) return deny(403, 'CROSS_ORIGIN_REJECTED', 'Cross-origin report reads are not allowed.');

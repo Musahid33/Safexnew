@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { isAdminApiConfigured, readSession } from '@/lib/admin-auth';
-import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
+import { clientIp, createRateLimiter, deny, sameOrigin } from '@/lib/http/request-guard';
 
 /**
  * The gate every admin route shares: origin, configuration, session, rate limit — in that
@@ -9,9 +9,7 @@ import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/re
  * disagree, and the one that disagreed would be the one missing a check.
  */
 
-export function deny(status: number, code: string, error: string): NextResponse {
-  return NextResponse.json({ ok: false, code, error }, { status, headers: NO_STORE });
-}
+export { deny };
 
 export type AdminGuard = (request: NextRequest, message?: string) => NextResponse | null;
 
