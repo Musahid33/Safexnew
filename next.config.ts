@@ -54,12 +54,24 @@ const fileRouteHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'no-referrer' },
   { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
   { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" }
 ];
+
+// This is a worker portal, not a marketing site: nothing here should end up in a search
+// index, a cached snippet or an archive that keeps serving an old build after a change.
+const NO_INDEX = 'noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // A browser source map is the whole frontend in readable form. Keep it off in every
+  // production build; error reports come from the server logs instead.
+  productionBrowserSourceMaps: false,
+  compiler: {
+    // Ship no console noise (and no accidental debug values) in a production bundle.
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false
+  },
   // The live preview reaches the dev server through a proxied host, which Next
   // would otherwise reject as a cross-origin dev request (breaks HMR/websocket).
   ...(isDevServer ? { allowedDevOrigins: ['*.e2b.app'] } : {}),
@@ -68,6 +80,14 @@ const nextConfig: NextConfig = {
       {
         source: '/api/content/file/:kind/:id',
         headers: fileRouteHeaders
+      },
+      {
+        // Compiled bundles and anything next to them must never be indexed.
+        source: '/_next/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: NO_INDEX },
+          { key: 'X-Content-Type-Options', value: 'nosniff' }
+        ]
       },
       {
         // Everything except the file route above, which carries its own frame policy.
@@ -79,6 +99,7 @@ const nextConfig: NextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          { key: 'X-Robots-Tag', value: NO_INDEX },
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
           { key: 'Content-Security-Policy', value: cspDirectives.join('; ') },

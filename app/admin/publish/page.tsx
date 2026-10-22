@@ -420,7 +420,7 @@ export default function PublishPanel() {
     {error && <p role="alert" className="content-admin-error">{error}</p>}
     {message && <p role="status" className="content-admin-message">{message}</p>}
     {configured === null && <p>Checking access…</p>}
-    {configured === false && <p>The admin console is disabled. Configure SAFEX_ADMIN_PASSCODE on the server.</p>}
+    {configured === false && <p>The admin console is disabled on this deployment. Ask the site administrator to enable it.</p>}
 
     {configured && !signedIn && <form className="content-admin-card content-admin-signin" onSubmit={signIn}>
       <h2>Admin sign-in</h2>

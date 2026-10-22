@@ -24,6 +24,36 @@ A Next.js + TypeScript PWA-oriented Safex app. The SafexNew Supabase schema and 
 - Supabase client wrappers, environment template, the existing Safex tenant/site migrations, and an additive schema extension for the live multi-tenant database.
 - Tenant company branding comes from the database through `/api/bootstrap`; the header shows nothing rather than an invented company before the server answers. Optional-module flags live in `lib/app-config.ts`; the footer is intentionally removed.
 
+## Source exposure
+
+A browser must download the HTML, CSS and JavaScript it runs, so no deployment can hide those
+bytes from a determined visitor. What this project does guarantee:
+
+- **No source maps in production.** `productionBrowserSourceMaps: false` in `next.config.ts`; a
+  bundle cannot be mapped back to `app/` or `lib/` filenames.
+- **No comments in shipped files.** The compiler strips them from the bundle and the CSS
+  minifier strips them from the stylesheet; the only hand-written public asset (`public/sw.js`)
+  carries none.
+- **No server code in the browser.** Every Supabase call, table name, admin check and secret
+  lives behind `app/api/*` or a `server-only` module; the stores are never imported by a
+  `'use client'` file. `tests/source-protection.test.mjs` fails the build if that changes.
+- **No secrets in the client.** The service-role key, passcode and session secret are read from
+  `process.env` on the server only. A client file that mentions one fails the test suite.
+- **No indexing or archiving.** Every response sends `X-Robots-Tag: noindex, nofollow,
+  noarchive, nosnippet, noimageindex, notranslate` and `app/robots.ts` disallows the whole
+  origin, so an old build or a cached snippet cannot surface in a search result.
+- **Devtools shortcuts are deterred, not blocked.** `app/components/SourceGuard.tsx` swallows
+  F12, Ctrl/Cmd+Shift+I/J/C/K and view-source in a production build. This stops a casual visitor
+  and nothing more — it is deliberately narrow (form fields keep their context menu, and copy,
+  paste, zoom and assistive technology are untouched) because a determined user can always
+  open devtools from the browser menu or fetch the file with `curl`.
+
+**The repository itself is the larger exposure.** A public GitHub repository publishes the full
+source, migrations and history — the deployed bundle is not the only copy. Keep this repository
+**private** (Settings → General → Danger Zone → Change visibility → Private) and invite only the
+people who need it. Agents and CI with a repository-scoped token cannot change visibility for
+you; that switch is owner-only.
+
 ## Run locally
 
 ```bash
