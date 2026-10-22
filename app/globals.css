@@ -681,9 +681,6 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 
 .account-primary-button { width: 100%; min-height: 68px; display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 17px; border: 0; border-radius: 12px; background: #0c7ff2; color: #fff; padding: 0 18px; font-size: 17px; font-weight: 800; cursor: pointer; box-shadow: 0 5px 12px rgba(12, 127, 242, .16); transition: background .15s, transform .15s; }
 .account-primary-button:hover { background: #066fe0; transform: translateY(-1px); }
-.account-login-footer { margin-top: 20px; border-top: 1px solid #e4e8ee; padding-top: 19px; }
-.account-login-footer button, .account-back-button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: #087bea; padding: 0; font-size: 12px; font-weight: 800; cursor: pointer; }
-.account-back-button { justify-self: start; margin-top: 14px; }
 .account-login-message { margin-top: 13px; border: 1px solid #f2dca4; border-radius: 10px; background: #fff7e5; color: #6c4a00; padding: 10px 12px; font-size: 10px; line-height: 1.45; }
 
 .report-picker-modal { width: min(100%, 720px); }
@@ -887,8 +884,6 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
   
   
   .account-primary-button { min-height: 53px; margin-top: 14px; border-radius: 10px; font-size: 14px; }
-  .account-login-footer { margin-top: 16px; padding-top: 15px; }
-  .account-login-footer button, .account-back-button { font-size: 11px; }
   
 }
 
@@ -1915,7 +1910,6 @@ textarea.form-control { min-height: 128px; }
   .safety-alert-card-meta time, .safety-alert-location { font-size: 11px; }
   .safety-alert-details-inner { padding-right: 12px; padding-left: 58px; }
   .safety-alert-details-inner section p, .safety-alert-details-inner section ul { font-size: 13px; }
-  .account-login-footer button, .account-back-button { min-height: 44px; font-size: 13px; }
   .more-option-card { min-height: 76px; gap: 12px; padding: 12px; }
   .more-option-copy b { font-size: 15px; }
   .more-option-copy small { font-size: 12px; }

@@ -61,3 +61,28 @@ test('a rejected sign-in keeps the same public shape', () => {
   assert.ok(route.includes("code: passcode ? 'INVALID_PASSCODE' : 'INVALID_CREDENTIALS'"));
   assert.equal(route.includes('ADMIN_ACCOUNT_NOT_FOUND'), false, 'never reveal which half failed');
 });
+
+test('the login page offers no account creation and no self-service reset', () => {
+  const dialog = readFileSync('app/components/OfficerAccessDialog.tsx', 'utf8');
+  const page = dialog.toLowerCase();
+
+  assert.equal(page.includes('forgot'), false, 'no "Forgot password" link');
+  assert.equal(page.includes('reset'), false, 'no reset mode, handler or copy');
+  assert.equal(page.includes('create account'), false, 'no account creation');
+  assert.equal(page.includes('sign up') || page.includes('signup') || page.includes('register'), false);
+
+  // The dialog only ever posts the sign-in payload.
+  const posts = [...dialog.matchAll(/fetch\('([^']+)'/g)].map((match) => match[1]);
+  assert.deepEqual(posts, ['/api/admin/session']);
+  assert.equal(dialog.includes("method: 'POST'"), true);
+  assert.equal(dialog.includes("method: 'PUT'"), false);
+
+  // The reset flow's leftovers must not come back through the stylesheet or the catalogs.
+  const css = readFileSync('app/globals.css', 'utf8');
+  assert.equal(css.includes('account-login-footer'), false, 'dead footer style removed');
+  assert.equal(css.includes('account-back-button'), false, 'dead back-button style removed');
+  const i18n = readFileSync('lib/i18n.ts', 'utf8') + readFileSync('lib/i18n-extended.ts', 'utf8');
+  for (const dead of ['Forgot Password?', 'Send Reset Link', 'Back to Login', 'Password Reset']) {
+    assert.equal(i18n.includes(dead), false, `${dead} must not linger in a catalog`);
+  }
+});
