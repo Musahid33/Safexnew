@@ -1,6 +1,15 @@
 import 'server-only';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 
+/**
+ * Public bucket holding awardee photos.
+ *
+ * Public by design: the Reward Wall is on the public home screen and the photo is the award
+ * artwork. Service role writes only — there is no anonymous upload path, and nothing private
+ * may be stored in it.
+ */
+export const RECOGNITION_BUCKET = 'safex-rewards';
+
 export type RecognitionDb = {
   id: string;
   employee_name: string;

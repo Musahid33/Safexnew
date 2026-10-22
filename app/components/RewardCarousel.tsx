@@ -29,7 +29,6 @@ export default function RewardCarousel({ items = [] }: Props) {
   const { T } = useI18n();
   const [paused, setPaused] = useState(false);
   const publishedItems = items.filter((item) => item.isPublished !== false);
-  const namedItems = publishedItems.filter((item) => item.employeeName?.trim() && item.rewardFor?.trim());
 
   // Published recognitions come from the database; nothing is drawn in their place.
   if (!publishedItems.length) return <div className="reward-gallery-empty">
@@ -37,34 +36,32 @@ export default function RewardCarousel({ items = [] }: Props) {
     <span>{T('Approved awards will appear here once the safety team publishes them.')}</span>
   </div>;
 
-  return <><div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery')}>
+  return <div className={`reward-gallery ${paused ? 'paused' : ''}`} role="region" aria-roledescription="carousel" aria-label={T('Rewards and Recognition Gallery')}>
     <div className="reward-gallery-viewport">
       <div className="reward-gallery-track" style={{ animationDuration: `${Math.max(18, publishedItems.length * 6)}s` }}>
         {[0, 1].map((copy) => <div className="reward-gallery-group" key={`gallery-copy-${copy}`} aria-hidden={copy === 1 ? true : undefined}>
-          {publishedItems.map((item, index) => <div className="reward-gallery-item" key={`${copy}-${item.id}`}>
-            <div className="reward-gallery-card">
+          {publishedItems.map((item, index) => {
+            const name = item.employeeName?.trim() ?? '';
+            const reward = item.rewardFor?.trim() ?? '';
+            // The caption sits on the photo itself, so the card carries the identity on its own
+            // and the gallery needs no table underneath it.
+            return <figure className="reward-gallery-card" key={`${copy}-${item.id}`}>
               {item.imageUrl
-                ? <img className="reward-gallery-image" src={item.imageUrl} alt={item.altText} loading="lazy" decoding="async" />
+                ? <img className="reward-gallery-image" src={item.imageUrl} alt={name ? `Photo of ${name}` : item.altText} loading="lazy" decoding="async" />
                 : <RewardArtwork slide={item.artworkIndex ?? index % SLIDE_LABELS.length} />}
-            </div>
-            {item.employeeName && <b className="reward-gallery-name" title={item.employeeName}>{item.employeeName}</b>}
-          </div>)}
+              {(name || reward) && <figcaption className="reward-gallery-overlay">
+                {name && <b title={name}>{name}</b>}
+                {reward && <span>{reward}</span>}
+              </figcaption>}
+            </figure>;
+          })}
         </div>)}
       </div>
     </div>
     <button className="reward-gallery-pause" type="button" onClick={() => setPaused((value) => !value)} aria-label={T(paused ? 'Resume gallery scrolling' : 'Pause gallery scrolling')} aria-pressed={paused}>
       {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
     </button>
-  </div>
-    {namedItems.length > 0 && <div className="reward-recognition-table-wrap">
-      <table className="reward-recognition-table">
-        <thead><tr><th scope="col">{T('Name')}</th><th scope="col">{T('Reward For')}</th></tr></thead>
-        <tbody>{namedItems.map((item) => <tr key={item.id}>
-          <td>{item.employeeName}</td><td>{item.rewardFor}</td>
-        </tr>)}</tbody>
-      </table>
-    </div>}
-  </>;
+  </div>;
 }
 
 function RewardArtwork({ slide }: { slide: number }) {
