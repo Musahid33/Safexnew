@@ -121,6 +121,43 @@ test('a short passcode or password does not count as configured', () => {
   }
 });
 
+test('the closed console can say which requirement is missing, without a value', () => {
+  const saved = { ...process.env };
+  try {
+    for (const key of ['SAFEX_ADMIN_PASSCODE', 'ADMIN_USERNAME', 'ADMIN_PASSWORD',
+      'SAFEX_ADMIN_SESSION_SECRET', 'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY']) {
+      delete process.env[key];
+    }
+    let credentials = loader()('lib/admin-credentials.ts');
+    let status = credentials.adminRequirementStatus();
+    for (const [key, value] of Object.entries(status)) {
+      assert.equal(typeof value, 'boolean', `${key} must be a boolean, never a value`);
+    }
+    assert.deepEqual(status, {
+      url: false, publicKey: false, serviceKey: false, sessionSecret: false, passcode: false, envAccount: false
+    });
+
+    // Only the missing pieces flip: a short secret still reads as missing.
+    process.env.SAFEX_ADMIN_SESSION_SECRET = 'short';
+    credentials = loader()('lib/admin-credentials.ts');
+    assert.equal(credentials.adminRequirementStatus().sessionSecret, false);
+
+    process.env.SAFEX_ADMIN_SESSION_SECRET = 'x'.repeat(48);
+    credentials = loader()('lib/admin-credentials.ts');
+    status = credentials.adminRequirementStatus();
+    assert.equal(status.sessionSecret, true);
+    assert.equal(status.url, false, 'the other pieces stay false');
+
+    // A pasted newline is not part of the key.
+    process.env.SAFEX_ADMIN_SESSION_SECRET = '  ' + 'x'.repeat(48) + '\n';
+    assert.equal(credentials.sessionSigningKey(), 'x'.repeat(48));
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+  }
+});
+
 test('a long passcode signs the session and never travels to the browser', () => {
   const saved = { ...process.env };
   try {
