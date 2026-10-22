@@ -126,7 +126,44 @@
 
 .content-admin-manager { display: grid; gap: 14px; }
 
+/* Employee photo: one button opens one picker (camera or gallery on a phone). */
+.content-admin-photo {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  align-items: start;
+  gap: 13px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+.content-admin-photo-preview {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-align: center;
+}
+.content-admin-photo-preview img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 7px; }
+.content-admin-photo-copy { display: grid; gap: 7px; min-width: 0; }
+.content-admin-photo-copy strong { font-size: 12.5px; }
+.content-admin-photo-copy p { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.content-admin-photo-copy small { color: var(--muted); font-size: 11px; }
+/* Hidden, not removed: the button above is the only visible control. */
+.content-admin-photo-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.content-admin-thumb { flex: none; width: 46px; height: 58px; object-fit: cover; border: 1px solid var(--line); border-radius: 9px; }
+
 @media (max-width: 620px) {
   .content-admin-pair { grid-template-columns: 1fr; }
+  .content-admin-photo { grid-template-columns: 1fr; }
+  .content-admin-photo-preview { max-width: 168px; }
   .content-admin-counts { margin-left: 0; width: 100%; }
 }

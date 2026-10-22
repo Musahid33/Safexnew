@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { AdminRecognitionItem } from '@/lib/recognitions';
 
 /**
@@ -24,6 +24,8 @@ export default function RewardsManager() {
   const [draft, setDraft] = useState<Draft>(blank);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   async function load() {
     const response = await fetch('/api/admin/recognitions', { cache: 'no-store' });
@@ -56,6 +58,33 @@ export default function RewardsManager() {
       setMessage(error instanceof Error ? error.message : 'Could not save reward.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Upload straight from the form and keep the returned URL in the draft, so one save writes
+   * both the photo and the caption. One button on purpose: the hidden input is opened by it,
+   * and a phone offers camera or gallery from the same picker.
+   */
+  async function uploadPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Allow choosing the same file again after a failed upload.
+    event.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setMessage('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch('/api/admin/recognitions/photo', { method: 'POST', body });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not upload the photo.');
+      setDraft((current) => ({ ...current, imageUrl: data.url as string }));
+      setMessage('Photo uploaded. Save to publish it.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not upload the photo.');
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -92,11 +121,35 @@ export default function RewardsManager() {
       <label htmlFor="recognition-reason">Reward For</label>
       <textarea id="recognition-reason" required maxLength={300} rows={3} value={draft.rewardFor} onChange={(event) => setDraft({ ...draft, rewardFor: event.target.value })} />
 
-      <label htmlFor="recognition-image">Image URL (optional: /rewards/photo.jpg or public Supabase Storage URL)</label>
-      <input id="recognition-image" type="text" maxLength={500} placeholder="/rewards/photo.jpg" value={draft.imageUrl ?? ''} onChange={(event) => setDraft({ ...draft, imageUrl: event.target.value || null })} />
+      <div className="content-admin-photo">
+        <div className="content-admin-photo-preview" data-empty={draft.imageUrl ? undefined : 'true'}>
+          {draft.imageUrl
+            ? <img src={draft.imageUrl} alt="Selected employee photo" />
+            : <span>Photo appears on the award card</span>}
+        </div>
+        <div className="content-admin-photo-copy">
+          <strong>Employee photo</strong>
+          <p>The photo is the award card on the home screen, and the name and the reward are printed on it. Portrait photos fit best.</p>
+          <input
+            id="recognition-photo"
+            ref={photoInput}
+            className="content-admin-photo-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => void uploadPhoto(event)}
+          />
+          <div className="content-admin-actions">
+            <button type="button" disabled={uploading || busy} onClick={() => photoInput.current?.click()}>
+              {uploading ? 'Uploading…' : draft.imageUrl ? 'Change photo' : 'Upload photo'}
+            </button>
+            {draft.imageUrl && <button type="button" disabled={busy} onClick={() => setDraft({ ...draft, imageUrl: null })}>Remove photo</button>}
+          </div>
+          <small>JPG, PNG or WEBP, up to 5 MB.</small>
+        </div>
+      </div>
 
       <div className="content-admin-pair">
-        <label>Artwork if no image
+        <label>Artwork if no photo
           <select value={draft.artworkIndex} onChange={(event) => setDraft({ ...draft, artworkIndex: Number(event.target.value) })}>
             <option value={0}>Trophy</option>
             <option value={1}>Safety shield</option>
@@ -127,6 +180,7 @@ export default function RewardsManager() {
       <h2>Existing rewards</h2>
       {items.length === 0 && <p className="content-admin-empty">No rewards added yet.</p>}
       {items.map((item) => <div className="content-admin-row" key={item.id}>
+        {item.imageUrl && <img className="content-admin-thumb" src={item.imageUrl} alt="" loading="lazy" decoding="async" />}
         <div>
           <strong>{item.employeeName}</strong>
           <p>{item.rewardFor}</p>

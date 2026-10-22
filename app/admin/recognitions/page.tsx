@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import RewardsManager from '@/app/components/admin/RewardsManager';
+import '../publish/publish.css';
 
 /**
  * Standalone rewards editor (kept at its old URL) and the sign-in gate for it.
