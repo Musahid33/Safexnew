@@ -3,6 +3,8 @@ import {
   ADMIN_COOKIE, cookieOptions, isAdminApiConfigured, isAdminPiiEnabled,
   issueSessionCookie, passcodeMatches, readSession, verifyAdminCredentials
 } from '@/lib/admin-auth';
+import { signInWithSupabase } from '@/lib/admin-accounts';
+import { supabaseAdminConfigured } from '@/lib/admin-credentials';
 import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
 
 export const runtime = 'nodejs';
@@ -29,7 +31,8 @@ export async function GET(request: NextRequest) {
     {
       configured: isAdminApiConfigured(),
       signedIn: readSession(request) !== null,
-      piiEnabled: isAdminPiiEnabled()
+      piiEnabled: isAdminPiiEnabled(),
+      supabaseAccounts: supabaseAdminConfigured()
     },
     { headers: NO_STORE }
   );
@@ -70,10 +73,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, code: 'BAD_REQUEST' }, { status: 400, headers: NO_STORE });
   }
 
-  // A passcode field takes precedence; otherwise the username/password pair is checked.
-  const accepted = passcode
+  // A passcode field takes precedence; otherwise the environment account, and finally the
+  // Supabase-managed operator account (password verified by Supabase Auth, membership by the
+  // admin_accounts allowlist).
+  let subject: string | undefined;
+  let accepted = passcode
     ? passcodeMatches(passcode)
     : verifyAdminCredentials(username, password);
+
+  if (!accepted && !passcode && username && password) {
+    const account = await signInWithSupabase(username, password);
+    if (account) {
+      accepted = true;
+      subject = account.username;
+    }
+  }
 
   if (!accepted) {
     // Same shape and status for "wrong passcode" and "wrong username/password": nothing
@@ -88,7 +102,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { value, maxAge } = issueSessionCookie();
+  const { value, maxAge } = issueSessionCookie(subject);
   const response = NextResponse.json(
     { ok: true, piiEnabled: isAdminPiiEnabled() },
     { headers: NO_STORE }

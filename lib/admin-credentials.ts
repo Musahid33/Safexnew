@@ -36,6 +36,22 @@ export function passcodeConfigured(): boolean {
 }
 
 /**
+ * Supabase-managed operator sign-in: a real auth user (password hashed by Supabase) plus an
+ * allowlist row in `public.admin_accounts`.
+ *
+ * It needs the public key to call the token endpoint, the service key to read the allowlist,
+ * and an explicit cookie secret. The secret is required here on purpose — the Supabase path
+ * must not reuse the database key as a signing key.
+ */
+export function supabaseAdminConfigured(): boolean {
+  const url = env('NEXT_PUBLIC_SUPABASE_URL');
+  const publishable = env('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') || env('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+  const secret = process.env.SAFEX_ADMIN_SESSION_SECRET ?? '';
+  return Boolean(url && publishable && serviceKey && secret.length >= MIN_SESSION_SECRET);
+}
+
+/**
  * The HMAC key for the session cookie.
  *
  * An explicit secret always wins. Otherwise the key is derived from the passcode (preferred)

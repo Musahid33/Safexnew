@@ -94,7 +94,7 @@ export default function OfficerAccessDialog({ onClose, onSignedIn }: Props) {
     ? T('Enter your account ID and registered email to request a password reset.')
     : role === 'supervisor'
       ? T('Sign in with your Safety Supervisor or Site Supervisor account.')
-      : T('Sign in with your admin User ID and password. The Safex server checks them and issues the session; Supabase authentication is not used.');
+      : T('Sign in with the User ID (or email) and password issued to you. The Safex server verifies them and issues the session.');
 
   return <div className="overlay account-login-overlay" role="dialog" aria-modal="true" aria-labelledby="officer-access-title">
     <div className="modal account-login-modal">
@@ -132,7 +132,7 @@ export default function OfficerAccessDialog({ onClose, onSignedIn }: Props) {
         <button className="account-back-button" type="button" onClick={backToLogin}><ArrowLeft size={16} /> {T('Back to Login')}</button>
       </form> : <form className="account-login-form" onSubmit={submitStaffLogin}>
         <label htmlFor="account-username">{role === 'supervisor' ? T('Supervisor User ID') : T('Admin User ID')}</label>
-        <div className="account-input-wrap"><UserRound size={19} /><input id="account-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={role === 'supervisor' ? T('Enter your Supervisor ID') : T('Enter your Admin User ID')} autoComplete="username" required /></div>
+        <div className="account-input-wrap"><UserRound size={19} /><input id="account-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={role === 'supervisor' ? T('Enter your Supervisor ID') : T('Enter your Admin User ID or email')} autoComplete="username" required /></div>
         <label htmlFor="account-password">{T('Password')}</label>
         <div className="account-input-wrap"><LockKeyhole size={19} /><input id="account-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={T('Enter your password')} autoComplete="current-password" minLength={6} required /></div>
         <button className="account-primary-button" type="submit" disabled={signingIn}>{signingIn ? T('Signing in…') : T('Login')} <ArrowRight size={21} /></button>
