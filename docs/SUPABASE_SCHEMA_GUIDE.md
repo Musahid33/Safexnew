@@ -39,7 +39,7 @@ Feature keys and display names follow the existing shared frontend. The catalog 
 
 `feature_catalog` centralizes names, sections, routes, ordering, default/toggle status, and feature settings schema. `tenant_templates` and `template_features` define default entitlements. Existing legacy keys (`voice_reporting`, `training_management`, `library`, `circulars`, `reward_wall`, `push_notifications`) are retained as compatibility keys. `tenant_features` remains the company-level feature state; `site_feature_overrides` can specialize a feature per location. A disabled company feature stays disabled even if a site override requests otherwise.
 
-`v_effective_site_features` combines catalog defaults, legacy/current company feature rows, and location overrides. Its `is_enabled` field is the intended shared-frontend switch for cards, routes, and navigation.
+Feature precedence used to be pre-computed by the `v_effective_site_features` view (catalog default, then company row, then location override). That view was dropped on 21 October 2026 — see **Views** below — so whatever implements the gate must apply that precedence itself. The shipped worker UI uses its compiled defaults in `lib/app-config.ts`.
 
 ## Employee master import
 
@@ -69,34 +69,38 @@ The existing `reports` table remains the report record store. `report_type_catal
 
 The site trigger seeds settings, report categories, document categories, and 10 Life Saving Rules when a real site is provisioned. It does **not** create demo alerts, event records, training videos, files, real SOS numbers, or fake companies/employees.
 
-## Context/read views
+## Views
 
-All expected views were created successfully:
+The 20 compatibility/read views created by the schema extension — `companies`, `locations`,
+`v_tenant_locations`, `v_effective_site_features`, `v_safety_reports_with_tenant_context`,
+`v_site_portal_config`, `v_site_documents`, `v_site_announcements`, `v_site_events`,
+`v_site_safety_alerts`, `v_site_life_saving_rules`, `v_site_recognition_items`,
+`v_site_report_categories`, `v_site_report_form_fields`, `v_site_report_updates`,
+`v_site_document_categories`, `v_site_emergency_contacts`, `v_site_training_items`,
+`v_site_training_assignments`, `v_site_training_progress` — were **dropped on 21 October 2026**
+(`supabase/migrations/202610210008_drop_unused_compat_views.sql`).
 
-- Tenant/site and feature configuration: `companies`, `locations`, `v_tenant_locations`, `v_effective_site_features`, `v_site_portal_config`.
-- Existing report context/status updates: `v_safety_reports_with_tenant_context`, `v_site_report_updates`.
-- Site content: `v_site_safety_alerts`, `v_site_announcements`, `v_site_events`, `v_site_documents`, `v_site_training_items`, `v_site_report_categories`, `v_site_report_form_fields`, `v_site_document_categories`, `v_site_life_saving_rules`, `v_site_emergency_contacts`, `v_site_recognition_items`.
-- Authenticated, RLS-filtered workflow data: `v_site_training_assignments`, `v_site_training_progress`.
+They were built for a browser-facing PostgREST read path that was never shipped. The app reads
+through server routes that hold the service-role key, `02_rls.sql` revokes every direct table
+grant from browser roles, and not one of the views had a call site. Keeping them would have left
+a second read surface with no consumer. Their definitions are still in
+`supabase/migrations/20261020171922_safex_existing_schema_extension.sql`, so any one of them can
+be restored from git.
 
-Example frontend reads, after resolving a real company and location:
+Reads now go to the base tables:
 
-```sql
-select *
-from public.v_site_portal_config
-where company_id = '<COMPANY_UUID>'
-  and location_id = '<LOCATION_UUID>';
+| Need | Table |
+| --- | --- |
+| Tenant and site | `tenants`, `sites` |
+| Company profile / portal config | `company_profiles`, `site_portal_settings` |
+| Effective feature flag | `tenant_features` (+ `site_feature_overrides`) — precedence in the note above |
+| Published documents, circulars, events | `documents`, `site_announcements`, `site_events` |
+| Document and report categories | `document_categories`, `report_categories` |
+| Alerts and rewards | `safety_alerts`, `recognitions` |
+| Life Saving Rules | `life_saving_rules` |
+| Reports and their status history | `reports`, `report_status_events` |
 
-select feature_key, display_name, section_key, sort_order, is_enabled, settings
-from public.v_effective_site_features
-where company_id = '<COMPANY_UUID>'
-  and location_id = '<LOCATION_UUID>'
-order by sort_order;
-
-select *
-from public.v_safety_reports_with_tenant_context
-where company_id = '<COMPANY_UUID>'
-  and location_id = '<LOCATION_UUID>';
-```
+Base-table access is server-only. Do not replace the routes with direct browser reads.
 
 ## One-click company/location provisioning
 

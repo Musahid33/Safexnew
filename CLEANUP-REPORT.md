@@ -38,7 +38,7 @@ Baseline size: **51** app files / 10,504 lines · **46** lib files / 7,131 lines
 | Unused npm packages | **0** | — | — |
 | Unused tables | **24** of 38 are never queried by the app, but every one is load-bearing for an RLS helper, a seed/audit RPC, or a documented future module | **drop none**, documented in §10 | — |
 | Unused columns | **1** (`documents.uploaded_by`: all-NULL, zero code/view/index/policy/function references) | drop | low |
-| Unused views | **20**, none queried by the app | **not dropped here** — user-side item carried since #30 | see §8.4 |
+| Unused views | **20**, none queried by the app | **dropped** (migration `202610210008`, applied to the live project) | none — verified |
 
 ---
 
@@ -196,7 +196,9 @@ Every all-NULL column except one is a live field: `employees.photo/email/gender/
 
 ### 10.4 Views
 
-All 20 views are unqueried. They were already scheduled for removal in #30 and remain a **user-side** item because they must be dropped before their base tables can ever be considered. This report does not drop them.
+All 20 views are unqueried. Before dropping, each view name was matched against `app/`, `lib/`, `scripts/`, `tests/`, every `pg_policy` expression, every `pg_proc` body and the `pg_default_acl` table: **zero references**. The only dependency between them was the `companies` / `locations` compatibility views being selected by most `v_site_*` views, so those two are dropped last.
+
+Dropped on 21 October 2026 by `supabase/migrations/202610210008_drop_unused_compat_views.sql` (applied to `mclrajfcrjdrlmoqwbdw`; `information_schema.views` now returns **0** rows for `public`). No base table, policy, function or grant was touched, and all 20 definitions remain in `20261020171922_safex_existing_schema_extension.sql` for restore. `docs/SUPABASE_SCHEMA_GUIDE.md` was rewritten to describe the base-table read paths.
 
 ---
 
@@ -274,8 +276,27 @@ Net application code: **+9 / −69** across six files.
 
 - **70 internal-only exports** — kept as module surface (§5.1).
 - **24 app-unused tables** — load-bearing for RLS, seed RPCs or documented modules (§10.2).
-- **20 unqueried views** — user-side drop item from #30; not removed here.
+- **20 unqueried views** — dropped in the follow-up pass (§10.4); see the addendum below.
 - **`docs/SUPABASE_SCHEMA_GUIDE.md`, `docs/daily-management.md`** — unlinked but current reference documentation.
 - **`SafetyOS — Employee Profile Preview (2).html`, `app/manifest.ts`, `next.config.ts`, `public/sw.js`, `supabase/sql/*`** — required by the generator, the framework or operations.
 - **`lib/i18n*.ts`** — 4 shadowed admin keys (671 B) are the only duplication; not worth risking a 456 KB catalog for 0.15 % of its size.
 - **CSS byte-identical duplicates** — 28 repeated declarations (≈1.3 KB); removing a later identical block can change the cascade when an equal-specificity rule sits between the copies.
+
+---
+
+## 14. Addendum — view removal (follow-up pass)
+
+Applied after the report above was merged, on the user's instruction to finish the database side.
+
+| Item | Result |
+| --- | --- |
+| Views dropped | **20 / 20** — `companies`, `locations`, `v_tenant_locations`, `v_effective_site_features`, `v_safety_reports_with_tenant_context` and the 15 `v_site_*` views |
+| Live verification | `select count(*) from information_schema.views where table_schema='public'` → **0** |
+| Pre-flight | 0 code call sites; 0 policy references; 0 function references; dependency order resolved (`companies`/`locations` last) |
+| Reversible | yes — all 20 definitions are in `supabase/migrations/20261020171922_safex_existing_schema_extension.sql` |
+| Migration | `supabase/migrations/202610210008_drop_unused_compat_views.sql` |
+| Docs | `docs/SUPABASE_SCHEMA_GUIDE.md` §Views rewritten to the base-table read paths |
+
+Tables are still untouched, for the reasons in §10.2: the empty ones are the storage for screens
+that exist in the console (training, form builder, alerts), for the documented push rollout, or
+are required by an RLS helper. Dropping them would be an architecture decision, not cleanup.
