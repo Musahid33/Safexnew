@@ -39,6 +39,9 @@ bytes from a determined visitor. What this project does guarantee:
   `'use client'` file. `tests/source-protection.test.mjs` fails the build if that changes.
 - **No secrets in the client.** The service-role key, passcode and session secret are read from
   `process.env` on the server only. A client file that mentions one fails the test suite.
+- **The admin console is not delivered to workers.** `SafetyOsApp` is a `next/dynamic` import, so
+  the ~470 KB console chunk is fetched only when an operator opens the dashboard; the home
+  page's initial HTML no longer contains any of that markup.
 - **No indexing or archiving.** Every response sends `X-Robots-Tag: noindex, nofollow,
   noarchive, nosnippet, noimageindex, notranslate` and `app/robots.ts` disallows the whole
   origin, so an old build or a cached snippet cannot surface in a search result.
