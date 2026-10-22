@@ -94,6 +94,12 @@ test('the devtools shortcut guard is off outside production and leaves forms usa
   );
 });
 
+test('the worker app does not ship the admin console on first load', () => {
+  const page = readFileSync('app/page.tsx', 'utf8');
+  assert.ok(page.includes("dynamic(() => import('./components/safetyos/SafetyOsApp')"), 'console must be a lazy import');
+  assert.equal(page.includes("import SafetyOsApp from './components/safetyos/SafetyOsApp'"), false);
+});
+
 test('the admin surface is not reachable without the server session', () => {
   for (const route of [
     'app/api/admin/content/route.ts',

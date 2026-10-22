@@ -113,6 +113,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .section-block { margin-top: 27px; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .section-heading h2, .page-heading h1 { margin: 4px 0 0; font-size: 21px; letter-spacing: -.02em; }
+.app-loading { display: grid; place-items: center; min-height: 60vh; padding: 24px; color: var(--muted); font-size: 14px; }
 .section-note { color: var(--muted); font-size: 11px; }
 .report-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 11px; }
 .report-tile { min-height: 92px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); padding: 14px; text-align: left; box-shadow: 0 3px 10px rgba(15,37,64,.035); cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s; }

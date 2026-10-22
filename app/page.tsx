@@ -18,7 +18,7 @@ import ReportWorkflow, { type ReportSubmission } from './components/ReportWorkfl
 import TrainingPortal from './components/TrainingPortal';
 import ProfileSearchDialog from './components/ProfileSearchDialog';
 import OfficerAccessDialog from './components/OfficerAccessDialog';
-import SafetyOsApp from './components/safetyos/SafetyOsApp';
+import dynamic from 'next/dynamic';
 import { DocumentVaultGrid, type VaultCategoryId, type VaultDocument } from './components/DocumentVault';
 import { VaultShelf } from './components/VaultShelf';
 import LoggedReports, { invalidateLoggedReports } from './components/LoggedReports';
@@ -30,6 +30,14 @@ import { AboutAppPage, AccountManagementPage, CompanyAboutPage, InstallAppPage, 
 import { APP_TIME_ZONE, formatHomeFeedDate, formatHomeFeedTime, type HomeFeedItem } from '@/lib/home-content';
 import { createSubmissionId, enqueueReport, listQueuedReports, registerReportBackgroundSync, retryReportsNeedingAttention, syncPendingReports } from '@/lib/report-outbox';
 import type { Palette as PaletteName, ReportType, Site, ThemeMode } from '@/lib/types';
+
+// The SafetyOS console is the largest screen in the build (~660 KB of compiled markup and
+// script). It is loaded only when an operator actually opens the dashboard, so a worker's
+// first visit transfers the reporting app alone instead of the whole admin interface.
+const SafetyOsApp = dynamic(() => import('./components/safetyos/SafetyOsApp'), {
+  ssr: false,
+  loading: () => <div className="app-loading" role="status">Loading console…</div>
+});
 
 type PageKey = 'home' | 'reports' | 'alerts' | 'events' | 'circulars' | 'updates' | 'training' | 'more' | 'appearance' | 'install' | 'library' | 'company' | 'account' | 'aboutApp' | 'adminDashboard';
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
