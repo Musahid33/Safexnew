@@ -97,6 +97,45 @@ The console, the reward editor and the publishing screens share one server-verif
 
 This is one shared operator credential, not per-user identity, and it keeps no record of who signed in. Replace it with Supabase Auth plus a `staff_memberships` role check before real staff accounts are issued.
 
+### Create an admin login from Supabase
+
+There are three ways in. Pick one — the Supabase path is the one to use for real people.
+
+| Path | Where the credential lives | Good for |
+| --- | --- | --- |
+| **Supabase account** (recommended) | password hashed by Supabase Auth; access decided by `public.admin_accounts` | named operators, per-person revocation, password reset |
+| `SAFEX_ADMIN_PASSCODE` | deployment environment | one shared operator on a small site |
+| `ADMIN_USERNAME` + `ADMIN_PASSWORD` | deployment environment | a shared account when Supabase Auth is not in use |
+
+**Supabase account, two steps:**
+
+1. Supabase Dashboard → **Authentication → Users → Add user.** Enter the email and a strong
+   password, and tick **Auto Confirm User** (an unconfirmed email cannot sign in).
+2. Supabase Dashboard → **SQL Editor**, allow that person to open the console:
+
+   ```sql
+   insert into public.admin_accounts (username, email)
+   values ('musahid', 'musahid@example.com');
+   ```
+
+   `username` is lower-case, 3–40 characters. It is the User ID typed on the login screen;
+   the email works there too.
+
+The app never stores or compares the password: `/api/admin/session` posts it to Supabase's
+token endpoint, and only a verified session that also has an **active** `admin_accounts` row
+gets the console cookie. Deleting the row (or setting `active = false`) ends that person's
+access at the next sign-in; `last_login_at` records the most recent one.
+
+Requirements on the deployment: `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and an explicit
+`SAFEX_ADMIN_SESSION_SECRET` (32+ characters). Without the secret this path stays closed on
+purpose — the database key is never reused as a signing key.
+
+**Reset a password:** Supabase Dashboard → Authentication → Users → the user → **Reset
+password** (or send a recovery email). Nothing changes in this repository.
+
+**Revoke:** `update public.admin_accounts set active = false where username = 'musahid';`
+
 ## Rewards & Recognition (backend)
 
 - Apply `supabase/migrations/202610100004_recognitions.sql` after the initial schema. Set server-only `SUPABASE_SERVICE_ROLE_KEY` and `SAFEX_TENANT_SLUG` to the tenant whose rewards this deployment will display (the provisioned SafexNew tenant slug is `emveess-infraventures`). Do not set the service key in the browser.

@@ -2,7 +2,8 @@ import 'server-only';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import {
-  credentialsConfigured, passcodeConfigured, sessionSigningKey, ADMIN_PASSWORD, ADMIN_USERNAME
+  credentialsConfigured, passcodeConfigured, sessionSigningKey, supabaseAdminConfigured,
+  ADMIN_PASSWORD, ADMIN_USERNAME
 } from './admin-credentials';
 
 /**
@@ -24,7 +25,7 @@ import {
 export const ADMIN_COOKIE = 'safex_admin_session';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
-export type AdminSession = { issuedAt: number; expiresAt: number; nonce: string };
+export type AdminSession = { issuedAt: number; expiresAt: number; nonce: string; sub?: string };
 
 /**
  * Whether the admin API may be served at all — one usable credential must be set.
@@ -33,7 +34,9 @@ export type AdminSession = { issuedAt: number; expiresAt: number; nonce: string 
  * ever match, so the check asks for a passcode or an account.
  */
 export function isAdminApiConfigured(): boolean {
-  return (passcodeConfigured() || credentialsConfigured()) && sessionSigningKey() !== null;
+  return (
+    passcodeConfigured() || credentialsConfigured() || supabaseAdminConfigured()
+  ) && sessionSigningKey() !== null;
 }
 
 /**
@@ -79,12 +82,13 @@ export function verifyAdminCredentials(username: string, password: string): bool
     && constantTimeEqual(password, ADMIN_PASSWORD);
 }
 
-export function issueSessionCookie(): { value: string; maxAge: number } {
+export function issueSessionCookie(sub?: string): { value: string; maxAge: number } {
   const now = Date.now();
   const session: AdminSession = {
     issuedAt: now,
     expiresAt: now + SESSION_TTL_MS,
-    nonce: randomBytes(12).toString('base64url')
+    nonce: randomBytes(12).toString('base64url'),
+    ...(sub ? { sub } : {})
   };
   const body = Buffer.from(JSON.stringify(session), 'utf8').toString('base64url');
   return { value: `${body}.${sign(body)}`, maxAge: Math.floor(SESSION_TTL_MS / 1000) };
