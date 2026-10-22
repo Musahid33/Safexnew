@@ -1,4 +1,3 @@
-/* Safex PWA worker. Report data is never placed in the Cache API. */
 const REPORT_DB_NAME = 'safex-offline-report-outbox';
 const REPORT_STORE = 'reports';
 const REPORT_SYNC_TAG = 'safex-report-outbox-sync';

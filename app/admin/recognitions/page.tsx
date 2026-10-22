@@ -55,7 +55,7 @@ export default function RecognitionManager() {
     <p>Add a name and the reason for the reward. Only published entries with confirmed consent appear on the home screen.</p>
     {message && <p role="status" className="recognition-admin-message">{message}</p>}
     {configured === null && <p>Checking access…</p>}
-    {configured === false && <p>The admin console is disabled. Configure SAFEX_ADMIN_PASSCODE on the server.</p>}
+    {configured === false && <p>The admin console is disabled on this deployment. Ask the site administrator to enable it.</p>}
     {configured && !signedIn && <form className="recognition-admin-card" onSubmit={signIn}>
       <label htmlFor="recognition-username">Admin User ID</label>
       <input id="recognition-username" required autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} />

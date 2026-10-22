@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { I18nProvider } from './components/I18nProvider';
+import SourceGuard from './components/SourceGuard';
 import './globals.css';
 
 // The static shell cannot know the tenant: the real company name arrives from
@@ -26,5 +27,8 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" data-mode="light" data-palette="safex"><body><I18nProvider>{children}</I18nProvider></body></html>;
+  return <html lang="en" data-mode="light" data-palette="safex"><body>
+      <SourceGuard />
+      <I18nProvider>{children}</I18nProvider>
+    </body></html>;
 }

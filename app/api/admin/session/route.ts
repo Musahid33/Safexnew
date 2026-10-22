@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       {
         ok: false,
         code: 'ADMIN_API_NOT_CONFIGURED',
-        error: 'Set SAFEX_ADMIN_PASSCODE (12+ characters) or ADMIN_USERNAME + ADMIN_PASSWORD on the server to enable the admin console.'
+        error: 'The admin console is not enabled on this deployment.'
       },
       { status: 503, headers: NO_STORE }
     );
