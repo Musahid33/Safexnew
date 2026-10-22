@@ -4,7 +4,7 @@ import {
   issueSessionCookie, passcodeMatches, readSession, verifyAdminCredentials
 } from '@/lib/admin-auth';
 import { signInWithSupabase } from '@/lib/admin-accounts';
-import { supabaseAdminConfigured } from '@/lib/admin-credentials';
+import { adminRequirementStatus, supabaseAdminConfigured } from '@/lib/admin-credentials';
 import { NO_STORE, clientIp, createRateLimiter, sameOrigin } from '@/lib/http/request-guard';
 
 export const runtime = 'nodejs';
@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
       configured: isAdminApiConfigured(),
       signedIn: readSession(request) !== null,
       piiEnabled: isAdminPiiEnabled(),
-      supabaseAccounts: supabaseAdminConfigured()
+      supabaseAccounts: supabaseAdminConfigured(),
+      // Booleans only: called out so a deployment that is closed can say which part is missing.
+      requirements: adminRequirementStatus()
     },
     { headers: NO_STORE }
   );

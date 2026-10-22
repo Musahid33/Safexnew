@@ -44,11 +44,34 @@ export function passcodeConfigured(): boolean {
  * must not reuse the database key as a signing key.
  */
 export function supabaseAdminConfigured(): boolean {
-  const url = env('NEXT_PUBLIC_SUPABASE_URL');
-  const publishable = env('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') || env('NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
-  const secret = process.env.SAFEX_ADMIN_SESSION_SECRET ?? '';
-  return Boolean(url && publishable && serviceKey && secret.length >= MIN_SESSION_SECRET);
+  const status = adminRequirementStatus();
+  return Boolean(status.url && status.publicKey && status.serviceKey && status.sessionSecret);
+}
+
+/**
+ * Which half of the sign-in configuration is present, as booleans only.
+ *
+ * A closed console is indistinguishable from a misconfigured one over HTTP, which turns every
+ * deployment into guesswork. These four flags answer "what is still missing" without ever
+ * revealing a value: names of variables, never their contents. They are the same class of
+ * information as `configured` itself.
+ */
+export function adminRequirementStatus(): {
+  url: boolean;
+  publicKey: boolean;
+  serviceKey: boolean;
+  sessionSecret: boolean;
+  passcode: boolean;
+  envAccount: boolean;
+} {
+  return {
+    url: Boolean(env('NEXT_PUBLIC_SUPABASE_URL')),
+    publicKey: Boolean(env('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') || env('NEXT_PUBLIC_SUPABASE_ANON_KEY')),
+    serviceKey: Boolean(env('SUPABASE_SERVICE_ROLE_KEY')),
+    sessionSecret: (process.env.SAFEX_ADMIN_SESSION_SECRET ?? '').trim().length >= MIN_SESSION_SECRET,
+    passcode: passcodeConfigured(),
+    envAccount: credentialsConfigured()
+  };
 }
 
 /**
@@ -59,7 +82,8 @@ export function supabaseAdminConfigured(): boolean {
  * binding the cookie to a server-only value. Null means sign-in is not configured at all.
  */
 export function sessionSigningKey(): string | null {
-  const explicit = process.env.SAFEX_ADMIN_SESSION_SECRET ?? '';
+  // Trimmed so a value pasted with a trailing newline is measured and used consistently.
+  const explicit = (process.env.SAFEX_ADMIN_SESSION_SECRET ?? '').trim();
   if (explicit.length >= MIN_SESSION_SECRET) return explicit;
   if (passcodeConfigured()) return `passcode:${ADMIN_PASSCODE}`;
   if (credentialsConfigured()) return `password:${ADMIN_PASSWORD}`;
