@@ -129,9 +129,15 @@ gets the console cookie. Deleting the row (or setting `active = false`) ends tha
 access at the next sign-in; `last_login_at` records the most recent one.
 
 Requirements on the deployment: `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and an explicit
-`SAFEX_ADMIN_SESSION_SECRET` (32+ characters). Without the secret this path stays closed on
-purpose — the database key is never reused as a signing key.
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SERVICE_ROLE_KEY`. No extra variable is
+needed: the cookie is signed with an HKDF subkey derived from the service-role key under its own
+label, so the database key itself is never used as a signing key and cannot be recovered from it.
+Setting `SAFEX_ADMIN_SESSION_SECRET` (32+) still overrides that derivation; rotating either one
+ends every live session.
+
+`GET /api/admin/session` reports `requirements` as booleans (`url`, `publicKey`, `serviceKey`,
+`sessionSecret`, `signingKey`, `passcode`, `envAccount`) so a closed console can say exactly
+which piece is missing without revealing a value.
 
 **Reset a password:** Supabase Dashboard → Authentication → Users → the user → **Reset
 password** (or send a recovery email). Nothing changes in this repository.

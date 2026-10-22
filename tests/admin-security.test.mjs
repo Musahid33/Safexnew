@@ -72,7 +72,9 @@ test('no default admin credential or fixed cookie secret is committed', () => {
 test('the admin API stays closed when nothing is configured', () => {
   const saved = { ...process.env };
   try {
-    for (const key of ['SAFEX_ADMIN_PASSCODE', 'ADMIN_USERNAME', 'ADMIN_PASSWORD', 'SAFEX_ADMIN_SESSION_SECRET']) {
+    for (const key of ['SAFEX_ADMIN_PASSCODE', 'ADMIN_USERNAME', 'ADMIN_PASSWORD', 'SAFEX_ADMIN_SESSION_SECRET',
+      'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'SUPABASE_SERVICE_ROLE_KEY']) {
       delete process.env[key];
     }
     const credentials = loader()('lib/admin-credentials.ts');
@@ -135,7 +137,8 @@ test('the closed console can say which requirement is missing, without a value',
       assert.equal(typeof value, 'boolean', `${key} must be a boolean, never a value`);
     }
     assert.deepEqual(status, {
-      url: false, publicKey: false, serviceKey: false, sessionSecret: false, passcode: false, envAccount: false
+      url: false, publicKey: false, serviceKey: false, sessionSecret: false,
+      signingKey: false, passcode: false, envAccount: false
     });
 
     // Only the missing pieces flip: a short secret still reads as missing.
@@ -152,6 +155,37 @@ test('the closed console can say which requirement is missing, without a value',
     // A pasted newline is not part of the key.
     process.env.SAFEX_ADMIN_SESSION_SECRET = '  ' + 'x'.repeat(48) + '\n';
     assert.equal(credentials.sessionSigningKey(), 'x'.repeat(48));
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+  }
+});
+
+test('Supabase sign-in works without an extra secret, using a derived subkey', () => {
+  const saved = { ...process.env };
+  try {
+    for (const key of ['SAFEX_ADMIN_PASSCODE', 'ADMIN_USERNAME', 'ADMIN_PASSWORD', 'SAFEX_ADMIN_SESSION_SECRET']) {
+      delete process.env[key];
+    }
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'public-anon-key';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key-that-must-not-sign-anything';
+
+    const credentials = loader()('lib/admin-credentials.ts');
+    const key = credentials.sessionSigningKey();
+    assert.ok(key && key.startsWith('supabase:'), 'a derived key is available');
+    assert.notEqual(key, process.env.SUPABASE_SERVICE_ROLE_KEY, 'the raw database key is never the cookie key');
+    assert.equal(key.includes(process.env.SUPABASE_SERVICE_ROLE_KEY), false, 'nor embedded in it');
+    assert.equal(key.length, 'supabase:'.length + 43, 'sha-256 output, base64url');
+    assert.equal(credentials.supabaseAdminConfigured(), true);
+    assert.equal(credentials.adminRequirementStatus().sessionSecret, false, 'no explicit secret set');
+    assert.equal(credentials.adminRequirementStatus().signingKey, true);
+
+    // Stable across reads and different from an explicit secret.
+    assert.equal(credentials.sessionSigningKey(), key);
+    process.env.SAFEX_ADMIN_SESSION_SECRET = 'y'.repeat(40);
+    const withSecret = loader()('lib/admin-credentials.ts');
+    assert.equal(withSecret.sessionSigningKey(), 'y'.repeat(40), 'an explicit secret still wins');
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
     Object.assign(process.env, saved);
