@@ -1326,8 +1326,8 @@
  *
  * The design's own editors on these two pages only redraw the screen: they never wrote a
  * row to Supabase, so a document "published" there was invisible to the worker app. Every
- * design node is hidden (the design's script still binds to it) and a real handoff card
- * links to /admin/publish, which is the editor the app reads.
+ * design node is hidden (the design's script still binds to it) and the real publishing
+ * workspace is portalled in its place — on this screen, with no link to another page.
  */
 .sos #documentsPage > :not(.publishing-host),
 .sos #communicationsPage > :not(.publishing-host) {
@@ -1339,83 +1339,240 @@
   width: 100%;
 }
 
-.sos .publishing-handoff {
-  display: grid;
-  place-items: center;
-  min-height: 62vh;
-  padding: 30px 18px;
-}
-
-.sos .publishing-handoff-card {
-  width: min(580px, 100%);
-  display: grid;
-  justify-items: start;
-  gap: 10px;
-  padding: 28px;
-  border: 1px solid #e1e9f3;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 12px 34px rgba(16, 42, 75, .08);
-}
-
-.sos .publishing-handoff-icon {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: #eaf2ff;
-  color: #2563c9;
-}
-
-.sos .publishing-handoff-eyebrow {
-  color: #7a8ba3;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .12em;
-}
-
-.sos .publishing-handoff-card h2 {
-  margin: 0;
-  color: #16304f;
-  font-size: 22px;
-  letter-spacing: -.3px;
-}
-
-.sos .publishing-handoff-card p {
-  margin: 0;
-  color: #5f7189;
-  font-size: 12.5px;
-  line-height: 1.65;
-}
-
-.sos .publishing-handoff-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: 10px;
-  background: #2563c9;
-  color: #fff;
+.sos .pub {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 22px clamp(12px, 3vw, 26px) 40px;
+  color: #12213b;
   font-size: 12px;
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.sos .publishing-handoff-button:hover {
-  background: #1f56b0;
-}
-
-.sos .publishing-handoff-card small {
-  color: #8494a9;
-  font-size: 10.5px;
   line-height: 1.5;
 }
 
+/* Header: title on the left, the location picker on the right — the first thing to set. */
+.sos .pub-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5ebf3;
+}
+
+.sos .pub-head-copy { display: grid; gap: 5px; min-width: 0; flex: 1 1 320px; }
+.sos .pub-eyebrow { color: #7a8ba3; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.sos .pub-head h1 { margin: 0; color: #16304f; font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+.sos .pub-head p { margin: 0; max-width: 62ch; color: #5f7189; font-size: 12px; line-height: 1.6; }
+
+.sos .pub-site { display: grid; gap: 4px; flex: 0 0 auto; }
+.sos .pub-site > span { color: #70829a; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.sos .pub-site select {
+  min-width: 230px;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #dfe6ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #16304f;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.sos .pub-alert {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 10px 13px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sos .pub-alert.is-error { border: 1px solid #f3ccd0; background: #fdf2f3; color: #a52331; }
+.sos .pub-alert.is-ok { border: 1px solid #cbe8d8; background: #f2fbf6; color: #0f6b46; }
+
+/* What can be published: one card per type, all on this screen. */
+.sos .pub-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.sos .pub-card {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-height: 132px;
+  padding: 15px;
+  border: 1px solid #e1e9f3;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(16, 42, 75, .055);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.sos .pub-card:hover:not(:disabled) { border-color: #94b8ea; box-shadow: 0 8px 22px rgba(16, 42, 75, .1); transform: translateY(-1px); }
+.sos .pub-card:disabled { opacity: .55; cursor: not-allowed; }
+.sos .pub-card-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #eaf2ff;
+  color: #2563c9;
+}
+.sos .pub-card b { margin-top: 2px; color: #16304f; font-size: 13.5px; font-weight: 800; }
+.sos .pub-card > span:not(.pub-card-icon) { color: #64748b; font-size: 11px; line-height: 1.45; }
+.sos .pub-card em { margin-top: auto; padding: 2px 8px; border-radius: 999px; background: #f3f7fc; color: #70829a; font-size: 10px; font-style: normal; font-weight: 800; }
+
+/* The list of what is already published, with the actions, on the same screen. */
+.sos .pub-recent { margin-top: 20px; }
+.sos .pub-recent-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.sos .pub-recent h2 { margin: 0; color: #16304f; font-size: 14px; font-weight: 800; }
+.sos .pub-loading { color: #8494a9; font-size: 11px; font-weight: 700; }
+.sos .pub-empty { margin: 0; padding: 16px; border: 1px dashed #dbe3ec; border-radius: 12px; background: #fff; color: #70829a; font-size: 12px; }
+
+.sos .pub-recent ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sos .pub-recent li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e5ebf3;
+  border-radius: 12px;
+  background: #fff;
+}
+.sos .pub-tag { flex: none; padding: 3px 8px; border-radius: 999px; background: #eaf2ff; color: #1f56b0; font-size: 9.5px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
+.sos .pub-row-copy { display: grid; gap: 1px; min-width: 0; flex: 1 1 220px; }
+.sos .pub-row-copy b { color: #16304f; font-size: 12.5px; font-weight: 800; overflow-wrap: anywhere; }
+.sos .pub-row-copy small { color: #70829a; font-size: 10.5px; overflow-wrap: anywhere; }
+.sos .pub-state { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 9.5px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+.sos .pub-state.is-published { border: 1px solid #cbe8d8; background: #f2fbf6; color: #0f6b46; }
+.sos .pub-state.is-draft { border: 1px solid #f3ddb0; background: #fff8ea; color: #8a5b06; }
+.sos .pub-state.is-archived, .sos .pub-state.is-cancelled, .sos .pub-state.is-completed { border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; }
+.sos .pub-row-actions { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+.sos .pub-row-actions button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #34465e;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.sos .pub-row-actions button:hover:not(:disabled) { border-color: #94b8ea; color: #1f56b0; }
+.sos .pub-row-actions button.is-danger:hover:not(:disabled) { border-color: #f3ccd0; color: #a52331; }
+
+/* The form replaces the cards in place — no navigation, no modal. */
+.sos .pub-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid #e1e9f3;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(16, 42, 75, .07);
+}
+.sos .pub-form-head { display: grid; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid #edf2f8; }
+.sos .pub-form-head h2 { margin: 2px 0 0; color: #16304f; font-size: 17px; font-weight: 800; }
+.sos .pub-form-head p { margin: 0; color: #70829a; font-size: 11px; }
+.sos .pub-back { justify-self: start; padding: 0; border: 0; background: none; color: #2563c9; font: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer; }
+
+.sos .pub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.sos .pub-field { display: grid; gap: 4px; }
+.sos .pub-field > span { color: #56677d; font-size: 10.5px; font-weight: 800; letter-spacing: .02em; }
+.sos .pub-field input,
+.sos .pub-field select,
+.sos .pub-field textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #dfe6ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #16304f;
+  font: inherit;
+  font-size: 12.5px;
+}
+.sos .pub-field textarea { resize: vertical; line-height: 1.55; }
+.sos .pub-field input:focus,
+.sos .pub-field select:focus,
+.sos .pub-field textarea:focus { border-color: #94b8ea; outline: 0; box-shadow: 0 0 0 2px rgba(40, 110, 205, .12); }
+
+.sos .pub-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px dashed #dfe6ef;
+  border-radius: 12px;
+  background: #f7f9fc;
+}
+.sos .pub-file-copy { display: grid; gap: 2px; min-width: 0; flex: 1 1 200px; }
+.sos .pub-file-copy strong { color: #16304f; font-size: 12px; font-weight: 800; }
+.sos .pub-file-copy small { color: #70829a; font-size: 10.5px; overflow-wrap: anywhere; }
+.sos .pub-file-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+/* Hidden, not removed: the visible button is the only control, so a phone offers one picker. */
+.sos .pub-hidden-input { position: absolute; width: 1px; height: 1px; padding: 0; opacity: 0; pointer-events: none; }
+.sos .pub-photo-preview {
+  flex: none;
+  width: 74px;
+  aspect-ratio: 4 / 5;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #dfe6ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #8494a9;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.sos .pub-photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.sos .pub-check { display: flex; align-items: flex-start; gap: 8px; color: #56677d; font-size: 11.5px; line-height: 1.45; }
+.sos .pub-check input { margin-top: 2px; }
+
+.sos .pub-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.sos .pub-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid #2563c9;
+  border-radius: 9px;
+  background: #2563c9;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.sos .pub-actions button:hover:not(:disabled) { background: #1f56b0; }
+.sos .pub-actions button:disabled { opacity: .6; cursor: progress; }
+.sos .pub-actions button.pub-secondary { border-color: #dfe6ef; background: #fff; color: #34465e; }
+.sos .pub-actions button.pub-secondary:hover:not(:disabled) { border-color: #94b8ea; color: #1f56b0; background: #fff; }
+.sos .pub-actions button.pub-ghost { border-color: transparent; background: none; color: #70829a; }
+.sos .pub-actions button.pub-ghost:hover:not(:disabled) { background: #f3f7fc; color: #34465e; }
+
 @media (max-width: 640px) {
-  .sos .publishing-handoff { padding: 18px 12px; min-height: 55vh; }
-  .sos .publishing-handoff-card { padding: 20px; }
-  .sos .publishing-handoff-card h2 { font-size: 18px; }
+  .sos .pub { padding: 14px 11px 30px; }
+  .sos .pub-head h1 { font-size: 18px; }
+  .sos .pub-site, .sos .pub-site select { width: 100%; min-width: 0; }
+  .sos .pub-cards { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; }
+  .sos .pub-card { min-height: 0; padding: 12px; }
+  .sos .pub-form { padding: 14px; }
+  .sos .pub-recent li { gap: 7px; }
+  .sos .pub-row-actions { width: 100%; }
+  .sos .pub-row-actions button { flex: 1 1 0; }
 }

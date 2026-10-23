@@ -409,7 +409,6 @@ export default function PublishPanel() {
   return <main className="content-admin">
     <div className="content-admin-top">
       <a href="/">← Safex home</a>
-      <a href="/admin/recognitions">Rewards page (old URL)</a>
     </div>
     <h1>Publish content</h1>
     <p className="content-admin-lede">
