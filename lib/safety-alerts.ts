@@ -1,14 +1,6 @@
-export const SAFETY_ALERT_FILTERS = [
-  'All',
-  'Fatal',
-  'LTI',
-  'Medical Case',
-  'Burn Injury',
-  'First Aid',
-  'Red Risk',
-  'Property Damage',
-  'Other'
-] as const;
+import { ALERT_CATEGORIES } from './alerts/catalog';
+
+export const SAFETY_ALERT_FILTERS = ['All', ...ALERT_CATEGORIES] as const;
 
 export type SafetyAlertCategory = Exclude<(typeof SAFETY_ALERT_FILTERS)[number], 'All'>;
 
@@ -27,9 +19,10 @@ export type SafetyAlert = {
 };
 
 /**
- * Published incident alerts.
+ * Built-in alerts.
  *
- * No alert feed is connected yet, so this stays empty and the screen says so instead of
- * showing invented incidents.
+ * Deliberately empty: real alerts are published from the console into `public.safety_alerts`
+ * and read back through `/api/alerts?site=<slug|uuid>`. This array stays only as the offline
+ * fallback, so an unreachable backend shows the empty state rather than invented incidents.
  */
 export const SAFETY_ALERTS: SafetyAlert[] = [];

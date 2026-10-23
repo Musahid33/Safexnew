@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { LIFE_SAVING_RULES } from '@/lib/life-saving-rules';
-import { SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlertCategory } from '@/lib/safety-alerts';
+import { SAFETY_ALERTS, SAFETY_ALERT_FILTERS, type SafetyAlert, type SafetyAlertCategory } from '@/lib/safety-alerts';
 import { APP_FEATURES, brandingFor } from '@/lib/app-config';
 import { SOS_NUMBER, telHref } from '@/lib/emergency';
 import { LANGUAGES, LANGUAGE_LOCALE } from '@/lib/i18n';
@@ -131,6 +131,8 @@ export default function SafexHome() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [safetyAlertsOpen, setSafetyAlertsOpen] = useState(false);
   const [safetyAlertFilter, setSafetyAlertFilter] = useState<'All' | SafetyAlertCategory>('All');
+  /** Alerts published from the console. Falls back to the (empty) built-in list when offline. */
+  const [publishedAlerts, setPublishedAlerts] = useState<SafetyAlert[]>(SAFETY_ALERTS);
   const [expandedSafetyAlertId, setExpandedSafetyAlertId] = useState<string | null>(null);
   const [sosOpen, setSosOpen] = useState(false);
   const [profileSearchOpen, setProfileSearchOpen] = useState(false);
@@ -158,9 +160,9 @@ export default function SafexHome() {
   const nextUpcomingEvent = useMemo(() => contentFeed
     .filter((item) => item.type === 'Event' && new Date(item.date).getTime() >= Date.now())
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] ?? null, [contentFeed]);
-  const filteredSafetyAlerts = useMemo(() => SAFETY_ALERTS
+  const filteredSafetyAlerts = useMemo(() => publishedAlerts
     .filter((alert) => safetyAlertFilter === 'All' || alert.category === safetyAlertFilter)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [safetyAlertFilter]);
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [publishedAlerts, safetyAlertFilter]);
   const currentSite = sites.find((site) => site.id === siteId) ?? null;
   // The site row can carry its own emergency contact; until one is configured the company
   // SOS line is dialled instead of showing an empty warning.
@@ -260,6 +262,7 @@ export default function SafexHome() {
     if (!siteId) {
       setVaultDocuments([]);
       setContentFeed([]);
+      setPublishedAlerts(SAFETY_ALERTS);
       return;
     }
     let active = true;
@@ -272,6 +275,14 @@ export default function SafexHome() {
         setContentFeed(Array.isArray(data.feed) ? data.feed as HomeFeedItem[] : []);
       })
       .catch(() => { /* Offline or not configured: the screens keep their empty states. */ });
+    fetch(`/api/alerts?site=${encodeURIComponent(siteId)}`, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!active || !data?.ok || !Array.isArray(data.alerts)) return;
+        // Published-only on the server; nothing unconsented can reach this list.
+        setPublishedAlerts(data.alerts as SafetyAlert[]);
+      })
+      .catch(() => { /* Keep the empty state rather than inventing incidents. */ });
     return () => { active = false; };
   }, [siteId, page]);
 
