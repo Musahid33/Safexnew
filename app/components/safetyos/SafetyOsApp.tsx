@@ -9,7 +9,7 @@ import { DESIGN_SCRIPT } from './generated/script';
 import type { Site } from '@/lib/types';
 import DmWorkspace from './dm/DmWorkspace';
 import EmployeePassportAdmin from './EmployeePassportAdmin';
-import PublishingHandoff from './PublishingHandoff';
+import PublisherWorkspace from './PublisherWorkspace';
 import {
   CASE_STATUS, CASE_STATUS_DB, toCaseReport,
   type AdminReport, type DesignCaseReport
@@ -444,8 +444,8 @@ export default function SafetyOsApp({
     // Documents & Library and Communications in the design are previews: their buttons only
     // redraw the screen they are on and never touch Supabase, so anything "published" there
     // never reached the worker app. Both pages keep their nodes (the design's script binds to
-    // them) but every one of them is hidden, and a card linking to the real publishing panel
-    // takes their place.
+    // them) but every one of them is hidden, and the real publishing workspace is portalled in
+    // their place — same screen, no link, no second sign-in.
     const documentsPage = container.querySelector<HTMLElement>('#documentsPage');
     const communicationsPage = container.querySelector<HTMLElement>('#communicationsPage');
     if (documentsPage && communicationsPage) {
@@ -678,11 +678,11 @@ export default function SafetyOsApp({
       epHost
     )}
     {publishHosts && createPortal(
-      <PublishingHandoff section="documents" siteName={site?.name ?? 'this site'} />,
+      <PublisherWorkspace section="documents" selectedSiteId={selectedSiteId} />,
       publishHosts.documents
     )}
     {publishHosts && createPortal(
-      <PublishingHandoff section="communications" siteName={site?.name ?? 'this site'} />,
+      <PublisherWorkspace section="communications" selectedSiteId={selectedSiteId} />,
       publishHosts.communications
     )}
     {(note || reportState === 'unavailable') && <div
