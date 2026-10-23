@@ -788,7 +788,7 @@ export default function SafexHome() {
                   <button type="button" className="safety-alert-card-toggle" aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpandedSafetyAlertId((current) => current === alert.id ? null : alert.id)}>
                     <span className={`safety-alert-category-icon ${categoryClass}`}><AlertTriangle size={19} aria-hidden="true" /></span>
                     <span className="safety-alert-card-copy">
-                      <span className="safety-alert-card-meta"><span className={`safety-alert-category-pill ${categoryClass}`}>{T(alert.category)}</span><time dateTime={alert.date}>{formatHomeFeedDate(alert.date, locale)} · {formatHomeFeedTime(alert.date, locale)}</time></span>
+                      <span className="safety-alert-card-meta"><span className={`safety-alert-category-pill ${categoryClass}`}>{T(alert.category)}</span><time dateTime={alert.date}>{formatHomeFeedDate(alert.date, locale)} · {formatHomeFeedTime(alert.date, locale)}</time>{alert.attachment && <span className="safety-alert-file-chip">{alert.attachment.kind === 'pdf' ? 'PDF' : T('Photo')}</span>}</span>
                       <b>{alert.title}</b>
                       <span className="safety-alert-location"><MapPin size={14} aria-hidden="true" />{alert.site} · {alert.area}</span>
                     </span>
@@ -801,6 +801,28 @@ export default function SafexHome() {
                       <section><h4>{T('Immediate response')}</h4><ul>{alert.immediateActions.map((action) => <li key={action}>{action}</li>)}</ul></section>
                       <section><h4>{T('Corrective actions')}</h4><ul>{alert.correctiveActions.map((action) => <li key={action}>{action}</li>)}</ul></section>
                       <section><h4>{T('Lessons learned')}</h4><ul>{alert.lessonsLearned.map((lesson) => <li key={lesson}>{lesson}</li>)}</ul></section>
+                      {alert.attachment && expanded && <section className="safety-alert-file">
+                        <h4>{T('Incident file')}</h4>
+                        {alert.attachment.kind === 'image'
+                          ? <img
+                            className="safety-alert-file-image"
+                            src={`${alert.attachment.url}?inline=1`}
+                            alt={alert.attachment.name}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                          : <div className="safety-alert-file-viewer">
+                            <iframe
+                              src={`${alert.attachment.url}?inline=1#navpanes=0&view=FitH`}
+                              title={alert.attachment.name}
+                              loading="lazy"
+                            />
+                          </div>}
+                        <div className="safety-alert-file-actions">
+                          <span>{alert.attachment.name}</span>
+                          <a href={`${alert.attachment.url}?download=1`} download>{T('Download')}</a>
+                        </div>
+                      </section>}
                     </div>
                   </div>
                 </article>;

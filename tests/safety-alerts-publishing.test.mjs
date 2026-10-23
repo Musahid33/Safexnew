@@ -144,3 +144,96 @@ test('the migration adds the feed index without creating a second table', () => 
   assert.match(sql, /create index if not exists safety_alerts_site_feed_idx/);
   assert.doesNotMatch(sql, /create table/i, 'the table already exists in the base schema');
 });
+
+/* ---------------------------------------------------------------------------------------------
+ * Incident file (PDF / photo)
+ * -------------------------------------------------------------------------------------------*/
+
+const PDF_PATH = 'alerts/8f14e45f-ceea-467a-9b1c-1a2b3c4d5e6f/3fa85f64-5717-4562-b3fc-2c963f66afa6.pdf';
+const JPG_PATH = 'alerts/8f14e45f-ceea-467a-9b1c-1a2b3c4d5e6f/3fa85f64-5717-4562-b3fc-2c963f66afa6.jpg';
+
+test('an attached PDF or photo is stored with its name and mime type', () => {
+  const pdf = validAlertInput({ ...valid, attachmentPath: PDF_PATH, attachmentName: 'incident-report.pdf' });
+  assert.equal(pdf.attachment_path, PDF_PATH);
+  assert.equal(pdf.attachment_name, 'incident-report.pdf');
+  assert.equal(pdf.attachment_mime, 'application/pdf');
+
+  const jpg = validAlertInput({ ...valid, attachmentPath: JPG_PATH, attachmentName: 'spot-photo.jpg' });
+  assert.equal(jpg.attachment_mime, 'image/jpeg');
+  assert.equal(jpg.attachment_name, 'spot-photo.jpg');
+});
+
+test('an edit that does not mention the file keeps the stored one', () => {
+  const kept = validAlertInput(valid);
+  assert.equal(kept.attachment_path, undefined, 'absent key = keep, not clear');
+  assert.equal(kept.attachment_name, undefined);
+  assert.equal(kept.attachment_mime, undefined);
+
+  const cleared = validAlertInput({ ...valid, attachmentPath: null });
+  assert.equal(cleared.attachment_path, null, 'an explicit null clears it');
+});
+
+test('only the three renderable formats from our own bucket path are accepted', () => {
+  for (const attachmentPath of [
+    'https://evil.test/report.pdf',
+    'alerts/../../etc/passwd.pdf',
+    'alerts/tenant/report.docx',
+    'alerts/tenant/report.svg',
+    'documents/tenant/report.pdf',
+    '/alerts/tenant/report.pdf',
+    'alerts/tenant/report.pdf?x=1'
+  ]) {
+    assert.equal(validAlertInput({ ...valid, attachmentPath }), null, attachmentPath);
+  }
+});
+
+test('the upload route is gated, capped and refuses SVG', () => {
+  const route = readFileSync('app/api/admin/alerts/attachment/route.ts', 'utf8');
+  assert.match(route, /createAdminGuard\(\{ windowMs: 60_000, max: 30 \}\)/);
+  assert.match(route, /const MAX_BYTES = 10 \* 1024 \* 1024;/);
+  for (const type of ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']) assert.ok(route.includes(type), type);
+  assert.equal(route.includes('image/svg'), false, 'SVG can carry script');
+  assert.match(route, /`alerts\/\$\{store\.tenantId\}/);
+});
+
+test('the file route re-checks publication and can stream inline', () => {
+  const route = readFileSync('app/api/alerts/[id]/file/route.ts', 'utf8');
+  assert.match(route, /resolvePublishedAlertFile/);
+  assert.match(route, /sameOrigin\(request\)/);
+  assert.match(route, /createRateLimiter/);
+  assert.match(route, /inline=1/);
+  assert.match(route, /download=1/);
+  assert.match(route, /frame-ancestors 'self'/);
+
+  const store = readFileSync('lib/alerts/store.ts', 'utf8');
+  assert.match(store, /row\.status !== 'published' \|\| !row\.published_at/);
+  assert.match(store, /signContentPath\(store, row\.attachment_path\)/);
+});
+
+test('the app shows the incident file inside the alert sheet, not on another page', () => {
+  const page = readFileSync('app/page.tsx', 'utf8');
+  assert.match(page, /safety-alert-file-viewer/);
+  assert.match(page, /alert\.attachment\.url\}\?inline=1#navpanes=0&view=FitH/);
+  assert.match(page, /safety-alert-file-image/);
+  assert.match(page, /alert\.attachment\.url\}\?download=1/);
+  assert.doesNotMatch(page, /window\.open\(.*attachment/, 'the file is never opened in a popup');
+
+  const builtIn = readFileSync('lib/safety-alerts.ts', 'utf8');
+  assert.match(builtIn, /attachment\?: SafetyAlertAttachment \| null;/);
+});
+
+test('the alert file route carries the same frame policy as the document viewer', () => {
+  const config = readFileSync('next.config.ts', 'utf8');
+  assert.match(config, /source: '\/api\/alerts\/:id\/file'/);
+  assert.match(config, /\(\?!api\/alerts\/\[\^\/\]\+\/file\)/);
+});
+
+test('the migration adds the attachment columns and their guards', () => {
+  const sql = readFileSync('supabase/migrations/202610230002_alert_attachments.sql', 'utf8');
+  for (const column of ['attachment_path', 'attachment_name', 'attachment_mime']) {
+    assert.match(sql, new RegExp(`add column if not exists ${column}`));
+  }
+  assert.match(sql, /safety_alerts_attachment_path_shape/);
+  assert.match(sql, /safety_alerts_attachment_mime_allowed/);
+  assert.doesNotMatch(sql, /create table/i);
+});

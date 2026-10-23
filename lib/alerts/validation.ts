@@ -16,8 +16,21 @@ const MAX = {
   description: 5000,
   rootCause: 2000,
   bullet: 300,
-  bullets: 12
+  bullets: 12,
+  fileName: 200
 };
+
+/** The only files the in-app viewer can render. A .docx would download, not display. */
+const ATTACHMENT_MIME_BY_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp'
+};
+
+/** `alerts/<tenant>/<uuid>.<ext>` inside the private bucket — nothing else may be stored. */
+const ATTACHMENT_PATH = /^alerts\/[A-Za-z0-9-]+\/[A-Za-z0-9-]+\.(pdf|png|jpg|jpeg|webp)$/i;
 
 export type AlertInput = {
   alert_reference: string | null;
@@ -31,6 +44,10 @@ export type AlertInput = {
   immediate_response: string[];
   corrective_actions: string[];
   lessons_learned: string[];
+  /** `undefined` keeps whatever is stored — used when editing an alert that already has a file. */
+  attachment_path?: string | null;
+  attachment_name?: string | null;
+  attachment_mime?: string | null;
   status: 'draft' | 'published' | 'archived';
   published_at: string | null;
   updated_at: string;
@@ -75,6 +92,28 @@ function bullets(value: unknown): string[] | null {
   return cleaned;
 }
 
+/**
+ * The attachment a form sent: a storage path from the upload route plus the original name.
+ * `null` means "no file"; `undefined` means "sent but unparseable" and rejects the whole input.
+ */
+function attachment(body: Record<string, unknown>):
+  { path: string | null | undefined; name: string | null | undefined; mime: string | null | undefined } | undefined {
+  const present = 'attachmentPath' in body || 'attachment_path' in body;
+  // A key that was not sent at all means "leave the stored file alone", which is what an edit
+  // form and a publish/unpublish toggle rely on.
+  if (!present) return { path: undefined, name: undefined, mime: undefined };
+  const rawPath = body.attachmentPath ?? body.attachment_path;
+  if (rawPath == null || rawPath === '') return { path: null, name: null, mime: null };
+  if (typeof rawPath !== 'string' || !ATTACHMENT_PATH.test(rawPath)) return undefined;
+  const extension = rawPath.split('.').pop()!.toLowerCase();
+  const mime = ATTACHMENT_MIME_BY_EXTENSION[extension];
+  if (!mime) return undefined;
+  const rawName = body.attachmentName ?? body.attachment_name;
+  const name = rawName == null || rawName === '' ? rawPath.split('/').pop()! : text(rawName, MAX.fileName);
+  if (!name) return undefined;
+  return { path: rawPath, name, mime };
+}
+
 export function validAlertInput(body: Record<string, unknown>): AlertInput | null {
   const category = alertCategoryKey(body.category ?? body.categoryKey);
   if (!category) return null;
@@ -100,6 +139,9 @@ export function validAlertInput(body: Record<string, unknown>): AlertInput | nul
   const lessons = bullets(body.lessonsLearned ?? body.lessons_learned ?? '');
   if (!immediate || !corrective || !lessons) return null;
 
+  const file = attachment(body);
+  if (file === undefined) return null;
+
   const status = body.status === 'published' || body.status === 'archived' ? body.status : 'draft';
   const now = new Date().toISOString();
 
@@ -115,6 +157,9 @@ export function validAlertInput(body: Record<string, unknown>): AlertInput | nul
     immediate_response: immediate,
     corrective_actions: corrective,
     lessons_learned: lessons,
+    attachment_path: file.path,
+    attachment_name: file.name,
+    attachment_mime: file.mime,
     status,
     // Re-publishing refreshes the timestamp; anything else keeps the stored one.
     published_at: status === 'published' ? now : null,
