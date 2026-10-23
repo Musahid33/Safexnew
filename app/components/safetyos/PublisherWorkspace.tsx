@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BellRing, CalendarDays, CheckCircle2, FileText, Megaphone, Trophy } from 'lucide-react';
+import { AlertTriangle, BellRing, CalendarDays, CheckCircle2, FileText, Megaphone, Trophy } from 'lucide-react';
+import { ALERT_CATEGORIES } from '@/lib/alerts/catalog';
 import {
   DOCUMENT_TYPE_LABELS, DOCUMENT_TYPES, VAULT_CATEGORIES, vaultCategoriesForPublishing,
   type DocumentType, type VaultCategoryKey
@@ -23,7 +24,25 @@ import type { AdminRecognitionItem } from '@/lib/recognitions';
  * one write path and one session. Only rows with `status = 'published'` reach the phone.
  */
 
-type PublishKind = 'document' | 'circular' | 'notice' | 'event' | 'reward';
+type PublishKind = 'document' | 'circular' | 'notice' | 'event' | 'alert' | 'reward';
+
+/** One alert row as `/api/admin/alerts` returns it. */
+type AdminAlertRow = {
+  id: string;
+  category: string;
+  title: string;
+  date: string;
+  area: string;
+  department: string;
+  reference: string;
+  description: string;
+  rootCause: string;
+  immediateActions: string[];
+  correctiveActions: string[];
+  lessonsLearned: string[];
+  status: 'draft' | 'published' | 'archived';
+  updatedAt: string | null;
+};
 type SiteRow = { id: string; slug: string; name: string };
 type Listing = { documents: AdminDocument[]; announcements: AdminAnnouncement[]; events: AdminEvent[] };
 
@@ -37,6 +56,7 @@ const KIND_CARDS: Array<{ kind: PublishKind; label: string; hint: string; icon: 
   { kind: 'circular', label: 'Circular', hint: 'An instruction that stays on record for the site', icon: Megaphone },
   { kind: 'notice', label: 'Notice', hint: 'A short notice everyone at the site should see', icon: BellRing },
   { kind: 'event', label: 'Event', hint: 'Training, drill or meeting with a date, time and venue', icon: CalendarDays },
+  { kind: 'alert', label: 'Safety Alert', hint: 'Incident alert with root cause, response and lessons learned', icon: AlertTriangle },
   { kind: 'reward', label: 'Reward', hint: 'Recognition card with the awardee name, reason and photo', icon: Trophy }
 ];
 
@@ -82,6 +102,21 @@ type EventDraft = {
   venue: string;
 };
 
+type AlertDraft = {
+  id?: string;
+  category: string;
+  title: string;
+  reference: string;
+  incidentAt: string;
+  area: string;
+  department: string;
+  description: string;
+  rootCause: string;
+  immediateResponse: string;
+  correctiveActions: string;
+  lessonsLearned: string;
+};
+
 type RewardDraft = {
   id?: string;
   employeeName: string;
@@ -113,6 +148,13 @@ function blankPost(kind: 'circular' | 'notice'): PostDraft {
 
 function blankEvent(): EventDraft {
   return { title: '', topic: '', description: '', startsAt: '', endsAt: '', venue: '' };
+}
+
+function blankAlert(): AlertDraft {
+  return {
+    category: 'First Aid', title: '', reference: '', incidentAt: '', area: '', department: '',
+    description: '', rootCause: '', immediateResponse: '', correctiveActions: '', lessonsLearned: ''
+  };
 }
 
 function blankReward(): RewardDraft {
@@ -156,6 +198,8 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
   const [postDraft, setPostDraft] = useState<PostDraft>(() => blankPost('circular'));
   const [eventDraft, setEventDraft] = useState<EventDraft>(blankEvent);
   const [rewardDraft, setRewardDraft] = useState<RewardDraft>(blankReward);
+  const [alerts, setAlerts] = useState<AdminAlertRow[]>([]);
+  const [alertDraft, setAlertDraft] = useState<AlertDraft>(blankAlert);
 
   const filePicker = useRef<HTMLInputElement>(null);
   const photoPicker = useRef<HTMLInputElement>(null);
@@ -166,9 +210,10 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
     if (!siteSlug) return;
     setLoading(true);
     try {
-      const [contentResponse, rewardsResponse] = await Promise.all([
+      const [contentResponse, rewardsResponse, alertsResponse] = await Promise.all([
         fetch(`/api/admin/content?site=${encodeURIComponent(siteSlug)}`, { cache: 'no-store' }),
-        fetch('/api/admin/recognitions', { cache: 'no-store' })
+        fetch('/api/admin/recognitions', { cache: 'no-store' }),
+        fetch(`/api/admin/alerts?site=${encodeURIComponent(siteSlug)}`, { cache: 'no-store' })
       ]);
       const content = await contentResponse.json();
       if (contentResponse.status === 401) throw new Error('Session expired. Sign in to the console again.');
@@ -182,6 +227,10 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       if (rewardsResponse.ok) {
         const rewardData = await rewardsResponse.json();
         if (rewardData?.ok && Array.isArray(rewardData.items)) setRewards(rewardData.items as AdminRecognitionItem[]);
+      }
+      if (alertsResponse.ok) {
+        const alertData = await alertsResponse.json();
+        if (alertData?.ok && Array.isArray(alertData.alerts)) setAlerts(alertData.alerts as AdminAlertRow[]);
       }
       setError('');
     } catch (caught) {
@@ -220,6 +269,7 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
     setSlug(next);
     setListing(EMPTY_LISTING);
     setRewards([]);
+    setAlerts([]);
     setOpen(null);
     setNotice('');
   }
@@ -245,6 +295,56 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendAlert(method: 'POST' | 'PUT' | 'DELETE', payload: Record<string, unknown>): Promise<boolean> {
+    if (!slug) { setError('Choose a location first.'); return false; }
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/admin/alerts', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, site: slug })
+      });
+      const data = await response.json();
+      if (response.status === 401) throw new Error('Session expired. Sign in to the console again.');
+      if (!response.ok) throw new Error(data.error ?? 'The request failed.');
+      await load(slug);
+      return true;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The request failed.');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAlert(intent: 'draft' | 'published') {
+    if (!alertDraft.title.trim()) { setError('Enter the alert headline.'); return; }
+    if (!alertDraft.incidentAt) { setError('Choose when the incident happened.'); return; }
+    if (!alertDraft.description.trim()) { setError('Describe what happened.'); return; }
+    const payload: Record<string, unknown> = {
+      category: alertDraft.category,
+      title: alertDraft.title,
+      reference: alertDraft.reference,
+      incidentAt: alertDraft.incidentAt,
+      area: alertDraft.area,
+      department: alertDraft.department,
+      description: alertDraft.description,
+      rootCause: alertDraft.rootCause,
+      immediateResponse: alertDraft.immediateResponse,
+      correctiveActions: alertDraft.correctiveActions,
+      lessonsLearned: alertDraft.lessonsLearned,
+      status: intent
+    };
+    if (alertDraft.id) payload.id = alertDraft.id;
+    if (await sendAlert(alertDraft.id ? 'PUT' : 'POST', payload)) {
+      setOpen(null);
+      setAlertDraft(blankAlert());
+      setNotice(intent === 'published' ? 'Safety alert published. It is live in the worker app now.' : 'Alert saved as draft.');
     }
   }
 
@@ -294,6 +394,7 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
     setPostDraft(blankPost(kind === 'notice' ? 'notice' : 'circular'));
     setEventDraft(blankEvent());
     setRewardDraft(blankReward());
+    setAlertDraft(blankAlert());
     setOpen(kind);
   }
 
@@ -464,6 +565,45 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
     if (ok) setNotice(status === 'published' ? 'Event published.' : 'Event moved back to draft.');
   }
 
+  async function toggleAlert(row: AdminAlertRow) {
+    const status = row.status === 'published' ? 'draft' : 'published';
+    const ok = await sendAlert('PUT', {
+      id: row.id,
+      category: row.category,
+      title: row.title,
+      reference: row.reference,
+      incidentAt: row.date,
+      area: row.area,
+      department: row.department,
+      description: row.description,
+      rootCause: row.rootCause,
+      immediateResponse: row.immediateActions,
+      correctiveActions: row.correctiveActions,
+      lessonsLearned: row.lessonsLearned,
+      status
+    });
+    if (ok) setNotice(status === 'published' ? 'Safety alert published.' : 'Alert moved back to draft.');
+  }
+
+  function editAlert(row: AdminAlertRow) {
+    setAlertDraft({
+      id: row.id,
+      category: row.category,
+      title: row.title,
+      reference: row.reference,
+      incidentAt: dateTimeInput(row.date),
+      area: row.area,
+      department: row.department,
+      description: row.description,
+      rootCause: row.rootCause,
+      immediateResponse: row.immediateActions.join('\n'),
+      correctiveActions: row.correctiveActions.join('\n'),
+      lessonsLearned: row.lessonsLearned.join('\n')
+    });
+    setOpen('alert');
+    setNotice('');
+  }
+
   async function toggleReward(row: AdminRecognitionItem) {
     const publish = !row.isPublished;
     setBusy(true);
@@ -485,8 +625,12 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
     }
   }
 
-  async function removeRow(kind: 'document' | 'announcement' | 'event' | 'reward', id: string) {
+  async function removeRow(kind: 'document' | 'announcement' | 'event' | 'alert' | 'reward', id: string) {
     if (!window.confirm('Delete this permanently? Unpublishing keeps it on record instead.')) return;
+    if (kind === 'alert') {
+      if (await sendAlert('DELETE', { id })) setNotice('Safety alert deleted.');
+      return;
+    }
     if (kind === 'reward') {
       setBusy(true);
       try {
@@ -553,6 +697,7 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
     circular: listing.announcements.filter((row) => row.kind === 'circular').length,
     notice: listing.announcements.filter((row) => row.kind === 'notice').length,
     event: listing.events.length,
+    alert: alerts.length,
     reward: rewards.length
   };
 
@@ -601,6 +746,17 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       edit: () => editEvent(row),
       toggle: () => void toggleEvent(row),
       remove: () => void removeRow('event', row.id)
+    })),
+    ...alerts.map((row) => ({
+      key: `alert-${row.id}`,
+      label: 'Safety Alert',
+      title: row.title,
+      meta: [row.category, readableDate(row.date), row.area].filter(Boolean).join(' · '),
+      status: row.status,
+      sort: row.updatedAt ?? row.date,
+      edit: () => editAlert(row),
+      toggle: () => void toggleAlert(row),
+      remove: () => void removeRow('alert', row.id)
     })),
     ...rewards.map((row) => ({
       key: `reward-${row.id}`,
@@ -891,6 +1047,79 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       <div className="pub-actions">
         <button type="submit" disabled={busy}>{busy ? 'Saving…' : eventDraft.id ? 'Save & publish' : 'Publish now'}</button>
         <button type="button" className="pub-secondary" disabled={busy} onClick={() => void saveEvent('draft')}>Save as draft</button>
+        <button type="button" className="pub-ghost" onClick={closeForm}>Cancel</button>
+      </div>
+    </form>}
+
+    {open === 'alert' && <form className="pub-form" onSubmit={(event) => { event.preventDefault(); void saveAlert('published'); }}>
+      <div className="pub-form-head">
+        <button type="button" className="pub-back" onClick={closeForm}>← All types</button>
+        <h2>{alertDraft.id ? 'Edit safety alert' : 'Publish a safety alert'}</h2>
+        <p>{siteName || 'Choose a location'} · Safety Alerts</p>
+      </div>
+
+      <div className="pub-grid">
+        <label className="pub-field">
+          <span>Category *</span>
+          <select value={alertDraft.category} onChange={(event) => setAlertDraft({ ...alertDraft, category: event.target.value })}>
+            {ALERT_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+        </label>
+        <label className="pub-field">
+          <span>Incident date &amp; time *</span>
+          <input required type="datetime-local" value={alertDraft.incidentAt} onChange={(event) => setAlertDraft({ ...alertDraft, incidentAt: event.target.value })} />
+        </label>
+        <label className="pub-field">
+          <span>Alert reference</span>
+          <input maxLength={40} value={alertDraft.reference} onChange={(event) => setAlertDraft({ ...alertDraft, reference: event.target.value })} placeholder="ALR-2026-014" />
+        </label>
+      </div>
+
+      <label className="pub-field">
+        <span>Headline *</span>
+        <input required maxLength={160} value={alertDraft.title} onChange={(event) => setAlertDraft({ ...alertDraft, title: event.target.value })} placeholder="Hand injury while changing a grinder wheel" />
+      </label>
+
+      <div className="pub-grid">
+        <label className="pub-field">
+          <span>Area</span>
+          <input maxLength={120} value={alertDraft.area} onChange={(event) => setAlertDraft({ ...alertDraft, area: event.target.value })} placeholder="Workshop" />
+        </label>
+        <label className="pub-field">
+          <span>Department</span>
+          <input maxLength={120} value={alertDraft.department} onChange={(event) => setAlertDraft({ ...alertDraft, department: event.target.value })} placeholder="Mechanical" />
+        </label>
+      </div>
+
+      <label className="pub-field">
+        <span>What happened *</span>
+        <textarea required rows={3} maxLength={5000} value={alertDraft.description} onChange={(event) => setAlertDraft({ ...alertDraft, description: event.target.value })} placeholder="Describe the incident in plain words." />
+      </label>
+
+      <label className="pub-field">
+        <span>Root cause</span>
+        <textarea rows={2} maxLength={2000} value={alertDraft.rootCause} onChange={(event) => setAlertDraft({ ...alertDraft, rootCause: event.target.value })} />
+      </label>
+
+      <p className="pub-hint">One line per point — each line becomes a bullet in the app.</p>
+      <div className="pub-grid">
+        <label className="pub-field">
+          <span>Immediate response</span>
+          <textarea rows={3} maxLength={3000} value={alertDraft.immediateResponse} onChange={(event) => setAlertDraft({ ...alertDraft, immediateResponse: event.target.value })} placeholder={'First aid given\nArea cordoned off'} />
+        </label>
+        <label className="pub-field">
+          <span>Corrective actions</span>
+          <textarea rows={3} maxLength={3000} value={alertDraft.correctiveActions} onChange={(event) => setAlertDraft({ ...alertDraft, correctiveActions: event.target.value })} placeholder={'Wheel guard refitted\nToolbox talk held'} />
+        </label>
+        <label className="pub-field">
+          <span>Lessons learned</span>
+          <textarea rows={3} maxLength={3000} value={alertDraft.lessonsLearned} onChange={(event) => setAlertDraft({ ...alertDraft, lessonsLearned: event.target.value })} placeholder={'Isolate before changing the wheel'} />
+        </label>
+      </div>
+
+      <div className="pub-actions">
+        <button type="submit" disabled={busy}>{busy ? 'Saving…' : alertDraft.id ? 'Save & publish' : 'Publish alert'}</button>
+        <button type="button" className="pub-secondary" disabled={busy} onClick={() => void saveAlert('draft')}>Save as draft</button>
         <button type="button" className="pub-ghost" onClick={closeForm}>Cancel</button>
       </div>
     </form>}

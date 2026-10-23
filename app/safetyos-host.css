@@ -1542,6 +1542,7 @@
 }
 .sos .pub-photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
+.sos .pub-hint { margin: 0; color: #70829a; font-size: 10.5px; font-weight: 600; }
 .sos .pub-check { display: flex; align-items: flex-start; gap: 8px; color: #56677d; font-size: 11.5px; line-height: 1.45; }
 .sos .pub-check input { margin-top: 2px; }
 
