@@ -82,6 +82,11 @@ const nextConfig: NextConfig = {
         headers: fileRouteHeaders
       },
       {
+        // The incident PDF/photo attached to a safety alert, streamed by the same kind of route.
+        source: '/api/alerts/:id/file',
+        headers: fileRouteHeaders
+      },
+      {
         // Compiled bundles and anything next to them must never be indexed.
         source: '/_next/:path*',
         headers: [
@@ -91,7 +96,7 @@ const nextConfig: NextConfig = {
       },
       {
         // Everything except the file route above, which carries its own frame policy.
-        source: '/:path((?!api/content/file/).*)',
+        source: '/:path((?!api/content/file/)(?!api/alerts/[^/]+/file).*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

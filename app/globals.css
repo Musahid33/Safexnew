@@ -1176,6 +1176,15 @@ textarea.form-control { min-height: auto; resize: vertical; line-height: 1.5; }
 .safety-alert-details-inner { min-height: 0; overflow: hidden; display: grid; gap: 0; padding: 0 16px 0 68px; }
 .safety-alert-details.expanded .safety-alert-details-inner { padding-bottom: 14px; }
 .safety-alert-details-inner section { border-top: 1px solid var(--line); padding: 10px 0; }
+/* The incident file stays inside the alert sheet: PDF in a same-origin frame, photo inline. */
+.safety-alert-file-viewer { overflow: hidden; margin-top: 2px; border: 1px solid var(--line); border-radius: 12px; background: #525659; }
+.safety-alert-file-viewer iframe { display: block; width: 100%; height: min(66vh, 620px); min-height: 300px; border: 0; background: #525659; }
+.safety-alert-file-image { display: block; max-width: 100%; max-height: min(66vh, 620px); margin-top: 2px; border: 1px solid var(--line); border-radius: 12px; object-fit: contain; background: var(--surface-2); }
+.safety-alert-file-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.safety-alert-file-actions span { min-width: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.safety-alert-file-actions a { flex: none; color: var(--primary); font-size: 11.5px; font-weight: 800; text-decoration: none; }
+.safety-alert-file-actions a:hover { text-decoration: underline; }
+.safety-alert-file-chip { flex: none; padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .safety-alert-details-inner section h4 { margin: 0 0 5px; color: var(--muted); font-size: 10px; font-weight: 950; letter-spacing: .065em; line-height: 1.3; text-transform: uppercase; }
 .safety-alert-details-inner section p, .safety-alert-details-inner section ul { margin: 0; color: var(--text); font-size: 12px; line-height: 1.55; }
 .safety-alert-details-inner section ul { display: grid; gap: 5px; padding-left: 17px; }

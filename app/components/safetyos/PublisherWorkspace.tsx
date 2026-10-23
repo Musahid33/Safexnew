@@ -40,6 +40,7 @@ type AdminAlertRow = {
   immediateActions: string[];
   correctiveActions: string[];
   lessonsLearned: string[];
+  attachment: { url: string; name: string; mimeType: string; kind: 'pdf' | 'image' } | null;
   status: 'draft' | 'published' | 'archived';
   updatedAt: string | null;
 };
@@ -115,6 +116,11 @@ type AlertDraft = {
   immediateResponse: string;
   correctiveActions: string;
   lessonsLearned: string;
+  /** Storage path returned by /api/admin/alerts/attachment; null means no file. */
+  attachmentPath: string | null;
+  attachmentName: string | null;
+  /** The operator pressed Remove on a stored file; the save must clear the column. */
+  attachmentRemoved: boolean;
 };
 
 type RewardDraft = {
@@ -153,7 +159,8 @@ function blankEvent(): EventDraft {
 function blankAlert(): AlertDraft {
   return {
     category: 'First Aid', title: '', reference: '', incidentAt: '', area: '', department: '',
-    description: '', rootCause: '', immediateResponse: '', correctiveActions: '', lessonsLearned: ''
+    description: '', rootCause: '', immediateResponse: '', correctiveActions: '', lessonsLearned: '',
+    attachmentPath: null, attachmentName: null, attachmentRemoved: false
   };
 }
 
@@ -203,6 +210,7 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
 
   const filePicker = useRef<HTMLInputElement>(null);
   const photoPicker = useRef<HTMLInputElement>(null);
+  const alertFilePicker = useRef<HTMLInputElement>(null);
 
   const siteName = sites.find((row) => row.slug === slug)?.name ?? '';
 
@@ -338,6 +346,12 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       immediateResponse: alertDraft.immediateResponse,
       correctiveActions: alertDraft.correctiveActions,
       lessonsLearned: alertDraft.lessonsLearned,
+      // A new file replaces the stored one, Remove clears it, and neither key means "keep".
+      ...(alertDraft.attachmentPath
+        ? { attachmentPath: alertDraft.attachmentPath, attachmentName: alertDraft.attachmentName }
+        : alertDraft.attachmentRemoved
+          ? { attachmentPath: null, attachmentName: null }
+          : {}),
       status: intent
     };
     if (alertDraft.id) payload.id = alertDraft.id;
@@ -345,6 +359,29 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       setOpen(null);
       setAlertDraft(blankAlert());
       setNotice(intent === 'published' ? 'Safety alert published. It is live in the worker app now.' : 'Alert saved as draft.');
+    }
+  }
+
+  /**
+   * Upload the incident PDF or photo. One button, one picker: a phone offers camera or file
+   * chooser from the same control. The path is what the alert row stores.
+   */
+  async function uploadAlertAttachment(file: File): Promise<{ path: string; fileName: string } | null> {
+    if (file.size > MAX_FILE) { setError('Files must be 10 MB or smaller.'); return null; }
+    setUploading(true);
+    setError('');
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      const response = await fetch('/api/admin/alerts/attachment', { method: 'POST', body: form });
+      const data = await response.json();
+      if (!response.ok || !data?.ok) throw new Error(data?.error ?? 'Upload failed.');
+      return { path: data.path as string, fileName: data.fileName as string };
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Upload failed.');
+      return null;
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -580,6 +617,7 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       immediateResponse: row.immediateActions,
       correctiveActions: row.correctiveActions,
       lessonsLearned: row.lessonsLearned,
+      // An absent attachment key keeps the stored file, so a publish toggle never drops it.
       status
     });
     if (ok) setNotice(status === 'published' ? 'Safety alert published.' : 'Alert moved back to draft.');
@@ -598,7 +636,11 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       rootCause: row.rootCause,
       immediateResponse: row.immediateActions.join('\n'),
       correctiveActions: row.correctiveActions.join('\n'),
-      lessonsLearned: row.lessonsLearned.join('\n')
+      lessonsLearned: row.lessonsLearned.join('\n'),
+      // The stored path is not exposed to the browser; no attachment keys on save keeps it.
+      attachmentPath: null,
+      attachmentName: row.attachment?.name ?? null,
+      attachmentRemoved: false
     });
     setOpen('alert');
     setNotice('');
@@ -751,7 +793,8 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
       key: `alert-${row.id}`,
       label: 'Safety Alert',
       title: row.title,
-      meta: [row.category, readableDate(row.date), row.area].filter(Boolean).join(' · '),
+      meta: [row.category, readableDate(row.date), row.area, row.attachment ? (row.attachment.kind === 'pdf' ? 'PDF attached' : 'Photo attached') : '']
+        .filter(Boolean).join(' · '),
       status: row.status,
       sort: row.updatedAt ?? row.date,
       edit: () => editAlert(row),
@@ -1082,7 +1125,7 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
 
       <div className="pub-grid">
         <label className="pub-field">
-          <span>Area</span>
+          <span>Location / area</span>
           <input maxLength={120} value={alertDraft.area} onChange={(event) => setAlertDraft({ ...alertDraft, area: event.target.value })} placeholder="Workshop" />
         </label>
         <label className="pub-field">
@@ -1115,6 +1158,46 @@ export default function PublisherWorkspace({ section, selectedSiteId }: {
           <span>Lessons learned</span>
           <textarea rows={3} maxLength={3000} value={alertDraft.lessonsLearned} onChange={(event) => setAlertDraft({ ...alertDraft, lessonsLearned: event.target.value })} placeholder={'Isolate before changing the wheel'} />
         </label>
+      </div>
+
+      {/* The incident file: the report PDF or the photo taken at the spot. */}
+      <div className="pub-file">
+        <input
+          ref={alertFilePicker}
+          className="pub-hidden-input"
+          type="file"
+          accept="application/pdf,image/png,image/jpeg,image/webp"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            void uploadAlertAttachment(file).then((uploaded) => {
+              if (uploaded) setAlertDraft((current) => ({
+                ...current,
+                attachmentPath: uploaded.path,
+                attachmentName: uploaded.fileName,
+                attachmentRemoved: false
+              }));
+            });
+          }}
+        />
+        <div className="pub-file-copy">
+          <strong>Incident file (PDF or photo)</strong>
+          <small>
+            {alertDraft.attachmentName
+              ? alertDraft.attachmentName
+              : 'Optional. Attach the report PDF or the photo — it shows inside the alert in the app.'}
+          </small>
+        </div>
+        <button type="button" className="pub-secondary" disabled={uploading || busy} onClick={() => alertFilePicker.current?.click()}>
+          {uploading ? 'Uploading…' : alertDraft.attachmentName ? 'Replace file' : 'Attach file'}
+        </button>
+        {alertDraft.attachmentName && <button
+          type="button"
+          className="pub-ghost"
+          disabled={busy}
+          onClick={() => setAlertDraft({ ...alertDraft, attachmentPath: null, attachmentName: null, attachmentRemoved: true })}
+        >Remove</button>}
       </div>
 
       <div className="pub-actions">
