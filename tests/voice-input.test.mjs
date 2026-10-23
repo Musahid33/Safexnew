@@ -48,10 +48,12 @@ test('voice input has listening, capture and the controls from the mock', () => 
   assert.ok(voice.includes('setInterval'));
   assert.ok(voice.includes('setSeconds(Math.floor(elapsed / 1000))'));
 
-  // Silence ends a session on Chrome; the same session keeps listening.
+  // Silence ends a session on Chrome; the same session keeps listening, and a restart can never
+  // write the same words twice (the merge lives in lib/voice/transcript.ts, tested separately).
   assert.ok(voice.includes("phaseRef.current !== 'listening'"));
-  assert.ok(voice.includes('const flatten = useCallback'));
-  assert.ok(voice.includes('baseRef.current = join(baseRef.current, finalRef.current, interimRef.current)'));
+  assert.ok(voice.includes('const commitPending = useCallback'));
+  assert.ok(voice.includes('appendTranscript(committedRef.current, transcript)'));
+  assert.equal(voice.includes('baseRef'), false, 'no naive concatenation');
 
   // Pause and stop must not leave the microphone open.
   assert.ok(voice.includes('abortRecognition'));
