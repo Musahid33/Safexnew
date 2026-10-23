@@ -14,9 +14,10 @@ import { stripTypeScriptTypes } from 'node:module';
  */
 
 const code = stripTypeScriptTypes(readFileSync(new URL('../lib/voice/transcript.ts', import.meta.url), 'utf8'));
-const { appendTranscript, collapseRepeats, composeTranscript, wordKey } = await import(
-  `data:text/javascript,${encodeURIComponent(code)}`
-);
+const {
+  appendTranscript, applyPunctuation, collapseRepeats, composeTranscript, ensureSentenceEnd,
+  hasSentenceEnd, insertCommas, splitTranscript, wordKey
+} = await import(`data:text/javascript,${encodeURIComponent(code)}`);
 
 /**
  * Mirror of the component's handler: only new results are read, a final replaces the interim
@@ -66,6 +67,13 @@ test('repeating the exact same final changes nothing', () => {
   text = appendTranscript(text, 'गाड़ी पलट गया');
   text = appendTranscript(text, 'गाड़ी पलट गया');
   assert.equal(text, 'गाड़ी पलट गया');
+});
+
+test('a final that is shorter than the interim already on screen adds nothing', () => {
+  // The sentence was closed on the pause, then the engine finalised the words it had already
+  // shown as interim. Appending them would print the same phrase twice.
+  assert.equal(appendTranscript('गाड़ी पलट गई थी।', 'पलट गई थी'), 'गाड़ी पलट गई थी।');
+  assert.equal(appendTranscript('one worker was working', 'worker was working'), 'one worker was working');
 });
 
 test('a genuinely new sentence is still appended', () => {
@@ -121,6 +129,58 @@ test('the transcript never exceeds the field limit or cuts a word in half', () =
   assert.equal(text, 'one two three');
 });
 
+test('the live layer separates confirmed words from the words still being recognised', () => {
+  const { head, tail } = splitTranscript({ original: 'Gate 2.', committed: 'गाड़ी पलट गई', pending: 'कोई घायल' }, 1200);
+  assert.equal(head, 'Gate 2. गाड़ी पलट गई');
+  assert.equal(tail, 'कोई घायल');
+  // Typed text plus nothing yet: the whole field is confirmed and nothing is grey.
+  assert.deepEqual(splitTranscript({ original: 'Gate 2.', committed: '', pending: '' }, 1200), { head: 'Gate 2.', tail: '' });
+  // A field that hits its limit drops the grey tail instead of cutting a word.
+  const clipped = splitTranscript({ committed: 'one two three', pending: 'four five' }, 13);
+  assert.equal(clipped.head, 'one two three');
+  assert.equal(clipped.tail, '');
+});
+
+test('a sentence gets the full stop of the language it was spoken in', () => {
+  assert.equal(ensureSentenceEnd('गाड़ी पलट गई'), 'गाड़ी पलट गई।');
+  assert.equal(ensureSentenceEnd('the car overturned'), 'the car overturned.');
+  assert.equal(ensureSentenceEnd('गाड़ी पलट गई।'), 'गाड़ी पलट गई।', 'already closed stays closed');
+  assert.equal(ensureSentenceEnd('worker slipped!'), 'worker slipped!');
+  assert.equal(hasSentenceEnd('गाड़ी पलट गई।'), true);
+  assert.equal(hasSentenceEnd('गाड़ी पलट गई'), false);
+});
+
+test('commas are added before clause openers, never at the start or twice', () => {
+  assert.equal(insertCommas('the car overturned but nobody was hurt'), 'the car overturned, but nobody was hurt');
+  assert.equal(insertCommas('गाड़ी पलट गई लेकिन कोई घायल नहीं हुआ'), 'गाड़ी पलट गई, लेकिन कोई घायल नहीं हुआ');
+  assert.equal(insertCommas('but nobody was hurt'), 'but nobody was hurt', 'a sentence may start with it');
+  assert.equal(insertCommas(insertCommas('the car overturned but nobody was hurt')), 'the car overturned, but nobody was hurt');
+});
+
+test('a closed sentence is capitalised like the worker would type it', () => {
+  assert.equal(applyPunctuation('the car overturned. nobody was hurt'), 'The car overturned. Nobody was hurt');
+  // Text that continues the worker's own typed words must not be capitalised mid-sentence.
+  assert.equal(applyPunctuation('worker slipped.', false), 'worker slipped.');
+  // The Hindi sentence keeps its script and gets a danda.
+  assert.equal(applyPunctuation(ensureSentenceEnd('गाड़ी पलट गई लेकिन कोई घायल नहीं हुआ')), 'गाड़ी पलट गई, लेकिन कोई घायल नहीं हुआ।');
+});
+
+test('the sentence the worker reported becomes one clean punctuated line', () => {
+  let text = appendTranscript('', 'Transport Transport Transport Park');
+  text = appendTranscript(text, 'Park mein gaadi palat gayi');
+  assert.equal(applyPunctuation(ensureSentenceEnd(text)), 'Transport Park mein gaadi palat gayi.');
+});
+
+test('speech that continues after a closed sentence does not leave a full stop mid-sentence', () => {
+  // Chrome closed the session with a full stop, then re-heard the same tail and went on.
+  const continued = appendTranscript('गाड़ी पलट गई।', 'गई और लोग भाग गए');
+  assert.equal(continued, 'गाड़ी पलट गई और लोग भाग गए');
+  // A connector after the full stop is still the same sentence.
+  assert.equal(appendTranscript('गाड़ी पलट गई।', 'और लोग भाग गए'), 'गाड़ी पलट गई और लोग भाग गए');
+  // A genuinely new sentence keeps its full stop.
+  assert.equal(appendTranscript('गाड़ी पलट गई।', 'कोई घायल नहीं हुआ'), 'गाड़ी पलट गई। कोई घायल नहीं हुआ');
+});
+
 test('a silently dead session is reopened instead of waiting for Stop', () => {
   const voice = readFileSync(new URL('../app/components/VoiceTextArea.tsx', import.meta.url), 'utf8');
   assert.match(voice, /lastResultAtRef\.current = Date\.now\(\)/, 'every result stamps the clock');
@@ -130,15 +190,21 @@ test('a silently dead session is reopened instead of waiting for Stop', () => {
   assert.match(voice, /field\.scrollTop = field\.scrollHeight/);
 });
 
-test('the component only appends through the transcript module', () => {
+test('the component keeps interim and final apart and only appends finals', () => {
   const voice = readFileSync(new URL('../app/components/VoiceTextArea.tsx', import.meta.url), 'utf8');
-  assert.match(voice, /import \{ appendTranscript, composeTranscript \} from '@\/lib\/voice\/transcript'/);
+  assert.match(voice, /import \{[^}]*appendTranscript[^}]*composeTranscript[^}]*\} from '@\/lib\/voice\/transcript'/s);
+  // A final is the only thing appended, and always through the overlap trimmer.
   assert.match(voice, /committedRef\.current = appendTranscript\(committedRef\.current, transcript\)/);
-  assert.match(voice, /pendingRef\.current = transcript/);
+  // Interim results are replaced, never concatenated onto the transcript.
+  assert.match(voice, /pendingRef\.current = interims\.join\(' '\)/);
   assert.equal(voice.includes('baseRef'), false, 'the naive join is gone');
   assert.equal(voice.includes('finalRef'), false);
+  assert.equal(voice.includes('pendingRef.current +='), false, 'interim is never appended to itself');
   // Only results this event delivered are read.
   assert.match(voice, /for \(let index = from; index < results\.length; index \+= 1\)/);
+  // A pause of 2–3 seconds closes the sentence on its own.
+  assert.match(voice, /SENTENCE_PAUSE_MS/);
+  assert.match(voice, /silenceRef\.current = window\.setTimeout/);
   // A restart waits a beat instead of thrashing the microphone.
   assert.match(voice, /window\.setTimeout\(\(\) => \{/);
 });

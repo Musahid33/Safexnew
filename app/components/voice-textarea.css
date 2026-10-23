@@ -1,4 +1,6 @@
-/* Inline microphone for the two spoken fields of the report form. */
+/* Inline microphone for the two spoken fields of the report form.
+   The live layer paints confirmed speech solid and the words still being recognised grey, the
+   way WhatsApp and Gboard show dictation. */
 
 .voice-shell {
   position: relative;
@@ -28,13 +30,83 @@
   background: #f2fbf6;
 }
 
-.voice-shell.is-active .voice-textarea {
+.voice-shell.is-listening .voice-textarea,
+.voice-shell.is-paused .voice-textarea {
   background: #fff;
 }
 
 .voice-textarea[readonly] {
   cursor: default;
 }
+
+/* ---- the field and its live layer ---------------------------------------- */
+
+.voice-field {
+  position: relative;
+}
+
+/* While dictating the real textarea is still in the form (validation, required, value) but the
+   visible text is painted by the layer below, which can colour interim words differently. */
+.voice-field.is-dictating .voice-textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  resize: none;
+}
+
+.voice-live {
+  min-height: 128px;
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: #fff;
+  color: var(--text);
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  scrollbar-width: thin;
+}
+
+.voice-live-final {
+  color: var(--text);
+}
+
+/* The interim: being spoken right now, so it is visibly not confirmed yet. */
+.voice-pending {
+  color: #7a869a;
+}
+
+.voice-live-hint {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.voice-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  border-radius: 2px;
+  background: var(--focus);
+  vertical-align: text-bottom;
+  animation: voice-caret-blink 1s steps(1, end) infinite;
+}
+
+@keyframes voice-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* ---- status row ---------------------------------------------------------- */
 
 .voice-status {
   display: flex;
@@ -72,6 +144,24 @@
   color: #a4720a;
 }
 
+/* Blinking microphone indicator: it only blinks while the engine is actually running. */
+.voice-rec-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #b6c0cf;
+}
+
+.voice-rec-dot.is-live {
+  background: #dc3f44;
+  animation: voice-rec-blink 1.1s ease-in-out infinite;
+}
+
+@keyframes voice-rec-blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(220, 63, 68, .35); }
+  50% { opacity: .25; box-shadow: 0 0 0 5px rgba(220, 63, 68, 0); }
+}
+
 .voice-timer {
   flex: none;
   color: var(--muted);
@@ -80,45 +170,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.voice-bars {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: 12px;
-}
-
-.voice-bars i {
-  width: 2px;
-  border-radius: 2px;
-  background: currentColor;
-  animation: voice-wave .9s ease-in-out infinite;
-}
-
-.voice-bars i:nth-child(1) { height: 5px; }
-.voice-bars i:nth-child(2) { height: 11px; animation-delay: .15s; }
-.voice-bars i:nth-child(3) { height: 7px; animation-delay: .3s; }
-
-@keyframes voice-wave {
-  0%, 100% { transform: scaleY(.55); }
-  50% { transform: scaleY(1); }
-}
-
-.voice-shell .text-input-wrap .voice-mic {
-  top: 7px;
-  right: 7px;
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  min-height: 38px;
-  border-radius: 50%;
-  background: var(--focus);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(37, 99, 201, .28);
-}
-
-.voice-shell .text-input-wrap .voice-mic:hover {
-  filter: brightness(1.06);
-}
+/* ---- controls ------------------------------------------------------------ */
 
 .voice-actions {
   display: flex;
@@ -129,7 +181,7 @@
 }
 
 .voice-action {
-  min-height: 34px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -139,13 +191,24 @@
   background: #fff;
   color: var(--text);
   padding: 0 11px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   cursor: pointer;
 }
 
 .voice-action:hover {
   border-color: color-mix(in srgb, var(--focus) 38%, var(--line));
+}
+
+.voice-start {
+  border-color: var(--focus);
+  background: var(--focus);
+  color: #fff;
+}
+
+.voice-start:hover {
+  border-color: var(--focus);
+  filter: brightness(1.06);
 }
 
 .voice-clear {
@@ -174,6 +237,36 @@
   filter: brightness(1.06);
 }
 
+/* Hindi / English / Auto for mixed dictation. */
+.voice-langs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.voice-langs + .voice-use {
+  margin-left: 0;
+}
+
+.voice-lang {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.voice-lang.is-on {
+  border-color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, #fff);
+  color: var(--focus);
+}
+
 @media (max-width: 420px) {
   .voice-actions .voice-action {
     flex: 1 1 auto;
@@ -182,8 +275,17 @@
   .voice-use {
     margin-left: 0;
   }
+
+  .voice-langs {
+    margin-left: 0;
+    width: 100%;
+    padding-top: 2px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .voice-bars i { animation: none; }
+  .voice-rec-dot.is-live,
+  .voice-caret {
+    animation: none;
+  }
 }

@@ -35,7 +35,7 @@ test('voice input has listening, capture and the controls from the mock', () => 
 
   for (const piece of [
     'Listening…', 'Voice captured', 'Paused',
-    'Clear', 'Pause', 'Resume', 'Stop', 'Record Again', 'Use Text'
+    'Start Recording', 'Stop Recording', 'Clear', 'Pause', 'Resume', 'Record Again', 'Use Text'
   ]) {
     assert.ok(voice.includes(piece), `${piece} must exist`);
   }
@@ -44,7 +44,7 @@ test('voice input has listening, capture and the controls from the mock', () => 
   assert.ok(voice.includes('recognition.continuous = true'));
   assert.ok(voice.includes('recognition.interimResults = true'));
   assert.ok(voice.includes('recognition.onresult'));
-  assert.ok(voice.includes('VOICE_LANG[language]'));
+  assert.ok(voice.includes('VOICE_LANG[chosen]'));
   assert.ok(voice.includes('setInterval'));
   assert.ok(voice.includes('setSeconds(Math.floor(elapsed / 1000))'));
 
@@ -58,6 +58,18 @@ test('voice input has listening, capture and the controls from the mock', () => 
   // Pause and stop must not leave the microphone open.
   assert.ok(voice.includes('abortRecognition'));
   assert.ok(voice.includes('noRestartRef'));
+
+  // Two separate states: confirmed speech is solid, the interim is painted grey and replaced
+  // on every event, so what the worker sees is exactly what is being recognised right now.
+  assert.ok(voice.includes("voice-live-final"));
+  assert.ok(voice.includes("voice-pending"));
+  assert.ok(voice.includes('setPreview(splitTranscript(parts, length))'));
+  assert.ok(voice.includes('pendingRef.current = interims.join'));
+
+  // A pause of 2-3 seconds finalises the sentence with punctuation, without touching words.
+  assert.ok(voice.includes('SENTENCE_PAUSE_MS'));
+  assert.ok(voice.includes('ensureSentenceEnd'));
+  assert.ok(voice.includes('applyPunctuation'));
 
   // No browser support means no microphone button, never a fake recorder.
   assert.ok(voice.includes('const canSpeak = voiceEnabled && supported'));
@@ -73,4 +85,13 @@ test('the voice controls are styled and mobile friendly', () => {
   assert.ok(css.includes('.voice-use'));
   assert.ok(css.includes('@media (max-width: 420px)'));
   assert.ok(css.includes('prefers-reduced-motion'));
+
+  // The live layer: solid confirmed text, grey interim, blinking caret and microphone dot.
+  assert.ok(css.includes('.voice-live'));
+  assert.ok(css.includes('.voice-pending'));
+  assert.ok(css.includes('.voice-caret'));
+  assert.ok(css.includes('.voice-rec-dot'));
+  assert.ok(css.includes('voice-rec-blink'));
+  // Big enough touch targets for a phone.
+  assert.ok(css.includes('min-height: 40px'));
 });
